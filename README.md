@@ -1,5 +1,9 @@
 # MemorIA2GO
 
+<p align="center">
+  <img src="assets/logo.png" alt="MemorIA2GO" width="180">
+</p>
+
 > Migrate your ChatGPT conversation history to a structured, MCP-ready vault for Claude Desktop.
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
