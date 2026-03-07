@@ -1,0 +1,34 @@
+#=============================================
+# MemorIA2GO — Configuración
+# Copia este archivo a memoria_config.yaml y rellena tus rutas
+#=============================================
+
+paths:
+  # 📦 Carpeta base donde se crea el vault
+  base_vault: 'G:\ruta\a\tu\vault'
+
+  # 🧾 Carpeta con los exports de ChatGPT (.zip/.json/.html)
+  exports_dir: 'G:\ruta\a\tus\exports'
+
+  # 🧩 Mapa de proyectos: id → nombre legible (opcional)
+  gizmo_map: 'G:\ruta\a\MemorIA2GO\gizmo_map.json'
+
+#=============================================
+# ⚙️  Opciones de procesamiento
+#=============================================
+
+options:
+
+  #--- Nombre del vault de proyectos ---
+  prj_vault_name: 'PRJ_VAULT'
+
+  #--- Importación ---
+  make_index: true
+  by_year: true
+  by_month: true
+
+  #--- Deduplicación ---
+  keep_hashes: false   # true = conserva variantes de hash, solo borra numerados
+
+  #--- Generales ---
+  dry_run: false       # true = solo muestra qué haría, no modifica nada

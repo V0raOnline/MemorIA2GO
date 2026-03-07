@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Config personal (contiene rutas locales)
+memoria_config.yaml
+
+# Logs
+logs/
+
+# Vaults generados
+*_VAULT/
+output_vault/
+
+# Gizmo map personal (contiene IDs privados)
+gizmo_map.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
