@@ -1,210 +1,192 @@
-# MemorIA2GO
+# M3M0R·IA (MemorIA2GO)
 
 <p align="center">
-  <img src="assets/logo.png" alt="MemorIA2GO" width="180">
+  <img src="assets/M3M0R-IA.png" alt="M3M0R·IA" width="180">
 </p>
 
-> Migra tu historial de conversaciones de ChatGPT a un vault estructurado y listo para MCP en Claude Desktop.
+> Convierte tu historial de conversaciones con IAs — ChatGPT, Claude, Grok — en un vault de Obsidian estructurado y listo para MCP. Tu contexto, local y tuyo.
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 ---
 
-## ¿Qué es MemorIA2GO?
+## ¿Qué es M3M0R·IA?
 
-MemorIA2GO es una herramienta específica que convierte tu exportación de ChatGPT en un vault limpio de archivos Markdown, organizado por proyectos y listo para usarse como contexto vivo en Claude Desktop a través de MCP (Model Context Protocol).
+M3M0R·IA convierte los exports nativos de tus proveedores de chat con IA en un vault limpio de notas Markdown, organizado por proyectos, listo para navegarse en Obsidian y para servir de contexto vivo a Claude Desktop vía MCP (Model Context Protocol).
 
-A diferencia de las herramientas de migración genéricas que solo transfieren memorias guardadas, MemorIA2GO trae tu **historial completo de conversaciones** — organizado, deduplicado y accesible de inmediato.
+A diferencia de las herramientas genéricas de migración que solo transfieren memorias guardadas, M3M0R·IA trae tu **historial completo de conversaciones** — deduplicado, fusionado, organizado por proyecto y fecha, con imágenes extraídas e índices de navegación generados.
+
+**Proveedores soportados** (detección por estructura interna del JSON, nunca por nombre de archivo):
+
+| Proveedor | Formato del export | Manejo de ramas | Adjuntos |
+|-----------|-------------------|-----------------|----------|
+| ChatGPT   | zip / json / html | recorrido del árbol vía `current_node` | texto inline, imágenes extraídas al IMAGE_BANK |
+| Claude    | zip (puede llegar troceado en `batch-NNNN`) | reconstrucción por hoja más reciente (el export no trae current_node) | texto extraído citado inline; los binarios no viajan en el export |
+| Grok      | zip (estructura `ttl/30d/...`) | `leaf_response_id` si viene poblado, hoja más reciente si no | referenciados por asset id (extracción de binarios en el roadmap) |
+
+Todos los proveedores conviven en un único vault MERGED. Cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen.
 
 ---
 
 ## Cómo funciona
 
-MemorIA2GO ejecuta un pipeline de 3 pasos:
+El pipeline corre en 4 pasos no destructivos:
 
-**Paso 1 — Importar y convertir**
-Parsea tu exportación de ChatGPT (`.zip`, `.json` o `.html`) y genera un archivo `.md` por conversación con YAML frontmatter limpio: título, fecha, etiquetas y mapeo de proyecto.
+**Paso 1 — Importar** (`split_chatgpt_export.py` + adaptadores en `providers/`)
+Cada export válido y pendiente de tu carpeta de exports se detecta por estructura y se despacha a su adaptador. Una nota Markdown por conversación aterriza en `RAW_VAULT`, con frontmatter YAML (título, fecha, provider, source, mapeo de proyecto). Las ramas de regeneraciones descartadas se excluyen — solo el hilo que realmente conservaste.
 
-**Paso 2 — Organizar por proyecto**
-Reorganiza el vault en subcarpetas por proyecto usando el campo `Project_name` del frontmatter de cada nota. Soporta subcarpetas por año/mes dentro de cada proyecto.
+**Paso 2 — Fusionar** (`vault_merge.py`)
+Consolida variantes de la misma conversación entre exports en `MERGED_VAULT` sin perder mensajes: la variante más larga gana como campeón y cualquier mensaje que le falte se recupera de las demás.
 
-**Paso 3 — Deduplicar**
-Elimina las copias delta y variantes de hash generadas por el formato de exportación de ChatGPT. Conserva únicamente la versión canónica de cada conversación, reduciendo significativamente el tamaño del vault.
+**Paso 3 — Proyectos** (`project_organizer.py`)
+Construye `PRJ_VAULT` como vista proyecto/año/mes de MERGED. Se refresca en cada ejecución (symlinks donde el sistema lo permite, copias reales en Windows).
 
----
-
-## Inicio rápido
-
-### Requisitos
-
-- Python 3.9+
-- Claude Desktop
-- Node.js (para el servidor MCP)
-
-### Instalar dependencias
-
-```bash
-pip install rich pyyaml beautifulsoup4 lxml
-```
-
-### Ejecutar
-
-```bash
-python MemorIA2GO.py
-```
-
-El wizard preguntará:
-- Ruta al archivo de exportación de ChatGPT o carpeta que lo contenga
-- Carpeta de destino para el vault
-- Gizmo map (mapeo ID de proyecto → nombre, opcional)
-- Nombre del vault de proyectos (por defecto: `PRJ_VAULT`)
-- Organización en subcarpetas por año/mes
-- Generación de índice
-
-Si existe un `memoria_config.yaml`, se carga automáticamente y ofrece usar los valores preconfigurados.
+**Paso 4 — Índices** (`tree_index.py`, `scaffolding_index.py`, `image_index.py`, `vault_stats.py`)
+Índices de navegación (proyecto/año/mes), índice de uso de adjuntos, índice de imágenes, y la caché de estadísticas que alimenta el dashboard.
 
 ---
 
-## Conectar a Claude Desktop via MCP
+## Requisitos
 
-Una vez listo el vault, añádelo a la configuración MCP de Claude Desktop:
+- Python **3.10+**
+- Dependencias: `pip install -r requirements.txt`
+  (beautifulsoup4, lxml, rich, pyyaml, flask)
+- Obsidian (para navegar el resultado) y opcionalmente Claude Desktop con un servidor MCP de filesystem (para usarlo como contexto vivo)
 
-**Ubicación:** `%APPDATA%\Claude\claude_desktop_config.json` (Windows) o `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac)
+Desarrollado y curtido en Windows; el pipeline en sí es multiplataforma.
 
-**Instalar el servidor MCP filesystem:**
+---
+
+## Arranque rápido (interfaz web)
+
+M3M0R·IA incluye una interfaz web local — dashboard, configuración, verificación previa, ejecución del pipeline con log en vivo, y curación de proyectos huérfanos.
+
 ```bash
-npm install -g @modelcontextprotocol/server-filesystem
+git clone <este repo>
+cd MemorIA2GO
+pip install -r requirements.txt
+
+# 1. Crea tu configuración desde la plantilla y ajusta tus rutas
+copy memoria_config.yaml.example memoria_config.yaml
+
+# 2. Lanza
+python launcher.py
 ```
 
-**Configuración:**
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "mcp-server-filesystem",
-      "args": [
-        "C:\\ruta\\a\\tu\\vault\\PRJ_VAULT"
-      ]
-    }
-  }
-}
+El navegador se abre en `http://127.0.0.1:8765`. El servidor escucha solo en localhost — no tiene autenticación y puede ejecutar el pipeline, así que déjalo así.
+
+Opciones:
+
+```bash
+python launcher.py --port 80 --no-browser   # para servidor local persistente
 ```
 
-Reinicia Claude Desktop. Claude puede ahora buscar y referenciar tu historial completo de conversaciones bajo demanda.
+URL bonita opcional: añade `127.0.0.1  m3m0ria` a tu archivo hosts y ejecuta en el puerto 80 → `http://m3m0ria/`. En Windows puedes registrar una Tarea Programada al iniciar sesión que ejecute `pythonw launcher.py --port 80 --no-browser` desde la carpeta del repo para tenerlo siempre disponible.
+
+La primera carga del dashboard calcula las estadísticas una vez y las cachea junto a tu vault (`.m3m0ria_stats.json`); a partir de ahí, carga instantánea. El pipeline refresca la caché al final del paso 4, y el dashboard ofrece un enlace *recalcular* manual.
+
+### CLI (sin web)
+
+```bash
+python MemorIA2GO.py                  # interactivo, pipeline completo
+python MemorIA2GO.py --reprocess-all  # reprocesa todos los exports válidos desde cero
+```
+
+---
+
+## Nunca he usado una terminal: guía paso a paso
+
+¿Todo lo de arriba te suena a chino? Esta sección es para ti. Sin conocimientos previos, en Windows, paso a paso.
+
+**1. Instala Python.**
+Ve a [python.org/downloads](https://www.python.org/downloads/) y pulsa el botón amarillo de descarga. Al ejecutar el instalador, **marca la casilla "Add Python to PATH"** (abajo del todo, es fácil pasarla por alto — es la más importante de todo el proceso). Luego "Install Now" y espera.
+
+**2. Descarga este proyecto.**
+En esta misma página de GitHub, pulsa el botón verde **Code** → **Download ZIP**. Descomprime el ZIP donde quieras — por ejemplo en `C:\M3M0RIA`. (Botón derecho sobre el ZIP → "Extraer todo".)
+
+**3. Abre una consola.**
+Pulsa la tecla Windows, escribe `powershell` y pulsa Enter. Se abre una ventana azul o negra con texto: eso es la consola o terminal. Se usa escribiendo órdenes y pulsando Enter. No muerde.
+
+**4. Entra en la carpeta del proyecto.**
+Escribe esto (o cópialo y pégalo con botón derecho) y pulsa Enter — ajusta la ruta si lo descomprimiste en otro sitio:
+
+```
+cd "C:\M3M0RIA"
+```
+
+**5. Instala lo que el programa necesita.**
+Copia esto, pégalo y Enter:
+
+```
+pip install -r requirements.txt
+```
+
+Verás pasar un montón de texto durante un rato. Es normal: está descargando las piezas que el programa usa. Cuando vuelva a aparecer el cursor, terminó.
+
+**6. Crea tu configuración.**
+Copia, pega, Enter:
+
+```
+copy memoria_config.yaml.example memoria_config.yaml
+notepad memoria_config.yaml
+```
+
+Se abre el Bloc de notas con la configuración. Solo necesitas ajustar dos rutas: `base_vault` (la carpeta donde quieres que viva tu vault de notas — puede ser una carpeta nueva vacía) y `exports_dir` (la carpeta donde vas a dejar los ZIP que te descargas de ChatGPT/Claude/Grok). Guarda y cierra.
+
+**7. Consigue tus exports.**
+- **ChatGPT**: Ajustes → Controles de datos → Exportar datos. Te llega un email con un ZIP.
+- **Claude**: Ajustes → Privacidad → Exportar datos. Te llega un email con un ZIP (a veces varios).
+- **Grok**: Ajustes → Datos → Descargar tus datos.
+
+Deja los ZIP tal cual (sin descomprimir) en la carpeta que pusiste en `exports_dir`.
+
+**8. Arranca M3M0R·IA.**
+En la consola:
+
+```
+python launcher.py
+```
+
+Se abre tu navegador con la interfaz. A partir de aquí, todo es con clics: pestaña **Configuración** para revisar rutas, **Verificación** para comprobar que tus ZIP se reconocen, y **Pipeline** → "Importar pendientes" para lanzar la conversión. El log te va contando lo que hace. Cuando termine, abre la carpeta de tu vault con Obsidian y a disfrutar.
+
+**Si algo falla:**
+- *"python no se reconoce como un comando..."* → la casilla del PATH del paso 1 no se marcó. Reinstala Python marcándola, cierra la consola y abre una nueva.
+- *"pip no se reconoce..."* → lo mismo de arriba.
+- La ventana del navegador no se abre → escribe a mano `http://127.0.0.1:8765` en tu navegador.
 
 ---
 
 ## Configuración
 
-Edita `memoria_config.yaml` para establecer rutas y opciones persistentes:
-
-```yaml
-paths:
-  base_vault: 'ruta/al/destino'
-  exports_dir: 'ruta/a/exports/chatgpt'
-  gizmo_map: 'ruta/al/gizmo_map.json'
-
-options:
-  prj_vault_name: 'PRJ_VAULT'
-  by_year: true
-  by_month: true
-  make_index: true
-  dry_run: false
-  keep_hashes: false
-```
-
-### gizmo_map.json
-
-Mapea IDs de proyectos/GPTs de ChatGPT a nombres legibles. Formato:
-
-```json
-{
-  "g-abc123...": "nombre-de-proyecto",
-  "g-xyz456...": "otro-proyecto"
-}
-```
-
-**Cómo construir tu gizmo_map.json:**
-
-1. Abre ChatGPT en el navegador y navega a cada Proyecto o GPT personalizado
-2. Copia el ID de la URL — aparece después de `/g/` y tiene este formato `g-p-6bd...4a2`:
-   ```
-   https://chatgpt.com/g/g-p-6bd............4a2-nombre-del-proyecto
-   ```
-3. Copia el nombre del proyecto de la interfaz de ChatGPT
-4. Añade ambos a tu `gizmo_map.json`:
-   ```json
-   {
-     "g-p-6bd............4a2": "nombre-del-proyecto"
-   }
-   ```
-
-Repite para cada proyecto. Las conversaciones sin ID mapeado se agruparán bajo `none/`.
+- `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, gizmo map) y opciones (subcarpetas por año/mes, generación de índices). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
+- `gizmo_map.json` — mapea IDs de proyectos (gizmos) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Proyectos); nunca se commitea. Los exports de Claude y Grok no vinculan conversaciones con proyectos, así que esas notas nacen sin asignar.
 
 ---
 
-## Estructura de archivos
+## Cómo ha evolucionado este proyecto
 
-```
-MemorIA2GO/
-├── MemorIA2GO.py           # Orquestador principal
-├── split_chatgpt_export.py # Paso 1: Export → Markdown
-├── project_organizer.py    # Paso 2: Organizar por proyecto
-├── vault_dedup.py          # Paso 3: Deduplicar
-├── config_loader.py        # Cargador de config YAML
-├── memoria_config.yaml     # Configuración
-├── gizmo_map.json          # Mapeo ID → nombre de proyecto
-└── requirements.txt        # Dependencias Python
-```
+- La **v1** era un pipeline de 3 pasos, solo CLI, solo ChatGPT: importar, organizar por proyecto, indexar.
+- La **v2** (actual) creció en cuatro direcciones, cada una empujada por un fallo real o una necesidad real:
+  - **La fusión se convirtió en paso propio.** La deduplicación era destructiva; ahora las variantes se consolidan sin perder un solo mensaje, y la procedencia del campeón se preserva.
+  - **Adaptadores multi-proveedor.** Los exports de Claude y Grok se diseccionaron contra datos reales antes de escribir código. La detección es estructural — el zip de Claude también contiene un `conversations.json`, y la raíz de Grok también tiene clave `conversations`, así que detectar por nombre de archivo produciría basura en silencio. Cada adaptador reconstruye el hilo vigente según el modelo de ramas de su proveedor.
+  - **Una interfaz web (M3M0R·IA).** Dashboard con gráficas de evolución, estadísticas por proveedor y por proyecto, verificación previa que nombra el proveedor de cada export (y rechaza honestamente lo que aún no sabe parsear), ejecución del pipeline con log en vivo, y curación de proyectos huérfanos.
+  - **Rendimiento por diseño.** Las estadísticas se calculan una vez por ejecución del pipeline y se cachean atómicamente; el dashboard lee la caché en milisegundos sea cual sea el tamaño del vault.
+
+Principios de diseño de principio a fin: diagnosticar antes de implementar, validar contra exports reales, no destruir datos jamás, y hacer que los fallos sean ruidosos y honestos en vez de silenciosos.
 
 ---
 
-## Estructura del vault resultante
+## Roadmap
 
-```
-PRJ_VAULT/
-├── mi-proyecto/
-│   ├── 2025/
-│   │   └── 11/
-│   │       ├── 2025-11-13_titulo-conversacion.md
-│   │       └── 2025-11-22_otra-conversacion.md
-│   └── 2026/
-├── otro-proyecto/
-└── none/                   # Conversaciones sin proyecto asignado
-```
-
----
-
-## Logs
-
-Cada ejecución genera un log en:
-```
-logs/memoria2go_YYYYMMDD_HHMM.log
-```
-
----
-
-## Estado del proyecto
-
-**v1.0** — Pipeline estable, probado en producción
-
-- Pipeline completo de 3 pasos: importar → organizar → deduplicar
-- Config YAML con wizard de fallback
-- Parsing robusto: exports ZIP, JSON, HTML
-- Compatible con Windows y Mac
-- Interfaz de terminal con Rich
+- Clasificación asistida por nube de palabras de las conversaciones sin asignar (reglas por palabra clave sembradas desde los nombres de proyecto de cada proveedor, curadas desde la interfaz)
+- Extracción de assets de Grok al IMAGE_BANK (sus binarios sí viajan en el export)
+- Índice de navegación por proveedor
+- Tests de regresión con fixtures por proveedor
+- Campo `model` en el frontmatter donde el export lo registre (Grok, ChatGPT)
 
 ---
 
 ## Licencia
 
-Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
-
----
-
-## Autora
-
-**V0ra** — Investigación independiente de seguridad en IA
-
-GitHub: [github.com/V0raOnline/MemorIA2GO](https://github.com/V0raOnline/MemorIA2GO)
+CC BY-NC-SA 4.0 — ver badge arriba.

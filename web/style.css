@@ -1,0 +1,550 @@
+/* ─────────────────────────────────────────
+   M3M0R·IA — v2
+   Paleta (spec interfaz.md): 80% grafito, 15% cian, 5% magenta.
+   Magenta = acción. Cian = hover / indicadores. Fondo #0F1117.
+   Iconos: Lucide (MIT), inline con stroke="currentColor".
+   ───────────────────────────────────────── */
+:root {
+  --bg: #0F1117;
+  --bg-panel: #161923;
+  --bg-inset: #0B0D12;
+  --border: #262B38;
+  --text: #E6E8EE;
+  --text-dim: #8B92A5;
+  --magenta: #FC4FB1;      /* color de acción — sacado del logo */
+  --magenta-soft: rgba(252, 79, 177, 0.10);
+  --cyan: #22D3EE;
+  --cyan-dim: #1A7F94;
+  --green: #5FD88F;
+  --yellow: #E8C15C;
+  --red: #E2685F;
+  --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ─── Sidebar ─── */
+
+.sidebar {
+  width: 235px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  image-rendering: pixelated; /* respeta el pixel-art al escalar */
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brand-ia { color: var(--magenta); }
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  flex: 1;
+}
+
+.sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--text-dim);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar nav button svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.sidebar nav button:hover {
+  color: var(--cyan);
+}
+
+.sidebar nav button.active {
+  color: var(--magenta);
+  background: var(--magenta-soft);
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+/* ─── Área principal ─── */
+
+main {
+  flex: 1;
+  padding: 24px 28px 60px;
+  max-width: 1020px;
+  min-width: 0;
+}
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ─── Banner del dashboard ─── */
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 10px 6px 26px;
+}
+
+.hero-title {
+  margin: 0 0 12px;
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.hero-accent { color: var(--magenta); }
+
+.hero-sub {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 480px;
+}
+
+.hero-logo {
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+@media (max-width: 860px) {
+  .hero-logo { width: 110px; height: 110px; }
+  .hero-title { font-size: 22px; }
+}
+
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.h2-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--cyan);
+}
+
+/* ─── Formularios ─── */
+
+.field { margin-bottom: 12px; }
+
+.field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.field input[type="text"] {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-family: var(--mono);
+}
+
+.field input[type="text"]:focus {
+  outline: none;
+  border-color: var(--cyan-dim);
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.checkbox-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-row input[type="checkbox"] { accent-color: var(--magenta); }
+
+/* ─── Botones ───
+   Regla de la spec: botón principal magenta, secundarios discretos con hover cian. */
+
+button.btn {
+  background: var(--magenta);
+  color: #14060E;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.btn:hover { filter: brightness(1.1); }
+button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.btn.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+button.btn.secondary:hover {
+  filter: none;
+  color: var(--cyan);
+  border-color: var(--cyan-dim);
+}
+
+/* ─── Tarjetas de estadísticas ─── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.stat-box {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 14px;
+}
+
+.stat-box .label {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.stat-box .value { font-size: 20px; font-weight: 600; color: var(--cyan); }
+
+.stat-box .sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ─── Gráfica de evolución y top proyectos ─── */
+
+.chart-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.chart-toggle button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-dim);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chart-toggle button:hover { color: var(--cyan); border-color: var(--cyan-dim); }
+
+.chart-toggle button.active {
+  color: var(--magenta);
+  border-color: var(--magenta);
+  background: var(--magenta-soft);
+}
+
+#evolution-chart svg { width: 100%; height: auto; display: block; }
+
+.ch-grid { stroke: var(--border); stroke-width: 1; }
+.ch-label { fill: var(--text-dim); font-size: 10px; font-family: var(--mono); }
+.ch-area { fill: rgba(252, 79, 177, 0.10); stroke: none; }
+.ch-line { fill: none; stroke: var(--magenta); stroke-width: 2; stroke-linejoin: round; }
+.ch-dot { fill: var(--magenta); }
+
+.chart-note {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+.chart-note a { color: var(--cyan); text-decoration: none; }
+.chart-note a:hover { text-decoration: underline; }
+
+.prj-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.prj-name {
+  width: 210px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.prj-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.prj-fill {
+  height: 100%;
+  background: var(--cyan);
+  border-radius: 4px;
+}
+
+.prj-count {
+  width: 52px;
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+/* ─── Indicadores de estado (spec: puntos de color, no personajes) ─── */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.badge.ok { background: rgba(95, 216, 143, 0.12); color: var(--green); }
+.badge.warn { background: rgba(232, 193, 92, 0.12); color: var(--yellow); }
+
+/* ─── Gizmos / Proyectos ─── */
+
+.gizmo-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.gizmo-row:last-child { border-bottom: none; }
+
+.gizmo-info { flex: 1; min-width: 0; }
+.gizmo-info .ejemplo { font-size: 13.5px; }
+.gizmo-info .meta { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+
+.gizmo-row input[type="text"] {
+  width: 220px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.gizmo-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--cyan-dim);
+}
+
+.gizmo-convs {
+  margin-top: 6px;
+}
+.gizmo-convs summary {
+  cursor: pointer;
+  color: var(--cyan);
+  font-size: 12.5px;
+  list-style: none;
+}
+.gizmo-convs summary::-webkit-details-marker { display: none; }
+.gizmo-convs summary::before {
+  content: "▸ ";
+}
+.gizmo-convs[open] summary::before {
+  content: "▾ ";
+}
+.gizmo-convs ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.gizmo-convs li {
+  margin-bottom: 2px;
+}
+
+.empty-note {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  padding: 10px 0;
+}
+
+/* ─── Flujo tipo metro del pipeline ─── */
+
+.metro {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 4px 18px;
+}
+
+.metro-stop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 118px;
+  flex-shrink: 0;
+}
+
+.metro-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--cyan);
+  color: var(--cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--bg-inset);
+}
+
+.metro-dot.metro-origen {
+  border-color: var(--magenta);
+  color: var(--magenta);
+  font-size: 10px;
+}
+
+.metro-label {
+  margin-top: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.metro-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+.metro-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  margin-top: 15px;
+  min-width: 12px;
+}
+
+@media (max-width: 900px) {
+  .metro { flex-wrap: wrap; }
+  .metro-line { display: none; }
+  .metro-stop { width: 45%; margin-bottom: 12px; }
+}
+
+/* ─── Log del pipeline ─── */
+
+#log-box {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 14px;
+  height: 380px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-line.err { color: var(--red); }
+.log-line.done { color: var(--green); font-weight: 600; }
+
+.run-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.msg { font-size: 13px; margin-top: 10px; }
+.msg.ok { color: var(--green); }
+.msg.error { color: var(--red); }

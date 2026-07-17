@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+vault_stats.py — Calcula estadisticas de un base_vault de MemorIA2GO:
+notas por vault, fecha mas antigua/moderna, imagenes, tamano en disco,
+dias desde la ultima importacion.
+
+Pensado para dos usos:
+- CLI: `python vault_stats.py RUTA_BASE_VAULT` imprime un informe legible.
+- Modulo: `compute_stats(Path(...))` devuelve un dict, listo para servir
+  como JSON desde el futuro launcher web.
+
+No duplica el parseo de front-matter: reutiliza read_frontmatter y DATE_RX
+de tree_index.py, que ya estan probados contra datos reales.
+"""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+from typing import Optional
+
+from tree_index import read_frontmatter, DATE_RX, INDEX_FILENAMES
+
+
+def human_size(num_bytes: int) -> str:
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict:
+    """conversations_dir='.' si las notas cuelgan directo de vault_path (caso
+    PRJ_VAULT); 'Conversaciones' si viven en esa subcarpeta (RAW/MERGED)."""
+    conv_base = vault_path if conversations_dir == "." else vault_path / conversations_dir
+
+    total_size = 0
+    if vault_path.exists():
+        for f in vault_path.rglob("*"):
+            if "_assets" in f.parts:
+                continue
+            if f.is_file():
+                try:
+                    total_size += f.stat().st_size
+                except OSError:
+                    pass
+
+    note_count = 0
+    min_date: Optional[str] = None
+    max_date: Optional[str] = None
+    por_mes: dict = {}
+    por_proyecto: dict = {}
+    por_proveedor: dict = {}
+    if conv_base.exists():
+        for f in conv_base.rglob("*.md"):
+            if f.name in INDEX_FILENAMES:
+                continue
+            note_count += 1
+            fm = read_frontmatter(f)
+            d = (fm.get("date") or "").strip()
+            if DATE_RX.match(d):
+                if min_date is None or d < min_date:
+                    min_date = d
+                if max_date is None or d > max_date:
+                    max_date = d
+                mes = d[:7]
+            else:
+                mes = "sin fecha"
+            por_mes[mes] = por_mes.get(mes, 0) + 1
+            # Notas anteriores al multi-proveedor no traen provider: son de
+            # ChatGPT por definicion (el campo nacio con los adaptadores).
+            prov = (fm.get("provider") or "chatgpt").strip()
+            por_proveedor[prov] = por_proveedor.get(prov, 0) + 1
+            if conversations_dir == ".":
+                rel = f.relative_to(conv_base)
+                proyecto = rel.parts[0] if len(rel.parts) > 1 else "(sin proyecto)"
+                por_proyecto[proyecto] = por_proyecto.get(proyecto, 0) + 1
+
+    result = {
+        "existe": vault_path.exists(),
+        "notas": note_count,
+        "fecha_mas_antigua": min_date,
+        "fecha_mas_moderna": max_date,
+        "tamano_bytes": total_size,
+        "tamano_legible": human_size(total_size),
+        # {"AAAA-MM": n_notas, ..., "sin fecha": n} ordenado; "sin fecha" queda al final
+        "notas_por_mes": dict(sorted(por_mes.items())),
+        "notas_por_proveedor": dict(sorted(por_proveedor.items(), key=lambda kv: (-kv[1], kv[0]))),
+    }
+    if conversations_dir == ".":
+        # Solo tiene sentido en vaults organizados por proyecto (PRJ_VAULT)
+        result["notas_por_proyecto"] = dict(
+            sorted(por_proyecto.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
+    return result
+
+
+def compute_image_bank_stats(image_bank: Path) -> dict:
+    if not image_bank.exists():
+        return {"existe": False, "num_imagenes": 0, "num_con_metadatos": 0, "tamano_bytes": 0, "tamano_legible": "0 B"}
+
+    img_files = [f for f in image_bank.iterdir() if f.is_file() and not f.name.startswith("_")]
+    total_size = sum(f.stat().st_size for f in img_files)
+
+    manifest = {}
+    manifest_path = image_bank / "_image_manifest.json"
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r", encoding="utf-8-sig") as f:
+                manifest = json.load(f)
+        except Exception:
+            manifest = {}
+
+    return {
+        "existe": True,
+        "num_imagenes": len(img_files),
+        "num_con_metadatos": len(manifest),
+        "tamano_bytes": total_size,
+        "tamano_legible": human_size(total_size),
+    }
+
+
+def compute_last_import(raw_vault: Path) -> Optional[dict]:
+    path = raw_vault / "_last_import.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+        ts = datetime.datetime.fromisoformat(data["timestamp"])
+        dias = (datetime.datetime.now() - ts).days
+        return {
+            "timestamp": data["timestamp"],
+            "dias_transcurridos": dias,
+            "export_path": data.get("export_path"),
+        }
+    except Exception:
+        return None
+
+
+def compute_gizmos_pendientes(raw_vault: Path) -> int:
+    path = raw_vault / "_gizmos_pendientes.json"
+    if not path.exists():
+        return 0
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+        return len(data)
+    except Exception:
+        return 0
+
+
+def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
+    base_vault = Path(base_vault)
+    raw_vault = base_vault / "RAW_VAULT"
+    merged_vault = base_vault / "MERGED_VAULT"
+    project_vault = base_vault / prj_vault_name
+    image_bank = base_vault / "IMAGE_BANK"
+
+    return {
+        "base_vault": str(base_vault),
+        "vaults": {
+            "RAW_VAULT": compute_single_vault_stats(raw_vault, "Conversaciones"),
+            "MERGED_VAULT": compute_single_vault_stats(merged_vault, "Conversaciones"),
+            prj_vault_name: compute_single_vault_stats(project_vault, "."),
+        },
+        "image_bank": compute_image_bank_stats(image_bank),
+        "ultima_importacion": compute_last_import(raw_vault),
+        "gizmos_pendientes": compute_gizmos_pendientes(raw_vault),
+        "calculado": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+CACHE_FILENAME = ".m3m0ria_stats.json"
+
+
+def cache_path(base_vault: Path) -> Path:
+    return Path(base_vault) / CACHE_FILENAME
+
+
+def save_cache(base_vault: Path, stats: dict) -> Path:
+    """Vuelca las estadisticas a un cache junto al base_vault (el punto
+    inicial del nombre lo oculta de Obsidian). Escritura atomica via tmp +
+    replace: un corte a mitad nunca deja un JSON corrupto a medias."""
+    p = cache_path(base_vault)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(stats, ensure_ascii=False, indent=2),
+                   encoding="utf-8", newline="\n")
+    tmp.replace(p)
+    return p
+
+
+def load_cache(base_vault: Path) -> Optional[dict]:
+    """Lee el cache si existe; None si falta o esta corrupto. El cache nunca
+    es fuente unica de verdad: ante cualquier duda, el llamante recalcula."""
+    p = cache_path(base_vault)
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def print_report(stats: dict):
+    print(f"Base vault: {stats['base_vault']}\n")
+
+    ui = stats.get("ultima_importacion")
+    if ui:
+        print(f"Ultima importacion: hace {ui['dias_transcurridos']} dia(s) ({ui['timestamp']})")
+    else:
+        print("Ultima importacion: sin registro (nunca se corrio el paso 1 con esta version)")
+
+    if stats.get("gizmos_pendientes"):
+        print(f"Gizmos sin nombrar: {stats['gizmos_pendientes']}")
+
+    print()
+    for name, v in stats["vaults"].items():
+        if not v["existe"]:
+            print(f"{name}: no existe todavia")
+            continue
+        rango = f"{v['fecha_mas_antigua']} -> {v['fecha_mas_moderna']}" if v["fecha_mas_antigua"] else "sin fechas"
+        print(f"{name}: {v['notas']} notas | {rango} | {v['tamano_legible']}")
+
+    ib = stats["image_bank"]
+    print(f"\nIMAGE_BANK: {ib['num_imagenes']} imagenes ({ib['num_con_metadatos']} con metadatos) | {ib['tamano_legible']}")
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Estadisticas de un base_vault de MemorIA2GO.")
+    ap.add_argument("base_vault")
+    ap.add_argument("--prj-vault-name", default="PRJ_VAULT")
+    ap.add_argument("--json", action="store_true", help="Imprime JSON crudo en vez del informe legible")
+    ap.add_argument("--write-cache", action="store_true",
+                    help="Escribe las estadisticas en el cache junto al base_vault (usado por el paso 4 del pipeline)")
+    args = ap.parse_args()
+
+    stats = compute_stats(Path(args.base_vault), args.prj_vault_name)
+
+    if args.write_cache:
+        p = save_cache(Path(args.base_vault), stats)
+        print(f"Cache de estadisticas escrito: {p}")
+
+    if args.json:
+        print(json.dumps(stats, ensure_ascii=False, indent=2))
+    else:
+        print_report(stats)
+
+
+if __name__ == "__main__":
+    main()

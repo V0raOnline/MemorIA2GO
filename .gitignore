@@ -14,6 +14,13 @@ memoria_config.yaml
 # Logs
 logs/
 
+# Exports personales de respaldo (conversaciones privadas, emails, PII:
+# NUNCA debe llegar al remoto)
+bck/
+
+# Archivos retirados del proyecto pero conservados en local
+OLD/
+
 # Vaults generados
 *_VAULT/
 output_vault/

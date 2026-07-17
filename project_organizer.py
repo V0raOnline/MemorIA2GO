@@ -48,15 +48,24 @@ def main():
 
         link_path = out_dir / md.name
         try:
-            if not link_path.exists():
-                os.symlink(md, link_path)
-                created += 1
-        except FileExistsError:
-            pass
-        except OSError:
-            # En Windows sin permisos de symlink, copia normal
-            shutil.copy2(md, link_path)
+            # PRJ es una vista derivada de MERGED: refrescar SIEMPRE. El
+            # 'if not exists' original dejaba copias rancias para siempre en
+            # Windows sin permisos de symlink (frontmatter viejo, campeones
+            # antiguos), porque la copia de la primera ejecucion nunca se
+            # volvia a tocar.
+            if link_path.exists() or link_path.is_symlink():
+                link_path.unlink()
+            os.symlink(md, link_path)
             created += 1
+        except OSError:
+            # En Windows sin permisos de symlink, copia normal (sobrescribe).
+            # Si la nota esta bloqueada (p.ej. abierta en otra app), no abortar
+            # el paso entero: se refrescara en la proxima pasada.
+            try:
+                shutil.copy2(md, link_path)
+                created += 1
+            except OSError:
+                pass
 
     print(f"OK Enlaces creados/copias: {created}")
     print(f"Vault por proyectos listo en: {dst}")
