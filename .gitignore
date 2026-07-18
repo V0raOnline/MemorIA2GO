@@ -28,6 +28,9 @@ output_vault/
 # Gizmo map personal (contiene IDs privados)
 gizmo_map.json
 
+# Topic map personal (temas y palabras de curación propia)
+topic_map.json
+
 # OS
 .DS_Store
 Thumbs.db

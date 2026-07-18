@@ -68,10 +68,11 @@ cd MemorIA2GO
 pip install -r requirements.txt
 
 # 1. Crea tu configuración desde la plantilla y ajusta tus rutas
-copy memoria_config.yaml.example memoria_config.yaml
+copy memoria_config.yaml.example memoria_config.yaml   # Windows
+cp memoria_config.yaml.example memoria_config.yaml     # Linux / macOS
 
 # 2. Lanza
-python launcher.py
+python launcher.py     # en Linux, según tu distro: python3 launcher.py
 ```
 
 El navegador se abre en `http://127.0.0.1:8765`. El servidor escucha solo en localhost — no tiene autenticación y puede ejecutar el pipeline, así que déjalo así.
@@ -82,7 +83,7 @@ Opciones:
 python launcher.py --port 80 --no-browser   # para servidor local persistente
 ```
 
-URL bonita opcional: añade `127.0.0.1  m3m0ria` a tu archivo hosts y ejecuta en el puerto 80 → `http://m3m0ria/`. En Windows puedes registrar una Tarea Programada al iniciar sesión que ejecute `pythonw launcher.py --port 80 --no-browser` desde la carpeta del repo para tenerlo siempre disponible.
+URL bonita opcional: añade `127.0.0.1  m3m0ria` a tu archivo hosts (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, con `sudo`) y ejecuta en el puerto 80 → `http://m3m0ria/`. En Windows puedes registrar una Tarea Programada al iniciar sesión que ejecute `pythonw launcher.py --port 80 --no-browser` desde la carpeta del repo; en Linux, un servicio de usuario de systemd o una entrada de autostart con `python3 launcher.py --port 8765 --no-browser` cumple el mismo papel (el puerto 80 en Linux requiere privilegios: quédate en el 8765 o usa un proxy).
 
 La primera carga del dashboard calcula las estadísticas una vez y las cachea junto a tu vault (`.m3m0ria_stats.json`); a partir de ahí, carga instantánea. El pipeline refresca la caché al final del paso 4, y el dashboard ofrece un enlace *recalcular* manual.
 
@@ -160,7 +161,10 @@ Se abre tu navegador con la interfaz. A partir de aquí, todo es con clics: pest
 ## Configuración
 
 - `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, gizmo map) y opciones (subcarpetas por año/mes, generación de índices). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
-- `gizmo_map.json` — mapea IDs de proyectos (gizmos) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Proyectos); nunca se commitea. Los exports de Claude y Grok no vinculan conversaciones con proyectos, así que esas notas nacen sin asignar.
+- `gizmo_map.json` — mapea IDs de proyectos (gizmos) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Cartografía); nunca se commitea.
+- `topic_map.json` — tus temas para las conversaciones sin proyecto: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas-índice con enlaces en `MERGED_VAULT/_Temas`. Nunca se commitea.
+
+Los exports de Claude y Grok no vinculan conversaciones con proyectos: esas notas se organizan por temas (relación varios-a-varios), no por carpetas.
 
 ---
 
@@ -172,6 +176,8 @@ Se abre tu navegador con la interfaz. A partir de aquí, todo es con clics: pest
   - **Adaptadores multi-proveedor.** Los exports de Claude y Grok se diseccionaron contra datos reales antes de escribir código. La detección es estructural — el zip de Claude también contiene un `conversations.json`, y la raíz de Grok también tiene clave `conversations`, así que detectar por nombre de archivo produciría basura en silencio. Cada adaptador reconstruye el hilo vigente según el modelo de ramas de su proveedor.
   - **Una interfaz web (M3M0R·IA).** Dashboard con gráficas de evolución, estadísticas por proveedor y por proyecto, verificación previa que nombra el proveedor de cada export (y rechaza honestamente lo que aún no sabe parsear), ejecución del pipeline con log en vivo, y curación de proyectos huérfanos.
   - **Rendimiento por diseño.** Las estadísticas se calculan una vez por ejecución del pipeline y se cachean atómicamente; el dashboard lee la caché en milisegundos sea cual sea el tamaño del vault.
+  - **Cartografía en vez de taxonomía forzada.** Las conversaciones sin proyecto no se meten con calzador en carpetas: una nube de vocabulario (sembrada con los nombres de proyecto de los tres proveedores) alimenta un sistema de Temas varios-a-varios — palabras, frases y reglas de metadatos `campo=valor` — que genera índices enlazados en Obsidian. Curado en un archivo por tema, derivado regenerable, notas intactas.
+  - **Identidad por `conv_id`.** El ID nativo de cada conversación viaja al frontmatter y el merge agrupa por él: los renombrados de hilo entre exports (medidos: 21 de 593 conversaciones reales) se fusionan bajo el título más reciente conservando `titulo_original`, en vez de duplicarse como fantasmas.
 
 Principios de diseño de principio a fin: diagnosticar antes de implementar, validar contra exports reales, no destruir datos jamás, y hacer que los fallos sean ruidosos y honestos en vez de silenciosos.
 
@@ -179,9 +185,8 @@ Principios de diseño de principio a fin: diagnosticar antes de implementar, val
 
 ## Roadmap
 
-- Clasificación asistida por nube de palabras de las conversaciones sin asignar (reglas por palabra clave sembradas desde los nombres de proyecto de cada proveedor, curadas desde la interfaz)
+- Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido)
 - Extracción de assets de Grok al IMAGE_BANK (sus binarios sí viajan en el export)
-- Índice de navegación por proveedor
 - Tests de regresión con fixtures por proveedor
 - Campo `model` en el frontmatter donde el export lo registre (Grok, ChatGPT)
 

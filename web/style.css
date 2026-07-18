@@ -519,6 +519,130 @@ button.btn.secondary:hover {
   .metro-stop { width: 45%; margin-bottom: 12px; }
 }
 
+/* ─── Nube de huérfanas ─── */
+
+.cloud-box {
+  line-height: 2.1;
+  padding: 6px 2px;
+}
+
+.cloud-term {
+  color: var(--cyan);
+  cursor: pointer;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+
+.cloud-term:hover { text-decoration: underline; }
+
+.cloud-term.prj {
+  color: var(--magenta);
+  font-weight: 600;
+}
+
+.cloud-notes-box {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.cloud-notes-box ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--text-dim);
+}
+
+.cloud-notes-box li { margin-bottom: 3px; }
+
+.cloud-note-prov {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--cyan);
+}
+
+/* ─── Tarjetas plegables y textos de ayuda (Cartografía) ─── */
+
+.card-fold summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-fold summary::-webkit-details-marker { display: none; }
+
+.card-fold summary::before {
+  content: "▸";
+  color: var(--text-dim);
+  font-size: 13px;
+  transition: transform 0.15s;
+}
+
+.card-fold[open] summary::before { content: "▾"; color: var(--cyan); }
+
+.card-fold summary h2 { margin: 0; }
+
+.card-fold[open] summary { margin-bottom: 12px; }
+
+.card-fold summary:hover h2 { color: var(--text); }
+
+.card-help {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 14px;
+}
+
+.card-help code {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cyan);
+}
+
+/* ─── Temas (índice de huérfanas) ─── */
+
+.topic-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.topic-row input {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.topic-row input:focus { outline: none; border-color: var(--cyan-dim); }
+
+.topic-row .topic-name { width: 210px; flex-shrink: 0; }
+.topic-row .topic-words { flex: 1; }
+
+.topic-del {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+.topic-del:hover { color: var(--red); border-color: var(--red); }
+
 /* ─── Log del pipeline ─── */
 
 #log-box {

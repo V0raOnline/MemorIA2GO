@@ -483,6 +483,15 @@ def paso4_indices(merged_vault: Path, project_vault: Path | None, log_path: Path
     else:
         warn("No encuentro vault_stats.py — omitiendo cache de estadisticas.")
 
+    # Indice de temas de huerfanas: derivado y regenerable. Solo corre si hay
+    # curacion (topic_map.json junto a los scripts); sin mapa, sin ruido.
+    topic_map = HERE / "topic_map.json"
+    cloud_script = HERE / "orphan_cloud.py"
+    if topic_map.exists() and cloud_script.exists():
+        run_script(cloud_script,
+                   [merged_vault.parent, "--generate-topics", "--topic-map", topic_map],
+                   log_path)
+
 # ─────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────

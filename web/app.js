@@ -529,6 +529,149 @@ btnRunReprocess.addEventListener("click", () => {
 });
 
 // ─────────────────────────────────────────
+// Nube de huerfanas (Fase 1: exploracion, solo lectura)
+// ─────────────────────────────────────────
+
+document.getElementById("btn-load-cloud").addEventListener("click", loadOrphanCloud);
+
+async function loadOrphanCloud() {
+  const el = document.getElementById("orphan-cloud");
+  const btn = document.getElementById("btn-load-cloud");
+  el.innerHTML = `<div class="empty-note">Escaneando huérfanas... (puede tardar unos segundos)</div>`;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/orphan-cloud");
+    const data = await res.json();
+    if (data.error) {
+      el.innerHTML = `<div class="msg error">${data.error}</div>`;
+      return;
+    }
+    if (!data.terminos.length) {
+      el.innerHTML = `<div class="empty-note">No hay huérfanas con vocabulario que mostrar. ¿Vault vacío?</div>`;
+      return;
+    }
+    const maxN = data.terminos[0].n;
+    const minN = data.terminos[data.terminos.length - 1].n;
+    const spans = data.terminos.map(x => {
+      // escala tipográfica 12-30px, raíz cuadrada para suavizar la cabeza
+      const f = maxN === minN ? 0.5 : Math.sqrt((x.n - minN) / (maxN - minN));
+      const px = (12 + f * 18).toFixed(1);
+      const cls = x.es_proyecto ? "cloud-term prj" : "cloud-term";
+      const titulo = x.es_proyecto ? `${x.n} notas · proyecto: ${x.proyecto}` : `${x.n} notas`;
+      return `<span class="${cls}" style="font-size:${px}px" title="${titulo}" data-term="${x.t}">${x.t}</span>`;
+    });
+    el.innerHTML = `<div class="chart-note" style="margin-bottom:8px">${data.total_huerfanas} huérfanas · términos presentes en 3–${data.techo_df} notas</div>` +
+                   `<div class="cloud-box">${spans.join(" ")}</div>`;
+    el.querySelectorAll(".cloud-term").forEach(s => {
+      s.addEventListener("click", () => loadCloudNotes(s.dataset.term));
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="msg error">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Regenerar nube";
+  }
+}
+
+async function loadCloudNotes(term) {
+  const el = document.getElementById("cloud-notes");
+  el.innerHTML = `<div class="empty-note">Buscando notas con «${term}»...</div>`;
+  try {
+    const res = await fetch("/api/orphan-cloud/notes?term=" + encodeURIComponent(term));
+    const data = await res.json();
+    if (data.error) {
+      el.innerHTML = `<div class="msg error">${data.error}</div>`;
+      return;
+    }
+    const filas = data.notas.map(n =>
+      `<li><span class="cloud-note-prov">[${n.provider}]</span> ${n.fecha} — ${n.titulo}</li>`
+    ).join("");
+    el.innerHTML = `<div class="cloud-notes-box"><strong>«${data.termino}»</strong> aparece en ${data.total} nota(s):` +
+                   `<ul>${filas}</ul></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="msg error">Error: ${e.message}</div>`;
+  }
+}
+
+// ─────────────────────────────────────────
+// Temas (indice de huerfanas): curacion del topic_map + generacion
+// ─────────────────────────────────────────
+
+function addTopicRow(name, words) {
+  const el = document.getElementById("topics-list");
+  const row = document.createElement("div");
+  row.className = "topic-row";
+  row.innerHTML = `<input type="text" class="topic-name" placeholder="nombre del tema">` +
+    `<input type="text" class="topic-words" placeholder="palabras o frases, separadas por comas">` +
+    `<button class="topic-del" title="Quitar tema">×</button>`;
+  // valores por asignacion, no por interpolacion: inmune a comillas en nombres
+  row.querySelector(".topic-name").value = name;
+  row.querySelector(".topic-words").value = words;
+  row.querySelector(".topic-del").addEventListener("click", () => row.remove());
+  el.appendChild(row);
+}
+
+async function loadTopics() {
+  try {
+    const res = await fetch("/api/topics");
+    const data = await res.json();
+    const el = document.getElementById("topics-list");
+    el.innerHTML = "";
+    Object.entries(data.temas || {}).forEach(([n, ws]) => addTopicRow(n, ws.join(", ")));
+    if (!el.children.length) addTopicRow("", "");
+  } catch (e) { /* servidor sin reiniciar: la tarjeta queda vacia */ }
+}
+
+document.getElementById("btn-add-topic").addEventListener("click", () => addTopicRow("", ""));
+
+document.getElementById("btn-save-topics").addEventListener("click", async () => {
+  const temas = {};
+  document.querySelectorAll("#topics-list .topic-row").forEach(r => {
+    const n = r.querySelector(".topic-name").value.trim();
+    const ws = r.querySelector(".topic-words").value.split(",").map(s => s.trim()).filter(Boolean);
+    if (n && ws.length) temas[n] = ws;
+  });
+  const msg = document.getElementById("topics-msg");
+  try {
+    const res = await fetch("/api/topics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ temas }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    msg.textContent = `Guardados ${data.temas} tema(s).`;
+    msg.className = "msg ok";
+  } catch (e) {
+    msg.textContent = "Error: " + e.message;
+    msg.className = "msg error";
+  }
+});
+
+document.getElementById("btn-generate-topics").addEventListener("click", async () => {
+  const msg = document.getElementById("topics-msg");
+  msg.textContent = "Generando índice...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/topics/generate", { method: "POST" });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    let t = `Índice generado: ${data.temas} tema(s), ${data.enlaces} enlace(s)`;
+    if (data.borradas) t += `, ${data.borradas} retirado(s)`;
+    if (data.sin_coincidencias && data.sin_coincidencias.length) {
+      t += ` · sin coincidencias: ${data.sin_coincidencias.join(", ")}`;
+    }
+    msg.textContent = t;
+    msg.className = "msg ok";
+  } catch (e) {
+    msg.textContent = "Error: " + e.message;
+    msg.className = "msg error";
+  }
+});
+
+loadTopics();
+
+// ─────────────────────────────────────────
 // Arranque
 // ─────────────────────────────────────────
 loadConfig();

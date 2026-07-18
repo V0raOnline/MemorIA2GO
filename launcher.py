@@ -158,6 +158,106 @@ def get_stats():
 
 
 # ─────────────────────────────────────────
+# API: nube de huerfanas (Fase 1, solo lectura)
+# ─────────────────────────────────────────
+
+@app.route("/api/orphan-cloud")
+def orphan_cloud_api():
+    try:
+        from config_loader import load_config, get_path, get_opt
+        from orphan_cloud import build_cloud
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"error": "base_vault no configurado"}), 400
+        prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
+        # Las tres fuentes de siembra del vocabulario de proyectos:
+        # carpetas de PRJ_VAULT + gizmo_map.json + projects de los exports
+        gizmo_map = get_path(cfg, "gizmo_map")
+        exports_dir = get_path(cfg, "exports_dir")
+        return jsonify(build_cloud(
+            Path(base_vault), prj_name,
+            gizmo_map_path=Path(gizmo_map) if gizmo_map else None,
+            exports_dir=Path(exports_dir) if exports_dir else None,
+        ))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/orphan-cloud/notes")
+def orphan_cloud_notes_api():
+    try:
+        from config_loader import load_config, get_path
+        from orphan_cloud import notes_for_term
+        term = (request.args.get("term") or "").strip()
+        if not term:
+            return jsonify({"error": "falta el parametro term"}), 400
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"error": "base_vault no configurado"}), 400
+        return jsonify(notes_for_term(Path(base_vault), term))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/topics", methods=["GET"])
+def get_topics():
+    try:
+        from orphan_cloud import load_topic_map
+        return jsonify({"temas": load_topic_map(HERE / "topic_map.json")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/topics", methods=["POST"])
+def save_topics():
+    try:
+        data = request.get_json(force=True) or {}
+        temas = data.get("temas") or {}
+        limpio = {
+            str(k).strip(): [str(w).strip() for w in v if str(w).strip()]
+            for k, v in temas.items()
+            if isinstance(v, list) and str(k).strip()
+        }
+        p = HERE / "topic_map.json"
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(limpio, ensure_ascii=False, indent=2),
+                       encoding="utf-8", newline="\n")
+        tmp.replace(p)
+        return jsonify({"ok": True, "temas": len(limpio)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/topics/generate", methods=["POST"])
+def generate_topics():
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"error": "base_vault no configurado"}), 400
+        # Subproceso en vez de import: el generador se relee del disco en
+        # cada pulsacion. Mata la clase entera de bugs de "launcher con
+        # modulo cacheado tras actualizar el codigo", que ya mordio tres
+        # veces en este proyecto.
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(HERE / "orphan_cloud.py"), str(base_vault),
+             "--generate-topics", "--topic-map", str(HERE / "topic_map.json")],
+            capture_output=True, text=True, encoding="utf-8",
+            timeout=600, env=env,
+        )
+        if result.returncode != 0:
+            detalle = (result.stderr or "").strip()[-400:] or "fallo el generador (sin stderr)"
+            return jsonify({"error": detalle}), 500
+        return jsonify(json.loads(result.stdout))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
 # API: gizmos huerfanos
 # ─────────────────────────────────────────
 

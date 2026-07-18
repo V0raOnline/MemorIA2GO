@@ -484,6 +484,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
             "messages": messages,
             "gizmo_id": gid,
             "provider": "chatgpt",
+            "conv_id": conv.get("conversation_id") or conv.get("id"),
         })
 
     return conversations
@@ -713,6 +714,10 @@ def main():
         extra_front: Dict[str, Any] = {}
         extra_front["Project_name"] = name_from_map if name_from_map else "none"
         extra_front["provider"] = conv.get("provider") or "chatgpt"
+        if conv.get("conv_id"):
+            # Identidad estable de la conversacion (la llave de la cordura:
+            # sobrevive a renombrados de hilo entre exports)
+            extra_front["conv_id"] = conv["conv_id"]
 
         if args.force_project_id:
             extra_front["source_project_id"] = args.force_project_id

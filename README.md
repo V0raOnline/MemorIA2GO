@@ -68,10 +68,11 @@ cd MemorIA2GO
 pip install -r requirements.txt
 
 # 1. Create your config from the template and set your paths
-copy memoria_config.yaml.example memoria_config.yaml
+copy memoria_config.yaml.example memoria_config.yaml   # Windows
+cp memoria_config.yaml.example memoria_config.yaml     # Linux / macOS
 
 # 2. Launch
-python launcher.py
+python launcher.py     # on Linux, depending on your distro: python3 launcher.py
 ```
 
 Your browser opens at `http://127.0.0.1:8765`. The server binds to localhost only — it has no authentication and can run the pipeline, so keep it that way.
@@ -82,7 +83,7 @@ Options:
 python launcher.py --port 80 --no-browser   # for a persistent local server
 ```
 
-Optional pretty URL: add `127.0.0.1  m3m0ria` to your hosts file and run on port 80 → `http://m3m0ria/`. On Windows you can register a logon Scheduled Task running `pythonw launcher.py --port 80 --no-browser` from the repo folder to have it always available.
+Optional pretty URL: add `127.0.0.1  m3m0ria` to your hosts file (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, with `sudo`) and run on port 80 → `http://m3m0ria/`. On Windows you can register a logon Scheduled Task running `pythonw launcher.py --port 80 --no-browser` from the repo folder; on Linux, a systemd user service or an autostart entry running `python3 launcher.py --port 8765 --no-browser` does the same job (port 80 on Linux needs privileges: stay on 8765 or put a proxy in front).
 
 First dashboard load computes statistics once and caches them next to your vault (`.m3m0ria_stats.json`); after that, loads are instant. The pipeline refreshes the cache at the end of step 4, and the dashboard offers a manual *recalcular* link.
 
@@ -160,7 +161,10 @@ Your browser opens with the interface. From here on, everything is clicks: **Con
 ## Configuration
 
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
-- `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Proyectos tab); never committed. Claude and Grok exports do not link conversations to projects, so those notes start unassigned.
+- `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartografía tab); never committed.
+- `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Temas`. Never committed.
+
+Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
 
 ---
 
@@ -172,6 +176,8 @@ Your browser opens with the interface. From here on, everything is clicks: **Con
   - **Multi-provider adapters.** Claude and Grok exports were dissected against real data before writing any code. Detection is structural — a Claude zip also contains a `conversations.json`, and Grok's root also has a `conversations` key, so filename-based detection would silently produce garbage. Each adapter reconstructs the active conversation thread from its provider's own branch model.
   - **A web UI (M3M0R·IA).** Dashboard with evolution charts, per-provider and per-project stats, pre-flight verification that names each export's provider (and rejects what it can't parse yet, honestly), pipeline runner with live log, and orphan-project curation.
   - **Performance by design.** Statistics are computed once per pipeline run and cached atomically; the dashboard reads the cache in milliseconds regardless of vault size.
+  - **Cartography instead of forced taxonomy.** Unassigned conversations aren't shoehorned into folders: a vocabulary cloud (seeded with project names from all three providers) feeds a many-to-many Themes system — words, phrases and `field=value` metadata rules — that generates linked indexes in Obsidian. Curation lives in one entry per theme, the derived index is regenerable, the notes stay untouched.
+  - **Identity via `conv_id`.** Each conversation's native ID travels to the frontmatter and the merge groups by it: thread renames across exports (measured: 21 of 593 real conversations) fuse under the latest title while preserving `titulo_original`, instead of duplicating as ghosts.
 
 Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
 
@@ -179,9 +185,8 @@ Design principles throughout: diagnose before implementing, validate against rea
 
 ## Roadmap
 
-- Word-cloud assisted classification of unassigned conversations (keyword rules seeded from provider project names, curated from the UI)
+- Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred)
 - Grok asset extraction to IMAGE_BANK (binaries do ship in its export)
-- Per-provider navigation index
 - Fixture-based regression tests per provider
 - `model` field in frontmatter where the export records it (Grok, ChatGPT)
 

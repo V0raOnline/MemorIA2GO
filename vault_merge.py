@@ -127,6 +127,28 @@ def base_name(filename: str) -> str:
     return stem
 
 
+CONV_ID_RX = re.compile(r'^conv_id:\s*"?([^"\s]+)"?\s*$')
+
+
+def peek_conv_id(path: str) -> str:
+    """Lee solo la cabecera de la nota buscando conv_id. Barato: no parsea
+    la nota entera en la fase de agrupacion."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            head = [next(f, "") for _ in range(15)]
+    except OSError:
+        return ""
+    if not head or head[0].strip() != "---":
+        return ""
+    for line in head[1:]:
+        if line.strip() == "---":
+            break
+        m = CONV_ID_RX.match(line.strip())
+        if m:
+            return m.group(1)
+    return ""
+
+
 def main():
     ap = argparse.ArgumentParser(description="Fusiona variantes de un vault RAW en un vault MERGED sin perder mensajes.")
     ap.add_argument("raw_dir")
@@ -145,16 +167,22 @@ def main():
     files = sorted(glob.glob(os.path.join(conv_dir, "**", "*.md"), recursive=True))
     groups: Dict[str, List[str]] = {}
     for path in files:
-        b = base_name(os.path.basename(path))
-        groups.setdefault(b, []).append(path)
+        cid = peek_conv_id(path)
+        # conv_id es la identidad real de la conversacion: sobrevive a
+        # renombrados de hilo entre exports (medido: 21/593 conversaciones
+        # renombradas en los exports reales de V0ra). base_name queda como
+        # fallback para notas anteriores a la migracion.
+        key = f"id:{cid}" if cid else base_name(os.path.basename(path))
+        groups.setdefault(key, []).append(path)
 
     out_conv = os.path.join(args.merged_dir, "Conversaciones")
     os.makedirs(out_conv, exist_ok=True)
 
     stats = {"grupos": 0, "variantes_totales": 0, "mensajes_campeon": 0,
-             "mensajes_fusionados": 0, "mensajes_recuperados": 0, "notas_escritas": 0}
+             "mensajes_fusionados": 0, "mensajes_recuperados": 0, "notas_escritas": 0,
+             "renombradas_fusionadas": 0}
 
-    for base, paths in sorted(groups.items()):
+    for key, paths in sorted(groups.items()):
         stats["grupos"] += 1
         stats["variantes_totales"] += len(paths)
 
@@ -168,6 +196,25 @@ def main():
         variants.sort(key=lambda v: (v["words"], v["size"]), reverse=True)
         champion = variants[0]
         stats["mensajes_campeon"] += len(champion["messages"])
+
+        # Resolucion de renombrados: si el grupo (mismo conv_id) contiene
+        # nombres de archivo distintos, prevalece el mas reciente en disco
+        # (tras un reprocess ordenado, mtime refleja el orden de exports) y
+        # el titulo mas antiguo se conserva como titulo_original.
+        nombres = {base_name(os.path.basename(v["path"])) for v in variants}
+        title_raw_nuevo = None
+        titulo_original_raw = None
+        if len(nombres) > 1:
+            por_mtime = sorted(variants, key=lambda v: os.path.getmtime(v["path"]))
+            base = base_name(os.path.basename(por_mtime[-1]["path"]))
+            title_raw_nuevo = por_mtime[-1]["front"].get("title")
+            t_viejo = (por_mtime[0]["front"].get("title") or "").strip().strip('"')
+            t_nuevo = (title_raw_nuevo or "").strip().strip('"')
+            if t_viejo and t_viejo != t_nuevo:
+                titulo_original_raw = f'"{t_viejo}"'
+            stats["renombradas_fusionadas"] += 1
+        else:
+            base = next(iter(nombres))
 
         # El source base se hereda del campeon (claude_export, chatgpt_export, ...)
         # en vez de hardcodearlo: el merge es agnostico del proveedor. Se limpian
@@ -203,6 +250,10 @@ def main():
 
         front = dict(champion["front"])
         front["source"] = f'"{source_tag}"'
+        if title_raw_nuevo is not None:
+            front["title"] = title_raw_nuevo
+        if titulo_original_raw is not None:
+            front["titulo_original"] = titulo_original_raw
 
         date = front.get("date", "0000-00-00").strip('"')
         y, m = (date[:4], date[5:7]) if re.match(r"\d{4}-\d{2}-\d{2}", date) else ("0000", "00")
@@ -225,6 +276,7 @@ def main():
     print(f"Variantes de entrada:   {stats['variantes_totales']}")
     print(f"Notas escritas:         {stats['notas_escritas']}")
     print(f"Mensajes recuperados por fusión (no estaban en el campeón): {stats['mensajes_recuperados']}")
+    print(f"Conversaciones renombradas fusionadas: {stats['renombradas_fusionadas']}")
 
 
 if __name__ == "__main__":

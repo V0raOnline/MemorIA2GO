@@ -161,5 +161,6 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             "messages": messages,
             "gizmo_id": None,
             "provider": "claude",
+            "conv_id": conv.get("uuid"),
         })
     return conversations

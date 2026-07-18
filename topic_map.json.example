@@ -1,0 +1,6 @@
+{
+  "espejo-y-vinculo": ["espejo", "alma", "confianza", "acompañar"],
+  "fisica-recreativa": ["fisica", "particulas", "fisica cuantica"],
+  "conversaciones-claude": ["source=claude_export"],
+  "un-tema-de-ejemplo": ["palabra1", "frase con varias palabras", "provider=grok"]
+}

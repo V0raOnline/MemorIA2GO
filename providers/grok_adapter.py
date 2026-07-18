@@ -133,5 +133,6 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             "messages": messages,
             "gizmo_id": None,
             "provider": "grok",
+            "conv_id": meta.get("id"),
         })
     return conversations

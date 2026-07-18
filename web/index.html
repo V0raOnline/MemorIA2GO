@@ -36,7 +36,7 @@
     </button>
     <button class="tab-btn" data-tab="gizmos">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 19a5 5 0 0 1-5-5v8" /><path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" /><circle cx="13" cy="12" r="2" /><circle cx="20" cy="19" r="2" /></svg>
-      <span>Proyectos</span> <span id="gizmo-count-badge"></span>
+      <span>Cartografía</span> <span id="gizmo-count-badge"></span>
     </button>
   </nav>
 
@@ -145,18 +145,96 @@
     </div>
   </section>
 
-  <!-- GIZMOS / PROYECTOS -->
+  <!-- GIZMOS / CARTOGRAFIA -->
   <section id="panel-gizmos" class="panel">
+
     <div class="card">
-      <h2>Proyectos sin nombrar</h2>
-      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
-        Conversaciones cuyo proyecto (gizmo) no está todavía en <code>gizmo_map.json</code>.
-        Rellena los que reconozcas y guarda — se parchea el vault existente y se relanza
-        desde el paso 2, sin repetir la importación.
-      </p>
-      <div id="gizmos-list"></div>
-      <button class="btn" id="btn-save-gizmos" style="margin-top:14px;">Guardar y actualizar vault</button>
-      <div id="gizmos-msg" class="msg"></div>
+      <div class="metro">
+        <div class="metro-stop">
+          <div class="metro-dot">1</div>
+          <div class="metro-label">Nube</div>
+          <div class="metro-sub">mira de qué hablan<br>tus huérfanas</div>
+        </div>
+        <div class="metro-line"></div>
+        <div class="metro-stop">
+          <div class="metro-dot">2</div>
+          <div class="metro-label">Temas</div>
+          <div class="metro-sub">agrupa con las palabras<br>que reconozcas</div>
+        </div>
+        <div class="metro-line"></div>
+        <div class="metro-stop">
+          <div class="metro-dot">3</div>
+          <div class="metro-label">Índice</div>
+          <div class="metro-sub">una nota por tema<br>en MERGED/_Temas</div>
+        </div>
+        <div class="metro-line"></div>
+        <div class="metro-stop">
+          <div class="metro-dot">4</div>
+          <div class="metro-label">Grafo</div>
+          <div class="metro-sub">Obsidian enlaza:<br>el anillo gana gravedad</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <details class="card-fold" open>
+        <summary><h2>Nube de huérfanas</h2></summary>
+        <p class="card-help">
+          <strong>Empieza aquí.</strong> Pulsa «Generar nube» y verás el vocabulario de tus
+          conversaciones sin proyecto: cuanto más grande una palabra, en más notas aparece
+          (títulos incluidos). Las <span style="color:var(--magenta)">magenta</span> coinciden
+          con nombres de proyectos que ya existen — candidatas naturales a tema. Clic en
+          cualquier palabra para ver qué notas la contienen. Esto es solo un catalejo:
+          aquí no se clasifica ni se modifica nada.
+        </p>
+        <button class="btn secondary" id="btn-load-cloud">Generar nube</button>
+        <div id="orphan-cloud" style="margin-top:14px;"></div>
+        <div id="cloud-notes" style="margin-top:10px;"></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <details class="card-fold">
+        <summary><h2>Temas</h2></summary>
+        <p class="card-help">
+          <strong>Con lo que la nube te enseñó</strong>, crea temas: un nombre y sus palabras
+          separadas por comas. Valen palabras sueltas (<code>espejo</code>), frases
+          (<code>mas alla del prompt</code>) y reglas de metadatos con el formato
+          <code>campo=valor</code> — por ejemplo <code>source=claude_export</code> agrupa todo
+          lo importado de Claude. Una nota puede caer en varios temas: eso es lo sano.
+          «Guardar temas» persiste tu curación en <code>topic_map.json</code>;
+          «Generar índice» crea una nota por tema en <code>MERGED_VAULT/_Temas</code>
+          con enlaces a sus huérfanas, y el grafo de Obsidian hace el resto.
+          Las conversaciones no se tocan, el índice es regenerable y desechable, y el
+          paso 4 del pipeline lo mantiene fresco solo.
+        </p>
+        <div id="topics-list"></div>
+        <div class="run-buttons" style="margin-top:10px;">
+          <button class="btn secondary" id="btn-add-topic">Añadir tema</button>
+          <button class="btn" id="btn-save-topics">Guardar temas</button>
+          <button class="btn secondary" id="btn-generate-topics">Generar índice</button>
+        </div>
+        <div id="topics-msg" class="msg"></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <details class="card-fold">
+        <summary><h2>Proyectos huérfanos (ChatGPT)</h2></summary>
+        <p class="card-help">
+          <strong>Qué es esto:</strong> en ChatGPT, una conversación puede nacer dentro de un
+          «proyecto» que el export identifica con un ID interno (gizmo) pero sin nombre humano.
+          Cada fila de abajo es uno de esos IDs aún sin bautizar. Para ayudarte a reconocerlo
+          te mostramos el título de una de sus conversaciones como muestra, y desplegando la
+          fila verás la lista completa con fechas. Escribe el nombre que tú le darías y pulsa
+          «Guardar»: el nombre se apunta en <code>gizmo_map.json</code>, el vault existente se
+          corrige in-place y se relanzan los pasos 2→4 — sin repetir la importación. Las filas
+          que dejes en blanco seguirán esperando aquí, sin prisa.
+        </p>
+        <div id="gizmos-list"></div>
+        <button class="btn" id="btn-save-gizmos" style="margin-top:14px;">Guardar y actualizar vault</button>
+        <div id="gizmos-msg" class="msg"></div>
+      </details>
     </div>
   </section>
 
