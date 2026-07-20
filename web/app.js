@@ -717,5 +717,39 @@ loadTopics();
 // ─────────────────────────────────────────
 // Arranque
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// Autocompletado de rutas: estilo "Ejecutar" de Windows. Cada input tiene
+// un <datalist> asociado; al teclear preguntamos al backend por los
+// subdirectorios que casan y los pintamos como sugerencias del navegador.
+// Debounce para no martillar el disco con cada tecla.
+// ─────────────────────────────────────────
+
+function attachPathAutocomplete(inputId, datalistId, ext) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(datalistId);
+  if (!input || !list) return;
+  let timeout = null;
+  const refrescar = async () => {
+    try {
+      const params = new URLSearchParams({ path: input.value });
+      if (ext) params.set("ext", ext);
+      const r = await fetch("/api/browse?" + params.toString());
+      const data = await r.json();
+      list.innerHTML = (data.opciones || [])
+        .map(p => `<option value="${p.replace(/"/g, "&quot;")}"></option>`)
+        .join("");
+    } catch (_) { /* silencioso: si falla, el usuario simplemente escribe a mano */ }
+  };
+  input.addEventListener("input", () => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(refrescar, 180);
+  });
+  input.addEventListener("focus", refrescar);
+}
+
+attachPathAutocomplete("cfg-base_vault", "browse-base_vault");
+attachPathAutocomplete("cfg-exports_dir", "browse-exports_dir");
+attachPathAutocomplete("cfg-gizmo_map", "browse-gizmo_map", "json");
+
 loadConfig();
 loadDashboard();

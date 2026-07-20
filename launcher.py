@@ -106,6 +106,67 @@ def static_files(filename):
 # API: configuracion
 # ─────────────────────────────────────────
 
+@app.route("/api/browse")
+def api_browse():
+    """Devuelve subdirectorios del path indicado, para autocompletar rutas
+    en la configuracion desde el navegador via <datalist>. Solo lectura,
+    solo listado, jamas contenidos: no expone ningun archivo del disco.
+
+    Comportamiento estilo "Ejecutar" de Windows:
+    - path='' o inexistente -> raices (letras de unidad en Windows,
+      '/' en Linux)
+    - path que existe y es carpeta -> sus subdirectorios inmediatos
+    - path que existe pero no es carpeta -> subdirectorios del padre
+      (permite seguir tecleando tras una ruta a fichero)
+    - path que no existe pero su padre si -> subdirectorios del padre
+      filtrados por el prefijo (el completado en vivo mientras escribes)
+    """
+    q = (request.args.get("path") or "").strip()
+    # Extensiones de fichero a incluir, si el campo lo pide (ej. gizmo_map).
+    # Sin este parametro, solo se sugieren directorios (comportamiento por defecto).
+    ext_filter = (request.args.get("ext") or "").strip().lower()
+    ext_incluidas = [e if e.startswith(".") else "." + e
+                     for e in ext_filter.split(",") if e.strip()]
+    try:
+        # Raices del sistema
+        if not q:
+            if os.name == "nt":
+                import string
+                raices = [f"{L}:\\" for L in string.ascii_uppercase
+                          if Path(f"{L}:\\").exists()]
+            else:
+                raices = ["/"]
+            return jsonify({"opciones": raices})
+
+        p = Path(q)
+        if p.is_dir():
+            base, prefijo = p, ""
+        elif p.parent.is_dir():
+            # Ruta a medio escribir: sugerir dentro del padre filtrando
+            base, prefijo = p.parent, p.name.lower()
+        else:
+            return jsonify({"opciones": []})
+
+        opciones = []
+        for child in base.iterdir():
+            try:
+                if child.name.startswith("."):
+                    continue
+                if child.is_dir():
+                    if not prefijo or child.name.lower().startswith(prefijo):
+                        opciones.append(str(child))
+                elif ext_incluidas and child.is_file():
+                    if child.suffix.lower() in ext_incluidas:
+                        if not prefijo or child.name.lower().startswith(prefijo):
+                            opciones.append(str(child))
+            except OSError:
+                continue
+        opciones.sort(key=str.lower)
+        return jsonify({"opciones": opciones[:50]})
+    except Exception as e:
+        return jsonify({"opciones": [], "error": str(e)}), 200
+
+
 @app.route("/api/config", methods=["GET"])
 def get_config():
     try:

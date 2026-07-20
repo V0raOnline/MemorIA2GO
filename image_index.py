@@ -21,20 +21,28 @@ IMG_LINK_RE = re.compile(r"!\[\]\(([^)]+)\)")
 
 
 def load_manifest(vault_path: Path) -> Dict[str, dict]:
-    manifest_path = vault_path / "_assets" / "_image_manifest.json"
-    if not manifest_path.exists():
-        return {}
-    try:
-        import json
-        with open(manifest_path, "r", encoding="utf-8-sig") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    # El manifest vive con las imagenes en IMAGE_BANK; _assets era el layout
+    # antiguo (junction dentro de cada subvault). Fallback al viejo por si
+    # sobreviven vaults sin migrar todavia.
+    for candidato in (vault_path / "IMAGE_BANK" / "_image_manifest.json",
+                       vault_path / "_assets" / "_image_manifest.json"):
+        if candidato.exists():
+            try:
+                import json
+                with open(candidato, "r", encoding="utf-8-sig") as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+    return {}
 
 
-def caption_for(fname: str, meta: dict) -> str:
+def caption_for(fname: str, meta: dict) -> tuple:
+    """Devuelve (metadatos_una_linea, prompt) por separado para que el
+    renderer los emita con formato distinto: metadatos en italica compacta,
+    prompt en blockquote propio. Antes iban juntos y el asterisco de italica
+    rompia el blockquote del prompt (bug 2026-07-20)."""
     if not meta:
-        return ""
+        return ("", "")
     parts = []
     origen = meta.get("origen")
     if origen == "dalle":
@@ -47,14 +55,11 @@ def caption_for(fname: str, meta: dict) -> str:
     adj = meta.get("adjunto_nombre")
     if adj and adj != fname:
         parts.append(f"adjunto original: {adj}")
-    line = " · ".join(parts)
-    prompt = meta.get("prompt")
-    if prompt:
-        p = prompt.strip().replace("\n", " ")
-        if len(p) > 300:
-            p = p[:300] + "..."
-        line += f'\n> "{p}"'
-    return line
+    metadatos = " · ".join(parts)
+    prompt = (meta.get("prompt") or "").strip().replace("\n", " ")
+    if len(prompt) > 300:
+        prompt = prompt[:300] + "..."
+    return (metadatos, prompt)
 
 
 def collect_entries(vault_path: Path, conversations_dir: str, manifest: Dict[str, dict]) -> list:
@@ -109,10 +114,12 @@ def render_markdown(entries: list) -> str:
         date_str = e["date"] or "sin fecha"
         lines.append(f"\n## {date_str} — {link}\n")
         for fname, meta in e["images"]:
-            lines.append(f"![](_assets/{fname})")
-            cap = caption_for(fname, meta)
-            if cap:
-                lines.append(f"*{cap}*")
+            lines.append(f"![](IMAGE_BANK/{fname})")
+            metadatos, prompt = caption_for(fname, meta)
+            if metadatos:
+                lines.append(f"*{metadatos}*")
+            if prompt:
+                lines.append(f'> "{prompt}"')
             lines.append("")
     lines.append("")
     return "\n".join(lines)

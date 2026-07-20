@@ -811,7 +811,14 @@ def main():
         if args.assets_dir:
             y, m, _ = date_primary.split("-")
             note_dir = compute_out_dir(args.output, y, m, args.by_year, args.by_month)
-            rel_prefix = os.path.relpath(args.assets_dir, note_dir).replace("\\", "/")
+            # Enlaces desde la RAIZ del vault de Obsidian, no relativos.
+            # Los relativos ../../../_assets/ dependian del junction _assets
+            # dentro de cada subvault; cuando Obsidian abre la carpeta padre
+            # (02 Obsidian_vaults) los .. salen del sitio donde el junction
+            # existe y todas las imagenes se rompen (bug 2026-07-20). La ruta
+            # absoluta desde el vault raiz funciona en cualquier layout:
+            # va directo a IMAGE_BANK sin depender de la topologia.
+            rel_prefix = "IMAGE_BANK"
             rendered_msgs = []
             for msg in msgs:
                 raw_content = msg.get("content", "")
