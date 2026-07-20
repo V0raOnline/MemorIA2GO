@@ -118,7 +118,11 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             continue
         meta = cw.get("conversation") or {}
         messages: List[Dict[str, str]] = []
+        modelos_vistos: Dict[str, int] = {}
         for m in _thread(cw.get("responses") or [], meta.get("leaf_response_id")):
+            modelo = (m.get("model") or "").strip()
+            if modelo:
+                modelos_vistos[modelo] = modelos_vistos.get(modelo, 0) + 1
             sender = (m.get("sender") or "").strip().lower()
             role = ROLE_MAP.get(sender, sender or "unknown")
             content = _render_message(m)
@@ -134,5 +138,7 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             "gizmo_id": None,
             "provider": "grok",
             "conv_id": meta.get("id"),
+            # Modelo mas frecuente del hilo (grok-3, grok-4...); empate -> alfabetico
+            "model": max(sorted(modelos_vistos), key=lambda m: modelos_vistos[m]) if modelos_vistos else None,
         })
     return conversations

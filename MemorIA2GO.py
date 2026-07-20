@@ -360,6 +360,8 @@ def paso1_split(params: dict, image_bank: Path, log_path: Path, reprocess_all: b
             "--by-month",
             "--keep-versions",
             "--assets-dir", assets_junction,
+            "--manifest", HERE / "logs",
+            "--export-name", export_path.name,
         ]
         if params.get("gizmo_map_path"):
             args += ["--gizmo-map", params["gizmo_map_path"]]
@@ -474,6 +476,17 @@ def paso4_indices(merged_vault: Path, project_vault: Path | None, log_path: Path
     # ya hemos tocado todo el vault), para que /api/stats del launcher
     # responda al instante leyendo el cache en vez de reescanear todo el
     # frontmatter en cada peticion del dashboard.
+    # Indice de temas de huerfanas: derivado y regenerable. Solo corre si hay
+    # curacion (topic_map.json junto a los scripts); sin mapa, sin ruido.
+    # Va ANTES que la cache de estadisticas para que esta ya recoja el
+    # resumen de temas recien generado (.temas_stats.json).
+    topic_map = HERE / "topic_map.json"
+    cloud_script = HERE / "orphan_cloud.py"
+    if topic_map.exists() and cloud_script.exists():
+        run_script(cloud_script,
+                   [merged_vault.parent, "--generate-topics", "--topic-map", topic_map],
+                   log_path)
+
     stats_script = HERE / "vault_stats.py"
     if stats_script.exists():
         cache_args = [merged_vault.parent, "--write-cache"]
@@ -482,15 +495,6 @@ def paso4_indices(merged_vault: Path, project_vault: Path | None, log_path: Path
         run_script(stats_script, cache_args, log_path)
     else:
         warn("No encuentro vault_stats.py — omitiendo cache de estadisticas.")
-
-    # Indice de temas de huerfanas: derivado y regenerable. Solo corre si hay
-    # curacion (topic_map.json junto a los scripts); sin mapa, sin ruido.
-    topic_map = HERE / "topic_map.json"
-    cloud_script = HERE / "orphan_cloud.py"
-    if topic_map.exists() and cloud_script.exists():
-        run_script(cloud_script,
-                   [merged_vault.parent, "--generate-topics", "--topic-map", topic_map],
-                   log_path)
 
 # ─────────────────────────────────────────
 # Main

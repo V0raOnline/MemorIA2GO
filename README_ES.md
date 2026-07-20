@@ -45,6 +45,13 @@ Construye `PRJ_VAULT` como vista proyecto/año/mes de MERGED. Se refresca en cad
 **Paso 4 — Índices** (`tree_index.py`, `scaffolding_index.py`, `image_index.py`, `vault_stats.py`)
 Índices de navegación (proyecto/año/mes), índice de uso de adjuntos, índice de imágenes, y la caché de estadísticas que alimenta el dashboard.
 
+### ¿Cuándo ejecutar qué?
+
+- **Importar pendientes (paso 1→4)** — el modo del día a día: dejaste exports nuevos en tu carpeta y quieres incorporarlos. Solo procesa lo que no se había importado.
+- **Solo actualizar (paso 2→4)** — sin datos nuevos, pero cambió cómo se consolida u organiza: tras bautizar gizmos, tras una actualización de M3M0R·IA que toque la fusión, la vista de proyectos o los índices.
+- **Reprocesar todos** — tras una versión de M3M0R·IA que añada o cambie campos del frontmatter (`provider`, `conv_id`, `model`...) o modifique los parsers: las notas existentes solo ganan los campos nuevos re-importándose desde los exports. Es seguro (los exports son la fuente de verdad y nada se destruye) pero tarda proporcionalmente a tu historial — café recomendado.
+- **Generar índice de temas** (pestaña Cartografía) — cada vez que edites temas; no requiere reiniciar nada. El paso 4 lo regenera además automáticamente en cada pasada del pipeline.
+
 ---
 
 ## Requisitos

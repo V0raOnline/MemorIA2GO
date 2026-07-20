@@ -45,6 +45,13 @@ Builds `PRJ_VAULT` as a project/year/month view of MERGED. Refreshed on every ru
 **Step 4 — Indexes** (`tree_index.py`, `scaffolding_index.py`, `image_index.py`, `vault_stats.py`)
 Navigation indexes (project/year/month), attachment usage index, image index, and the statistics cache that powers the dashboard.
 
+### When to run what
+
+- **Import pending (step 1→4)** — the everyday mode: you dropped new exports in your folder and want them in. Only processes what wasn't imported yet.
+- **Update only (step 2→4)** — no new data, but how things consolidate or organize changed: after naming gizmos, or after an M3M0R·IA update touching the merge, the project view or the indexes.
+- **Reprocess all** — after an M3M0R·IA version that adds or changes frontmatter fields (`provider`, `conv_id`, `model`...) or modifies the parsers: existing notes only gain new fields by re-importing from the exports. Safe (exports are the source of truth, nothing is destroyed) but takes time proportional to your history — coffee recommended.
+- **Generate themes index** (Cartografía tab) — whenever you edit themes; no restart needed. Step 4 also regenerates it automatically on every pipeline run.
+
 ---
 
 ## Requirements

@@ -197,7 +197,7 @@ async function loadDashboard(refresh = false) {
     ].join("");
 
     renderEvolution(stats);
-    renderProjects(stats);
+    renderTopTemas(stats);
     renderProviders(stats);
     renderFreshness(stats);
 
@@ -353,6 +353,46 @@ function renderProviders(stats) {
     cajas.push(statBox(NOMBRES[par[0]] || par[0], par[1], "notas"));
   }
   el.innerHTML = cajas.join("");
+}
+
+function renderTopTemas(stats) {
+  const el = document.getElementById("topics-top");
+  const cov = document.getElementById("topics-coverage");
+  const t = stats.temas;
+  if (!t || !t.temas) {
+    el.innerHTML = `<div class="empty-note">Sin índice de temas todavía — genéralo desde Cartografía.</div>`;
+    cov.textContent = "";
+    return;
+  }
+  // Solo temas de contenido: las redes estructurales (campo=valor puras)
+  // ya están contadas en la tarjeta de Proveedores y aquí serían ruido.
+  const entries = Object.entries(t.temas)
+    .filter(([, v]) => !v.estructural && v.enlaces > 0)
+    .map(([nombre, v]) => [nombre, v.enlaces])
+    .sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty-note">Aún no hay temas de contenido con enlaces.</div>`;
+  } else {
+    const top = entries.slice(0, 5);
+    const resto = entries.slice(5);
+    if (resto.length > 0) {
+      top.push([`Otros (${resto.length} temas)`, resto.reduce((s, e) => s + e[1], 0)]);
+    }
+    const maxN = Math.max(...top.map(e => e[1]));
+    el.innerHTML = top.map(par => `<div class="prj-row">
+      <div class="prj-name" title="${escapeHtml(par[0])}">${escapeHtml(par[0])}</div>
+      <div class="prj-bar"><div class="prj-fill" style="width:${((100 * par[1]) / maxN).toFixed(1)}%"></div></div>
+      <div class="prj-count">${par[1]}</div>
+    </div>`).join("");
+  }
+  const pct = t.cobertura_contenido_pct;
+  const pend = t.huerfanas_solo_estructural;
+  const anom = t.huerfanas_sin_tema;
+  let linea = "";
+  if (typeof pct === "number") linea += `Cobertura de contenido: ${pct}% de ${t.total_huerfanas} huérfanas`;
+  if (typeof pend === "number") linea += ` · ${pend} pendientes de cartografiar`;
+  if (anom > 0) linea += ` · ⚠ ${anom} sin ningún tema (anomalías)`;
+  cov.textContent = linea;
 }
 
 function renderProjects(stats) {
@@ -658,6 +698,9 @@ document.getElementById("btn-generate-topics").addEventListener("click", async (
     if (data.error) throw new Error(data.error);
     let t = `Índice generado: ${data.temas} tema(s), ${data.enlaces} enlace(s)`;
     if (data.borradas) t += `, ${data.borradas} retirado(s)`;
+    if (typeof data.huerfanas_sin_tema === "number") {
+      t += ` · ${data.huerfanas_sin_tema} huérfana(s) sin tema todavía (lista en _Temas/_sin-tema)`;
+    }
     if (data.sin_coincidencias && data.sin_coincidencias.length) {
       t += ` · sin coincidencias: ${data.sin_coincidencias.join(", ")}`;
     }

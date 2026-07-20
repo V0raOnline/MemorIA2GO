@@ -19,11 +19,17 @@ TODOS los exports validos pendientes, llevando un registro de los ya
 importados para que sea incremental por defecto.
 """
 import json
+import re
 import zipfile
 from pathlib import Path
 from typing import Optional
 
 REGISTRY_FILENAME = "_exports_procesados.json"
+
+# Formato fragmentado de ChatGPT (2026+): conversations-000.json,
+# conversations-001.json... Definido aqui como constante del modulo para
+# que preflight y el lector puedan coincidir en la misma deteccion.
+SHARD_RX = re.compile(r"conversations-\d+\.json$", re.IGNORECASE)
 
 
 def validate_export_file(path) -> dict:
@@ -42,16 +48,28 @@ def validate_export_file(path) -> dict:
         try:
             with zipfile.ZipFile(p, "r") as zf:
                 names = zf.namelist()
-        except zipfile.BadZipFile:
-            return {"valido": False, "mensaje": "El archivo no es un ZIP valido (¿esta corrupto o incompleto?)."}
+        except (zipfile.BadZipFile, OSError) as e:
+            # GRITAR, no susurrar: un zip ilegible es exactamente la noticia
+            # que hay que recibir el dia que ocurre, no el mes que se descubre
+            # (incidente real: exports corruptos silenciosamente ignorados y
+            # conversaciones "desaparecidas" durante semanas).
+            return {"valido": False,
+                    "mensaje": f"ZIP CORRUPTO O ILEGIBLE ({type(e).__name__}: {e}). "
+                               "Las conversaciones que contenga NO se estan importando. "
+                               "Intenta recuperarlo (7-Zip suele poder) o re-descarga el export."}
 
         has_conv = any(n.lower().endswith("conversations.json") for n in names)
+        shards = [n for n in names if SHARD_RX.search(n)]
         has_html = any(n.lower().endswith(".html") for n in names)
         # El zip de Claude tambien trae conversations.json; se distingue por
         # los acompanantes que ChatGPT nunca incluye (users.json, projects/).
         looks_claude = any(n.lower() == "users.json" for n in names) or \
                        any(n.lower().startswith("projects/") for n in names)
 
+        if shards:
+            return {"valido": True,
+                    "mensaje": f"Export de ChatGPT fragmentado reconocido ({len(shards)} fragmentos conversations-NNN.json).",
+                    "tipo": "chatgpt_zip_fragmentado"}
         if has_conv and looks_claude:
             return {"valido": True, "mensaje": "Export de Claude reconocido (conversations.json + users.json/projects).", "tipo": "claude_zip"}
         if has_conv:
@@ -59,12 +77,21 @@ def validate_export_file(path) -> dict:
         if any(n.lower().endswith("prod-grok-backend.json") for n in names):
             return {"valido": True, "mensaje": "Export de Grok reconocido (prod-grok-backend.json).", "tipo": "grok_zip"}
         if has_html:
-            return {"valido": True, "mensaje": "HTML de conversacion encontrado dentro del ZIP (formato antiguo).", "tipo": "chatgpt_zip_html"}
+            # Valido pero con aviso de deriva: si solo hay HTML, o es un export
+            # muy antiguo o el proveedor cambio de formato y no lo reconocemos.
+            return {"valido": True,
+                    "mensaje": "AVISO: solo se encontro HTML de conversacion — formato no habitual. "
+                               "Si este export es reciente, el proveedor puede haber cambiado de formato "
+                               "y el parser necesitaria actualizarse; la importacion via HTML es degradada.",
+                    "tipo": "chatgpt_zip_html"}
 
         muestra = names[:8]
         return {
             "valido": False,
-            "mensaje": "Este ZIP no contiene conversations.json ni un HTML de conversacion -- no parece un export de ChatGPT.",
+            "mensaje": "ESTRUCTURA DESCONOCIDA: este ZIP no casa con ningun formato soportado "
+                       "(ChatGPT clasico o fragmentado, Claude, Grok). Si es un export reciente, "
+                       "el proveedor probablemente cambio de formato: el parser necesita actualizarse. "
+                       "Muestra del contenido adjunta para diagnostico.",
             "contenido_encontrado": muestra,
         }
 

@@ -160,6 +160,15 @@ def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
     project_vault = base_vault / prj_vault_name
     image_bank = base_vault / "IMAGE_BANK"
 
+    # Resumen de temas escrito por orphan_cloud al generar el indice
+    # (tolerante: sin indice generado, sin seccion de temas)
+    temas_stats = None
+    try:
+        temas_stats = json.loads(
+            (merged_vault / "_Temas" / ".temas_stats.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+
     return {
         "base_vault": str(base_vault),
         "vaults": {
@@ -170,6 +179,7 @@ def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
         "image_bank": compute_image_bank_stats(image_bank),
         "ultima_importacion": compute_last_import(raw_vault),
         "gizmos_pendientes": compute_gizmos_pendientes(raw_vault),
+        "temas": temas_stats,
         "calculado": datetime.datetime.now().isoformat(timespec="seconds"),
     }
 

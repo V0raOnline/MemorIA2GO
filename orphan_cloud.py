@@ -39,6 +39,14 @@ from tree_index import read_frontmatter, INDEX_FILENAMES
 # Términos de 3+ caracteres con letras (acentos y ñ incluidos), dígitos o guiones
 TOKEN_RX = re.compile(r"[a-z0-9áéíóúüñ][a-z0-9áéíóúüñ_-]{2,}")
 
+_DIACRITICOS_RX = re.compile("[\u0300-\u036f]")
+
+
+def _sin_acentos(s: str) -> str:
+    """Descompone y descarta diacriticos: fisica==física, ensenanza==enseñanza.
+    Solo para COMPARAR: el texto real de las notas nunca se toca."""
+    return _DIACRITICOS_RX.sub("", unicodedata.normalize("NFD", s))
+
 # Stopwords ES + EN + dominio (roles de nota, artefactos de markdown/exports).
 # Lista corta a propósito: mejor quedarse corto y ver ruido en la nube que
 # filtrar de más y perder señal. Se ampliará con lo que la nube enseñe.
@@ -66,11 +74,17 @@ debajo propios propias juntas juntos menor mayor breve exacta exacto debería
 podría habría quisiera dime dame haz pon mira oye venga
 """.split())
 
+# Las stopwords pasan por el mismo aro que los tokens: sin esto, al quitar
+# acentos de los tokens, las stopwords acentuadas dejarian de filtrar.
+STOPWORDS = frozenset(_sin_acentos(w) for w in STOPWORDS)
+
 
 def _norm(text: str) -> str:
-    """minúsculas + normalización unicode NFC (los acentos de Windows y de
-    los exports pueden venir en formas compuestas distintas)."""
-    return unicodedata.normalize("NFC", text.lower())
+    """minusculas + sin acentos (decision V0ra 2026-07-18): ambos lados de
+    cualquier comparacion pasan por aqui, asi que 'fisica' y 'física' pescan
+    lo mismo se escriba como se escriba. Sensible solo al contenido, nunca a
+    la grafia del momento."""
+    return _sin_acentos(text.lower())
 
 
 def _raw_tokens(text: str):
@@ -348,7 +362,13 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
 
     ahora = datetime.datetime.now().isoformat(timespec="seconds")
     generadas = set()
+    stems_con_tema = set()
+    stems_contenido = set()
+    temas_detalle: Dict[str, dict] = {}
     for tema, palabras in sorted(temas.items()):
+        # Tema estructural: TODAS sus palabras son reglas campo=valor (redes
+        # por metadatos). Los mixtos cuentan como contenido.
+        es_estructural = all("=" in _norm(p) for p in palabras)
         matches = []
         for stem, fecha, prov, titulo, toks, cuerpo, fm_norm in huerfanas:
             for p in palabras:
@@ -359,9 +379,12 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
                     campo, _, valor = pn.partition("=")
                     if fm_norm.get(campo.strip()) == valor.strip():
                         matches.append((fecha, prov, titulo, stem))
+                        stems_con_tema.add(stem)
                         break
                 elif (" " in pn and pn in cuerpo) or (" " not in pn and pn in toks):
                     matches.append((fecha, prov, titulo, stem))
+                    stems_con_tema.add(stem)
+                    stems_contenido.add(stem)
                     break
         matches.sort(reverse=True)
         slug = _slug_tema(tema)
@@ -387,8 +410,78 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
             "\n".join(lineas) + "\n", encoding="utf-8", newline="\n")
         stats["temas"] += 1
         stats["enlaces"] += len(matches)
+        temas_detalle[tema] = {"enlaces": len(matches), "estructural": es_estructural}
         if not matches:
             stats["sin_coincidencias"].append(tema)
+
+    # Puntos ciegos de la cartografia, en dos capas (decision V0ra 2026-07-19):
+    # - "sin ningun tema": ni contenido ni estructural. Con redes por proveedor
+    #   deberia rondar cero -> funciona como detector de anomalias de frontmatter.
+    # - "solo estructural": pescadas unicamente por redes campo=valor. Es la
+    #   lista de trabajo real: se sabe de donde vienen pero no de que hablan.
+    sin_nada = [(fecha, prov, titulo, stem)
+                for stem, fecha, prov, titulo, _t, _c, _f in huerfanas
+                if stem not in stems_con_tema]
+    sin_nada.sort(reverse=True)
+    solo_estructural = [(fecha, prov, titulo, stem)
+                        for stem, fecha, prov, titulo, _t, _c, _f in huerfanas
+                        if stem in stems_con_tema and stem not in stems_contenido]
+    solo_estructural.sort(reverse=True)
+    total_h = len(huerfanas)
+    stats["huerfanas_sin_tema"] = len(sin_nada)
+    stats["huerfanas_solo_estructural"] = len(solo_estructural)
+    stats["total_huerfanas"] = total_h
+    stats["cobertura_contenido_pct"] = round(
+        100.0 * len(stems_contenido & {h[0] for h in huerfanas}) / total_h, 1) if total_h else 0.0
+    lineas = [
+        "---",
+        'title: "Sin tema (huerfanas pendientes)"',
+        "tipo: tema",
+        "generado_por: m3m0ria",
+        f"generado: {ahora}",
+        "---",
+        "",
+        "# Puntos ciegos de la cartografia",
+        "",
+        f"## Sin ningun tema ({len(sin_nada)})",
+        "",
+        "Ni temas de contenido ni redes estructurales las pescan. Con redes por",
+        "proveedor activas, esto deberia rondar cero: si algo aparece aqui, suele",
+        "ser una anomalia de frontmatter digna de mirar.",
+        "",
+    ]
+    for fecha, prov, titulo, stem in sin_nada:
+        lineas.append(f"- [[{stem}]] — {fecha} · {prov} · {titulo}")
+    lineas += [
+        "",
+        f"## Solo pescadas por redes estructurales ({len(solo_estructural)})",
+        "",
+        "Se sabe de que proveedor vienen pero ningun tema de contenido las toca:",
+        "la cartografia pendiente de verdad.",
+        "",
+    ]
+    for fecha, prov, titulo, stem in solo_estructural:
+        lineas.append(f"- [[{stem}]] — {fecha} · {prov} · {titulo}")
+    (out_dir / "_sin-tema.md").write_text(
+        "\n".join(lineas) + "\n", encoding="utf-8", newline="\n")
+    generadas.add("_sin-tema")
+
+    # Resumen legible por maquina para vault_stats/dashboard (atomico, oculto
+    # de Obsidian por el punto inicial)
+    resumen = {
+        "generado": ahora,
+        "temas": temas_detalle,
+        "total_huerfanas": total_h,
+        "huerfanas_sin_tema": len(sin_nada),
+        "huerfanas_solo_estructural": len(solo_estructural),
+        "cobertura_contenido_pct": stats["cobertura_contenido_pct"],
+    }
+    p_stats = out_dir / ".temas_stats.json"
+    tmp = p_stats.with_name(p_stats.name + ".tmp")
+    tmp.write_text(json.dumps(resumen, ensure_ascii=False, indent=2),
+                   encoding="utf-8", newline="\n")
+    tmp.replace(p_stats)
+
 
     # Retirar notas de tema generadas por m3m0ria que ya no esten en el mapa
     for f in out_dir.glob("*.md"):

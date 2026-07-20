@@ -422,6 +422,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
         mapping = conv.get("mapping")
         current_node = conv.get("current_node")
         messages: List[Dict[str, str]] = []
+        modelos_vistos: Dict[str, int] = {}
 
         if isinstance(mapping, dict):
             ordered_nodes: List[Dict[str, Any]] = []
@@ -458,6 +459,9 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 if not msg:
                     continue
                 author = (msg.get("author") or {}).get("role") or msg.get("role") or "unknown"
+                slug = (msg.get("metadata") or {}).get("model_slug")
+                if slug:
+                    modelos_vistos[slug] = modelos_vistos.get(slug, 0) + 1
                 c = msg.get("content")
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
                 content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids)
@@ -485,6 +489,16 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
             "gizmo_id": gid,
             "provider": "chatgpt",
             "conv_id": conv.get("conversation_id") or conv.get("id"),
+            # Campos del esquema nuevo (2026+) que el bucle principal usa
+            # para resolver el proyecto cuando gizmo_id viene a None.
+            # Propagarlos aqui es esencial: sin esto, load_conversations los
+            # descarta y el fix del conversation_template_id ejecutaria sobre
+            # un dict vacio (incidente documentado 2026-07-20).
+            "conversation_template_id": conv.get("conversation_template_id"),
+            "memory_scope": conv.get("memory_scope"),
+            # Modelo mas frecuente de la conversacion (representativo cuando
+            # el hilo cruza epocas de modelos); empate -> orden alfabetico
+            "model": max(sorted(modelos_vistos), key=lambda m: modelos_vistos[m]) if modelos_vistos else None,
         })
 
     return conversations
@@ -555,6 +569,22 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
 
     if ext == ".zip":
         zf = zipfile.ZipFile(p, "r")
+        # Formato fragmentado de ChatGPT (2026+): conversations-000.json,
+        # conversations-001.json... Fragmentos cronologicos y disjuntos
+        # (verificado contra export real: 10 x 100 convs, 0 solapes). Se leen
+        # TODOS en orden y se concatenan. El formato clasico de un unico
+        # conversations.json se mantiene debajo por retrocompatibilidad.
+        shard_rx = re.compile(r"conversations-\d+\.json$", re.IGNORECASE)
+        shards = sorted(n for n in zf.namelist() if shard_rx.search(n))
+        if shards:
+            combinado: List[Any] = []
+            for name in shards:
+                with zf.open(name) as f:
+                    parte = json.load(f)
+                if isinstance(parte, list):
+                    combinado.extend(parte)
+            return _dispatch(combinado, image_meta_out=image_meta_out), zf
+
         json_name = None
         for name in zf.namelist():
             if name.lower().endswith("conversations.json"):
@@ -606,6 +636,10 @@ def main():
     ap = argparse.ArgumentParser(description="Divide exportaciones de ChatGPT en Markdown para Obsidian.")
     ap.add_argument("input")
     ap.add_argument("output")
+    ap.add_argument("--manifest", default=None,
+                    help="Directorio de logs donde anadir el manifiesto append-only de conversaciones procesadas")
+    ap.add_argument("--export-name", default=None,
+                    help="Nombre del export original a registrar en el manifiesto (por defecto, el basename del input)")
     ap.add_argument("--tag-map", default=None)
     ap.add_argument("--gizmo-map", default=None, help="JSON con id→nombre (g-*, g-p-* o hex) → slug/nombre")
     ap.add_argument("--make-index", action="store_true")
@@ -678,6 +712,12 @@ def main():
     if args.assets_dir:
         print(f"Assets indexados en el ZIP: {len(asset_index.by_id)}")
 
+    # Manifiesto append-only de trazabilidad (opcional). Silencioso ante
+    # fallos de I/O: registrar es opcional, importar no.
+    from manifest import ConversationManifest
+    export_name = args.export_name or os.path.basename(args.input)
+    manifest = ConversationManifest(args.manifest, export_name=export_name)
+
     records: List[Dict[str, Any]] = []
     total_images = 0
     gizmos_pendientes: Dict[str, dict] = {}
@@ -700,6 +740,18 @@ def main():
                     tags.append(tg if str(tg).startswith("#") else f"#{tg}")
 
         gid = conv.get("gizmo_id") or conv.get("gizmoId")
+        # Fallback al esquema nuevo de ChatGPT (2026+): los proyectos han
+        # migrado de gizmo_id a conversation_template_id con prefijo 'g-p-'.
+        # Filtro estricto por 'g-p-' para no confundir con otros templates
+        # que no son proyectos (GPTs, workflows). Solo se usa si gizmo_id no
+        # viene y memory_scope confirma que es un proyecto -- doble check:
+        # el prefijo por si acaso el schema cambia otra vez, memory_scope
+        # como intencion explicita del proveedor.
+        if not gid:
+            ctid = conv.get("conversation_template_id") or ""
+            if ctid.startswith("g-p-") or conv.get("memory_scope") == "project_v2":
+                if ctid.startswith("g-p-"):
+                    gid = ctid
         name_from_map = None
         if gid:
             hx = norm_hex_id(gid)
@@ -718,6 +770,8 @@ def main():
             # Identidad estable de la conversacion (la llave de la cordura:
             # sobrevive a renombrados de hilo entre exports)
             extra_front["conv_id"] = conv["conv_id"]
+        if conv.get("model"):
+            extra_front["model"] = conv["model"]
 
         if args.force_project_id:
             extra_front["source_project_id"] = args.force_project_id
@@ -785,9 +839,24 @@ def main():
             "date": date_primary, "title": title, "tags": tags,
             "relpath": rel, "count": len(msgs), "words": words
         })
+        # Trazabilidad conversacion->export: una linea por nota escrita.
+        # Va aqui, DESPUES del write_md exitoso, para no anotar como escrita
+        # una conversacion que fallo la escritura en disco.
+        manifest.record(
+            conv_id=conv.get("conv_id"),
+            provider=(conv.get("provider") or "chatgpt"),
+            titulo=title,
+            fecha_conv=date_primary,
+            nota_rel=rel,
+            estado="escrita",
+        )
 
     if zf:
         zf.close()
+    manifest.close()
+    if manifest.path:
+        print(f"Manifiesto: +{manifest.escritas} entradas en {manifest.path}"
+              + (f" ({manifest.errores} con error)" if manifest.errores else ""))
 
     if args.make_index:
         path = os.path.join(args.output, "_index.md")

@@ -8,6 +8,9 @@ __pycache__/
 dist/
 build/
 
+#miga de pan
+_SESION_EN_CURSO.md
+
 # Config personal (contiene rutas locales)
 memoria_config.yaml
 
