@@ -24,7 +24,7 @@ from pathlib import Path
 import argparse
 from collections import defaultdict
 
-from tree_index import INDEX_FILENAMES
+from tree_index import INDEX_FILENAMES, iter_markdown_files
 
 ATTACHMENT_RE = re.compile(r"^\U0001F4CE\s*Archivo\s+adjunto:\s*\*\*(.+?)\*\*", re.MULTILINE)
 LEGACY_SCAFFOLD_RE = re.compile(r"^\U0001F4C4\s*Archivo\s+cargado:\s*\*\*(.+?)\*\*", re.MULTILINE)
@@ -34,7 +34,7 @@ def scan_vault(vault_path: Path):
     """Recorre el vault buscando lineas de adjunto/andamiaje y devuelve
     {nombre_archivo: [ruta_relativa_de_nota, ...]}."""
     scaffolds = defaultdict(list)
-    for md in vault_path.rglob("*.md"):
+    for md in iter_markdown_files(vault_path):
         if any(x in md.parts for x in (".obsidian", ".git", "_assets")):
             continue
         if md.name in INDEX_FILENAMES:

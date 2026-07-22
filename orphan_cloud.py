@@ -34,7 +34,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from tree_index import read_frontmatter, INDEX_FILENAMES
+from tree_index import read_frontmatter, INDEX_FILENAMES, iter_markdown_files
 
 # Términos de 3+ caracteres con letras (acentos y ñ incluidos), dígitos o guiones
 TOKEN_RX = re.compile(r"[a-z0-9áéíóúüñ][a-z0-9áéíóúüñ_-]{2,}")
@@ -196,7 +196,7 @@ def iter_orphans(merged_vault: Path):
     conv = merged_vault / "Conversaciones"
     if not conv.exists():
         return
-    for f in conv.rglob("*.md"):
+    for f in iter_markdown_files(conv):
         if f.name in INDEX_FILENAMES:
             continue
         fm = read_frontmatter(f)

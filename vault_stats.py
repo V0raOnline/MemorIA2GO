@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from tree_index import read_frontmatter, DATE_RX, INDEX_FILENAMES
+from tree_index import read_frontmatter, DATE_RX, INDEX_FILENAMES, iter_markdown_files
 
 
 def human_size(num_bytes: int) -> str:
@@ -39,12 +39,17 @@ def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict
 
     total_size = 0
     if vault_path.exists():
-        for f in vault_path.rglob("*"):
-            if "_assets" in f.parts:
-                continue
-            if f.is_file():
+        # os.walk (no Path.rglob): un junction colgando (p.ej. _assets tras
+        # la migracion de bancos 2026-07-22) hace que rglob reviente con
+        # FileNotFoundError en cuanto lo pisa. os.walk con onerror silencioso
+        # ya es robusto por si solo, pero se poda igual por claridad -- nunca
+        # queremos contar bytes de un banco de assets compartido aqui.
+        for dirpath, dirnames, filenames in os.walk(vault_path, onerror=lambda e: None):
+            dirnames[:] = [d for d in dirnames if not (Path(dirpath) / d).is_symlink() and d != "_assets"]
+            for fn in filenames:
+                fpath = Path(dirpath) / fn
                 try:
-                    total_size += f.stat().st_size
+                    total_size += fpath.stat().st_size
                 except OSError:
                     pass
 
@@ -55,7 +60,7 @@ def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict
     por_proyecto: dict = {}
     por_proveedor: dict = {}
     if conv_base.exists():
-        for f in conv_base.rglob("*.md"):
+        for f in iter_markdown_files(conv_base):
             if f.name in INDEX_FILENAMES:
                 continue
             note_count += 1

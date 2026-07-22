@@ -37,7 +37,8 @@ def test_ignora_enlaces_pegados_sin_prefijo_image_bank(tmp_path):
     (bank / "abc123.png").write_bytes(b"fake-png-bytes")
     # nombre_imagen.png / 1*abc.png NO existen en IMAGE_BANK a proposito.
 
-    entries = ii.collect_entries(vault, "Conversaciones", manifest={})
+    link_re = ii.make_link_re("IMAGE_BANK")
+    entries = ii.collect_entries(vault, "Conversaciones", manifest={}, link_re=link_re)
 
     assert len(entries) == 1, f"solo la nota con imagen real deberia quedar, hay: {[e['title'] for e in entries]}"
     assert entries[0]["title"] == "Con imagen real"
@@ -52,7 +53,26 @@ def test_render_markdown_sin_referencias_rotas(tmp_path):
         body="![](IMAGE_BANK/real.png)\n\n"
              "texto citado con ![](otra-carpeta/falsa.png) de por medio\n",
     )
-    entries = ii.collect_entries(vault, "Conversaciones", manifest={})
-    md = ii.render_markdown(entries)
+    link_re = ii.make_link_re("IMAGE_BANK")
+    entries = ii.collect_entries(vault, "Conversaciones", manifest={}, link_re=link_re)
+    md = ii.render_markdown(entries, "IMAGE_BANK", "Índice de Imágenes")
     assert "IMAGE_BANK/real.png" in md
     assert "falsa.png" not in md
+
+
+def test_bank_prefix_distinto_no_mezcla_bancos(tmp_path):
+    """Un enlace CHATGPT/GENERADAS/ no debe aparecer en el indice de
+    CHATGPT/ADJUNTOS y viceversa -- son bancos separados (decision V0ra
+    2026-07-22, taxonomia por proveedor y tipo)."""
+    vault = tmp_path
+    conv_dir = vault / "Conversaciones"
+    _write_note(
+        conv_dir / "nota.md", title="Nota", date="2026-07-01",
+        body="![](CHATGPT/GENERADAS/gen.png)\n\n![](CHATGPT/ADJUNTOS/adj.png)\n",
+    )
+    entries_generadas = ii.collect_entries(vault, "Conversaciones", manifest={},
+                                            link_re=ii.make_link_re("CHATGPT/GENERADAS"))
+    entries_adjuntos = ii.collect_entries(vault, "Conversaciones", manifest={},
+                                           link_re=ii.make_link_re("CHATGPT/ADJUNTOS"))
+    assert entries_generadas[0]["images"] == [("gen.png", {})]
+    assert entries_adjuntos[0]["images"] == [("adj.png", {})]

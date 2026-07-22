@@ -318,12 +318,21 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
 # Pasos del pipeline
 # ─────────────────────────────────────────
 
-def paso1_split(params: dict, image_bank: Path, log_path: Path, reprocess_all: bool = False) -> Path:
+def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
+                 grok_adjuntos: Path, grok_generadas_imagen: Path, grok_generadas_video: Path,
+                 grok_pendientes: Path, claude_artefactos: Path,
+                 log_path: Path, reprocess_all: bool = False) -> Path:
     """Procesa TODO export valido y pendiente en exports_dir hacia
     RAW_VAULT/Conversaciones. Incremental por defecto (registro en
     _exports_procesados.json); reprocess_all fuerza a repasarlos todos.
     Nunca sobrescribe: toda colisión de nombre genera una variante con
-    sufijo hash (--keep-versions)."""
+    sufijo hash (--keep-versions).
+
+    chatgpt_generadas/chatgpt_adjuntos son carpetas hermanas de los vaults
+    (mismo nivel que RAW_VAULT), no necesitan junction: split_chatgpt_export.py
+    escribe ahi directamente por ruta absoluta, y los enlaces en las notas
+    tambien son absolutos desde la raiz del vault de Obsidian (mismo criterio
+    que ya se uso para el bug de IMAGE_BANK del 2026-07-20)."""
     rule("Paso 1 — Importar (RAW_VAULT)")
 
     script = HERE / "split_chatgpt_export.py"
@@ -341,12 +350,10 @@ def paso1_split(params: dict, image_bank: Path, log_path: Path, reprocess_all: b
     if not pending:
         info("No hay exports nuevos que importar -- todo al día." if not reprocess_all
              else "No hay ningún export válido en exports_dir.")
-        ensure_image_bank_junction(raw_vault, image_bank, log_path)
         return raw_vault
 
     info(f"Exports pendientes de importar: {len(pending)} ({', '.join(p.name for p in pending)})")
 
-    assets_junction = ensure_image_bank_junction(raw_vault, image_bank, log_path)
     conv_dir = raw_vault / "Conversaciones"
     conv_dir.mkdir(parents=True, exist_ok=True)
 
@@ -359,7 +366,13 @@ def paso1_split(params: dict, image_bank: Path, log_path: Path, reprocess_all: b
             "--by-year",
             "--by-month",
             "--keep-versions",
-            "--assets-dir", assets_junction,
+            "--generadas-dir", chatgpt_generadas,
+            "--adjuntos-dir", chatgpt_adjuntos,
+            "--grok-adjuntos-dir", grok_adjuntos,
+            "--grok-generadas-imagen-dir", grok_generadas_imagen,
+            "--grok-generadas-video-dir", grok_generadas_video,
+            "--grok-pendientes-out", grok_pendientes,
+            "--claude-artefactos-dir", claude_artefactos,
             "--manifest", HERE / "logs",
             "--export-name", export_path.name,
         ]
@@ -439,16 +452,37 @@ def paso3_organizar(params: dict, merged_vault: Path, image_bank: Path, log_path
     ok(f"Vault por proyectos listo en: {project_vault}")
     return project_vault
 
-def paso4_indices(merged_vault: Path, project_vault: Path | None, log_path: Path):
+def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | None, log_path: Path):
     """Genera _tree_index.md (navegacion por proyecto/ano/mes),
-    scaffolding_index.md (que conversacion uso que archivo adjunto) e
-    _image_index.md en MERGED_VAULT y, si existe, tambien en PRJ_VAULT.
+    scaffolding_index.md (que conversacion uso que archivo adjunto) y un
+    indice de contenido POR PROVEEDOR (_index_chatgpt.md, _index_claude.md,
+    _index_grok.md -- decision V0ra 2026-07-22: uno por proveedor, no uno
+    por banco, cada rama y cada conversacion colapsada por defecto via
+    <details>) en MERGED_VAULT y, si existe, tambien en PRJ_VAULT.
     No fatal si falla: son indices de navegacion, no datos de origen."""
     rule("Paso 4 — Indices de navegacion")
 
     tree_script = HERE / "tree_index.py"
     scaffold_script = HERE / "scaffolding_index.py"
-    image_script = HERE / "image_index.py"
+    content_script = HERE / "content_index.py"
+
+    # (titulo, archivo de salida, ["prefijo:etiqueta", ...] para --banco,
+    # ["prefijo:etiqueta", ...] para --banco-catalogo). Un indice por
+    # proveedor, cada banco de ese proveedor como su propia rama colapsada.
+    proveedores = [
+        ("ChatGPT", "_index_chatgpt.md",
+         ["CHATGPT/GENERADAS:Generadas", "CHATGPT/ADJUNTOS:Adjuntos"], []),
+        ("Claude", "_index_claude.md",
+         ["CLAUDE/ARTEFACTOS:Artefactos"], []),
+        ("Grok", "_index_grok.md",
+         ["GROK/ADJUNTOS:Adjuntos"],
+         ["GROK/GENERADAS_IMAGEN:Generadas (imagen)", "GROK/GENERADAS_VIDEO:Generadas (video)"]),
+    ]
+    grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
+
+    # Indices viejos, uno por banco de ChatGPT, superados por _index_chatgpt.md.
+    # Se retiran en cada corrida para que no queden colgando desincronizados.
+    archivos_obsoletos = ["_image_index.md", "_index_generadas.md", "_index_adjuntos.md"]
 
     targets = [(merged_vault, "Conversaciones")]
     if project_vault is not None:
@@ -457,6 +491,11 @@ def paso4_indices(merged_vault: Path, project_vault: Path | None, log_path: Path
         targets.append((project_vault, "."))
 
     for vault, conv_dir in targets:
+        for nombre in archivos_obsoletos:
+            obsoleto = vault / nombre
+            if obsoleto.exists():
+                obsoleto.unlink()
+
         if tree_script.exists():
             run_script(tree_script, [vault, "--conversations-dir", conv_dir, "--max-per-month", "0"], log_path)
         else:
@@ -467,10 +506,27 @@ def paso4_indices(merged_vault: Path, project_vault: Path | None, log_path: Path
         else:
             warn("No encuentro scaffolding_index.py — omitiendo indice de adjuntos.")
 
-        if image_script.exists():
-            run_script(image_script, [vault, "--conversations-dir", conv_dir], log_path)
+        if content_script.exists():
+            for titulo, out_name, bancos, bancos_catalogo in proveedores:
+                args = [
+                    vault, "--base-vault", base_vault,
+                    "--conversations-dir", conv_dir,
+                    "--proveedor", titulo,
+                    "--out", out_name,
+                ]
+                for b in bancos:
+                    args += ["--banco", b]
+                for b in bancos_catalogo:
+                    args += ["--banco-catalogo", b]
+                if titulo == "Grok":
+                    args += [
+                        "--pendientes-json", grok_pendientes_json,
+                        "--pendientes-out", "_grok_pendientes.md",
+                        "--pendientes-titulo", "Grok — pendientes de descarga",
+                    ]
+                run_script(content_script, args, log_path)
         else:
-            warn("No encuentro image_index.py — omitiendo indice de imagenes.")
+            warn("No encuentro content_index.py — omitiendo indice de contenido.")
 
     # Cache de estadisticas: se recalcula aqui, en el momento barato (batch,
     # ya hemos tocado todo el vault), para que /api/stats del launcher
@@ -566,7 +622,21 @@ def main():
     log(log_path, f"Vault:  {params['vault_path']}")
 
     image_bank = params["vault_path"] / "IMAGE_BANK"
-    info(f"🖼  Banco de imágenes: {image_bank}")
+    # Taxonomia por proveedor y tipo (decision V0ra 2026-07-22): las
+    # generaciones de IA y las subidas del usuario van a bancos separados
+    # bajo CHATGPT/, hermanos de RAW_VAULT/MERGED_VAULT/PRJ_VAULT/IMAGE_BANK.
+    # IMAGE_BANK se mantiene mientras V0ra no haya movido el contenido
+    # antiguo mal clasificado (ver CONTEXT.md seccion 3).
+    chatgpt_generadas = params["vault_path"] / "CHATGPT" / "GENERADAS"
+    chatgpt_adjuntos = params["vault_path"] / "CHATGPT" / "ADJUNTOS"
+    grok_adjuntos = params["vault_path"] / "GROK" / "ADJUNTOS"
+    grok_generadas_imagen = params["vault_path"] / "GROK" / "GENERADAS_IMAGEN"
+    grok_generadas_video = params["vault_path"] / "GROK" / "GENERADAS_VIDEO"
+    grok_pendientes = params["vault_path"] / "GROK" / "_pendientes_descarga.json"
+    claude_artefactos = params["vault_path"] / "CLAUDE" / "ARTEFACTOS"
+    info(f"🖼  Banco de imágenes (legado): {image_bank}")
+    info(f"🖼  Generadas: {chatgpt_generadas}")
+    info(f"🖼  Adjuntos:  {chatgpt_adjuntos}")
 
     # Pipeline
     if args.from_merge:
@@ -577,11 +647,14 @@ def main():
         rule("Paso 1 — Omitido (--from-merge, reutilizando RAW_VAULT existente)")
         ok(f"RAW_VAULT reutilizado: {raw_vault}")
     else:
-        raw_vault = paso1_split(params, image_bank, log_path, reprocess_all=args.reprocess_all)
+        raw_vault = paso1_split(params, chatgpt_generadas, chatgpt_adjuntos,
+                                 grok_adjuntos, grok_generadas_imagen, grok_generadas_video,
+                                 grok_pendientes, claude_artefactos, log_path,
+                                 reprocess_all=args.reprocess_all)
 
     merged_vault = paso2_merge(params, raw_vault, image_bank, log_path)
     project_vault = paso3_organizar(params, merged_vault, image_bank, log_path)
-    paso4_indices(merged_vault, project_vault, log_path)
+    paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
 
     rule("Proceso completado")
     ok(f"RAW_VAULT     → {raw_vault}")

@@ -45,7 +45,10 @@ ROLE_MAP = {"human": "user", "assistant": "assistant"}
 # consume. Usado por preflight.detect_new_keys para avisar (no bloquear) si
 # el export trae claves nunca vistas -- la senal de que Claude cambio de
 # formato antes de que un campo se pierda en silencio por el pipeline.
-KNOWN_KEYS = frozenset({"uuid", "name", "created_at", "updated_at", "chat_messages"})
+# Catch-up 2026-07-22: account y summary revisadas contra los exports
+# reales de V0ra -- metadatos de cuenta/resumen, no referencian nada que
+# el pipeline necesite resolver.
+KNOWN_KEYS = frozenset({"uuid", "name", "created_at", "updated_at", "chat_messages", "account", "summary"})
 
 
 def detect(data: Any) -> bool:
@@ -131,7 +134,51 @@ def _render_attachments(m: dict) -> List[str]:
     return out
 
 
-def _render_message(m: dict) -> str:
+def _resolve_artifacts(threaded_msgs: List[dict]) -> Dict[str, dict]:
+    """Recorre el hilo YA resuelto (ramas descartadas fuera, ver _thread)
+    buscando tool_use de nombre 'artifacts', y devuelve {id: {type, title,
+    language, content}} con el ESTADO FINAL tras aplicar create/update/
+    rewrite en orden. Decision V0ra 2026-07-22: solo se conserva la version
+    final, las revisiones intermedias se descartan -- un artefacto real se
+    vio revisado 14 veces en una sola conversacion.
+
+    Formas de 'input' verificadas contra export real:
+      create:  {id, type, title, content, language?}
+      update:  {id, old_str, new_str}               -- parche sobre el actual
+      rewrite: {id, content}                        -- reemplazo completo
+    update/rewrite heredan type/title/language de la creacion; si old_str
+    no aparece en el contenido actual (deriva/orden inesperado), el update
+    se ignora en vez de reventar -- mejor una version algo desactualizada
+    que una excepcion a mitad de export."""
+    artifacts: Dict[str, dict] = {}
+    for m in threaded_msgs:
+        for b in m.get("content") or []:
+            if not isinstance(b, dict) or b.get("type") != "tool_use" or b.get("name") != "artifacts":
+                continue
+            inp = b.get("input") or {}
+            aid = inp.get("id")
+            if not aid:
+                continue
+            cmd = inp.get("command")
+            if cmd == "create":
+                artifacts[aid] = {
+                    "type": inp.get("type") or "text/plain",
+                    "title": (inp.get("title") or aid).strip(),
+                    "language": inp.get("language"),
+                    "content": inp.get("content") or "",
+                }
+            elif aid not in artifacts:
+                continue  # update/rewrite sin create previo en este hilo: no hay base, se ignora
+            elif cmd == "rewrite":
+                artifacts[aid]["content"] = inp.get("content") or artifacts[aid]["content"]
+            elif cmd == "update":
+                old, new = inp.get("old_str"), inp.get("new_str")
+                if old is not None and new is not None and old in artifacts[aid]["content"]:
+                    artifacts[aid]["content"] = artifacts[aid]["content"].replace(old, new, 1)
+    return artifacts
+
+
+def _render_message(m: dict, seen_artifacts: set) -> str:
     chunks: List[str] = _render_attachments(m)
     for b in m.get("content") or []:
         if not isinstance(b, dict):
@@ -140,7 +187,16 @@ def _render_message(m: dict) -> str:
             t = (b.get("text") or "").strip()
             if t:
                 chunks.append(t)
-        # thinking / tool_use / tool_result / token_budget / flag: omitidos en v1
+        elif b.get("type") == "tool_use" and b.get("name") == "artifacts":
+            # Un solo marcador por artefacto, en su primer touch (create
+            # normalmente) -- las revisiones posteriores no repiten el
+            # marcador; el contenido que acaba resolviendo el marcador es
+            # siempre el FINAL (ver _resolve_artifacts), no el de este punto.
+            aid = (b.get("input") or {}).get("id")
+            if aid and aid not in seen_artifacts:
+                seen_artifacts.add(aid)
+                chunks.append(f"\x00CLAUDEARTIFACT:{aid}\x00")
+        # thinking / tool_result / token_budget / flag: omitidos en v1
     return "\n\n".join(chunks).strip()
 
 
@@ -150,10 +206,13 @@ def parse(data: Any) -> List[Dict[str, Any]]:
     for conv in data:
         if not isinstance(conv, dict):
             continue
+        threaded = _thread(conv.get("chat_messages") or [])
+        artifacts = _resolve_artifacts(threaded)
+        seen_artifacts: set = set()
         messages: List[Dict[str, str]] = []
-        for m in _thread(conv.get("chat_messages") or []):
+        for m in threaded:
             role = ROLE_MAP.get(m.get("sender"), m.get("sender") or "unknown")
-            content = _render_message(m)
+            content = _render_message(m, seen_artifacts)
             if content:
                 messages.append({"role": role, "content": content})
         if not messages:
@@ -168,5 +227,6 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             "gizmo_id": None,
             "provider": "claude",
             "conv_id": conv.get("uuid"),
+            "artifacts": artifacts,
         })
     return conversations

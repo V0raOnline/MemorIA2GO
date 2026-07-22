@@ -13,6 +13,8 @@ Ejemplo:
 import os, re, argparse, shutil
 from pathlib import Path
 
+from tree_index import iter_markdown_files
+
 def extract_yaml_field(text: str, key: str) -> str | None:
     m = re.search(rf'^{key}:\s*["\']?([^"\n\r#]+)', text, re.MULTILINE | re.IGNORECASE)
     return m.group(1).strip() if m else None
@@ -30,7 +32,7 @@ def main():
         raise SystemExit(f"❌ No encuentro {src}/Conversaciones")
     dst.mkdir(parents=True, exist_ok=True)
 
-    notes = list(src.rglob("*.md"))
+    notes = list(iter_markdown_files(src))
     created = 0
     for md in notes:
         try:

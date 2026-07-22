@@ -20,11 +20,17 @@ Particularidades del formato (autopsia 2026-07-16 contra export real):
   current_node de Grok) pero viene a None en el export real -> se usa si
   está poblado y, si no, misma estrategia que Claude: hoja más reciente y
   remontar por punteros a padre.
-- file_attachments son UUIDs de assets cuyo binario SÍ viaja en el zip.
-  v1: solo referencia legible; la extracción al IMAGE_BANK queda para la
-  iteración de artefactos multi-proveedor (decisión V0ra 2026-07-16).
-- media_posts (generaciones de Imagine) y agent_thinking_traces/steps se
-  omiten en v1 (misma política que los thinking de Claude).
+- file_attachments son UUIDs de assets cuyo binario SÍ viaja en el zip
+  (ttl/30d/.../prod-mc-asset-server//<uuid>/content). Se emite un marcador
+  \x00GROKFILE:<uid>\x00 que split_chatgpt_export.py resuelve con
+  GrokAssetIndex/render_grok_file_tokens hacia GROK/ADJUNTOS (extraccion
+  real desde 2026-07-22; v1 solo dejaba una referencia de texto).
+- media_posts (generaciones de Imagine) se procesan aparte (no son parte
+  del mapping de ninguna conversacion, ver process_grok_media_posts en
+  split_chatgpt_export.py) hacia GROK/GENERADAS_IMAGEN o
+  GROK/GENERADAS_VIDEO; solo ~18% trae el binario en el zip (verificado
+  contra export real), el resto queda en una lista de pendientes de
+  descarga. agent_thinking_traces/steps se omiten en v1.
 - projects ("workspaces") existen pero las conversaciones no los referencian
   en el export -> gizmo_id None.
 """
@@ -40,7 +46,23 @@ ROLE_MAP = {"human": "user", "assistant": "assistant"}
 # contrato de deteccion (detect()) y no se espera que derive, asi que el
 # muestreo de deriva de formato se centra en los metadatos, que es donde
 # aparecerian campos nuevos del proveedor. Usado por preflight.detect_new_keys.
-KNOWN_KEYS = frozenset({"id", "title", "create_time", "modify_time", "leaf_response_id"})
+#
+# Catch-up 2026-07-22 (19 claves, medidas contra los exports reales de
+# V0ra): en su mayoria identidad/organizacion (organization_id, team_id,
+# workspace_id, user_id, x_user_id, anon_user_id) sin relacion con la
+# resolucion de proyecto de este pipeline (Grok no vincula conversaciones
+# a projects/workspaces en el export, ver docstring del modulo). Nota
+# aparte para la discusion de artefactos: asset_ids/media_types/
+# root_asset_id apuntan a las generaciones de Imagine -- relevante para
+# esa conversacion, no para este chequeo de deriva.
+KNOWN_KEYS = frozenset({
+    "id", "title", "create_time", "modify_time", "leaf_response_id",
+    "anon_user_id", "asset_ids", "controller", "kind", "media_types",
+    "organization_id", "root_asset_id", "shared_with_team",
+    "shared_with_user_ids", "starred", "summary", "system_prompt_id",
+    "system_prompt_name", "task_result_id", "team_id", "temporary",
+    "user_id", "workspace_id", "x_user_id",
+})
 
 
 def detect(data: Any) -> bool:
@@ -109,7 +131,11 @@ def _thread(responses: List[dict], leaf_id: Optional[str]) -> List[dict]:
 def _render_message(m: dict) -> str:
     chunks: List[str] = []
     for uid in m.get("file_attachments") or []:
-        chunks.append(f"📎 Archivo adjunto del export de Grok (asset `{uid}`, binario en el zip original)")
+        # Marcador \x00GROKFILE:<uid>\x00, resuelto luego por
+        # render_grok_file_tokens (split_chatgpt_export.py) hacia
+        # GROK/ADJUNTOS, o degradado a texto legible si no hay banco
+        # configurado -- mismo patron que \x00IMG:...\x00 para ChatGPT.
+        chunks.append(f"\x00GROKFILE:{uid}\x00")
     text = (m.get("message") or "").strip()
     if text:
         chunks.append(text)

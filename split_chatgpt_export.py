@@ -44,15 +44,30 @@ UUID_SUFFIX_RE = re.compile(
 IMAGE_TOKEN_RE = re.compile(r"\x00IMG:(?P<pointer>[^\x00]+)\x00")
 
 # Claves de nivel superior de cada conversacion que parse_json_conversations
-# conoce y consume (clasico + fragmentado 2026+). Usado por
-# preflight.detect_new_keys para avisar (no bloquear) de deriva de formato:
-# la autopsia 2026-07 midio 21 claves nuevas de ChatGPT entre 2025-06 y
-# 2026-07, todas opcionales -- este es el chequeo que las hubiera detectado
-# antes de que conversation_template_id se perdiera en silencio.
+# conoce y consume (clasico + fragmentado 2026+), MAS las que se han
+# revisado y confirmado inofensivas (metadatos de sesion/UI que el parser
+# no necesita). Usado por preflight.detect_new_keys para avisar (no
+# bloquear) de deriva de formato: es el chequeo que hubiera detectado
+# conversation_template_id antes de que se perdiera en silencio.
+#
+# Catch-up 2026-07-22 (21 claves, medidas contra los 47 exports reales de
+# V0ra): revisadas una a una antes de anadirlas -- gizmo_type ("gpt" vs
+# "snorlax" = GPT custom vs. Proyecto nativo) y conversation_origin
+# preocupaban por sonar a clasificacion de proyecto, pero gizmo_type
+# siempre aparece junto a gizmo_id/conversation_template_id ya poblados
+# (2094 + 423 conversaciones verificadas, nunca uno sin el otro) y
+# conversation_origin nunca trae valor real en los datos de V0ra. Ninguna
+# de las 21 escondia un caso como el de conversation_template_id.
 CHATGPT_KNOWN_KEYS = frozenset({
     "title", "create_time", "createTime", "update_time", "updateTime",
     "gizmo_id", "gizmoId", "mapping", "current_node", "messages", "items",
     "conversation_id", "id", "conversation_template_id", "memory_scope",
+    "async_status", "atlas_mode_enabled", "blocked_urls", "context_scopes",
+    "conversation_origin", "default_model_slug", "disabled_tool_ids",
+    "gizmo_type", "is_archived", "is_do_not_remember", "is_read_only",
+    "is_starred", "is_study_mode", "moderation_results", "owner",
+    "pinned_time", "plugin_ids", "safe_urls", "sugar_item_id",
+    "sugar_item_visible", "voice",
 })
 
 
@@ -176,38 +191,218 @@ class AssetWriter:
             self.manifest[fname] = meta
         return fname
 
+    def flush_manifest(self) -> int:
+        """Fusiona self.manifest con el _image_manifest.json ya existente en
+        assets_dir (si lo hay) y lo reescribe. Devuelve el total tras la
+        fusion. No-op silencioso si no hay nada nuevo que anotar."""
+        if not self.manifest:
+            return 0
+        manifest_path = os.path.join(self.assets_dir, "_image_manifest.json")
+        existing: Dict[str, dict] = {}
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                existing = {}
+        existing.update(self.manifest)
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+        return len(existing)
+
+
+class BankTarget:
+    """Pareja (AssetWriter, prefijo de enlace) para UN banco de imagenes.
+    render_image_tokens elige el banco por meta['origen'] (generada/subida)
+    -- taxonomia por proveedor y tipo (decision V0ra 2026-07-22): las
+    generaciones de IA y las subidas del usuario ya no comparten carpeta."""
+    __slots__ = ("writer", "rel_prefix")
+
+    def __init__(self, writer: AssetWriter, rel_prefix: str):
+        self.writer = writer
+        self.rel_prefix = rel_prefix
+
 
 def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
-                         asset_writer: Optional[AssetWriter],
-                         rel_prefix: Optional[str],
+                         asset_writers: Optional[Dict[str, BankTarget]],
                          image_meta: Optional[Dict[str, dict]] = None,
                          conv_title: Optional[str] = None) -> str:
     """Sustituye los marcadores \\x00IMG:<pointer>\\x00 por markdown real,
-    o por un aviso explícito si no hay banco de assets configurado o el
-    binario no está presente en el export. Si image_meta trae informacion
-    para ese pointer (prompt de DALL-E, nombre de adjunto, dimensiones),
-    se adjunta al manifiesto del AssetWriter junto con la conversacion."""
+    o por un aviso explícito si no hay banco de assets configurado para el
+    origen de esa imagen o el binario no está presente en el export.
+
+    asset_writers mapea origen ('generada'/'subida', ver image_meta) al
+    BankTarget correspondiente -- cada imagen va a su banco segun de donde
+    salio, no todas al mismo sitio. Si image_meta trae informacion para ese
+    pointer (prompt de DALL-E, nombre de adjunto, dimensiones), se adjunta
+    al manifiesto del AssetWriter junto con la conversacion."""
 
     def _sub(m: "re.Match[str]") -> str:
         pointer = m.group("pointer")
-        if asset_writer is None or asset_index is None or rel_prefix is None:
+        meta_base = (image_meta or {}).get(pointer) or {}
+        origen = meta_base.get("origen") or "subida"
+        target = (asset_writers or {}).get(origen)
+        if asset_index is None or target is None:
             return f"*[imagen omitida: {pointer}]*"
         found = asset_index.get_bytes(pointer)
         if not found:
             return f"*[imagen no disponible en el export: {pointer}]*"
         data, ext = found
-        meta = None
-        if image_meta is not None:
-            base_meta = image_meta.get(pointer)
-            if base_meta:
-                meta = dict(base_meta)
-                if conv_title:
-                    meta["primera_conversacion"] = conv_title
-        fname = asset_writer.write(data, ext, meta=meta)
-        rel_path = f"{rel_prefix}/{fname}".replace("\\", "/")
+        meta = dict(meta_base) if meta_base else None
+        if meta and conv_title:
+            meta["primera_conversacion"] = conv_title
+        fname = target.writer.write(data, ext, meta=meta)
+        rel_path = f"{target.rel_prefix}/{fname}".replace("\\", "/")
         return f"![]({rel_path})"
 
     return IMAGE_TOKEN_RE.sub(_sub, content)
+
+
+# ---------- Assets de Grok: prod-mc-asset-server dentro del ZIP ----------
+# A diferencia de ChatGPT, los blobs de Grok no traen extension en el nombre
+# (.../<uuid>/content) ni la referencia (file_attachments, media_posts) trae
+# mimetype -- hay que identificar el formato por los primeros bytes.
+
+GROK_FILE_TOKEN_RE = re.compile(r"\x00GROKFILE:(?P<uid>[^\x00]+)\x00")
+
+
+def sniff_ext(data: bytes) -> str:
+    """Identifica el tipo de fichero por sus primeros bytes (firma/magic
+    number). Verificado contra blobs reales de Grok (prod-mc-asset-server):
+    ni el nombre del blob en el zip ni la referencia en el JSON traen
+    extension o mimetype."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return ".png"
+    if data[:3] == b"\xff\xd8\xff":
+        return ".jpg"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return ".gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    if data[4:8] == b"ftyp":
+        return ".mp4"
+    return ".bin"
+
+
+class GrokAssetIndex:
+    """Mapea un uuid de asset (file_attachments, media_posts.id) al nombre
+    real del blob dentro del ZIP de Grok: ttl/30d/.../prod-mc-asset-server/
+    /<uuid>/content. Verificado contra export real: 72/72 uuids de
+    file_attachments de una conversacion casaban con un blob del zip."""
+
+    def __init__(self, zf: Optional[zipfile.ZipFile]):
+        self.zf = zf
+        self.by_uuid: Dict[str, str] = {}
+        if zf is None:
+            return
+        for name in zf.namelist():
+            if "prod-mc-asset-server" not in name:
+                continue
+            # El path trae DOS uuids: el del usuario (antes de
+            # prod-mc-asset-server) y el del asset (justo antes de
+            # "content", que es el que hay que indexar). Bug real
+            # 2026-07-22: tomar el primer segmento de 36 caracteres del
+            # path entero cogia el uuid de usuario -- 0 aciertos en un
+            # export real con 72 file_attachments verificados a mano.
+            parts = name.split("/")
+            if len(parts) >= 2 and parts[-1] == "content":
+                uid = parts[-2]
+                if len(uid) == 36 and uid.count("-") == 4:
+                    self.by_uuid[uid] = name
+
+    def get_bytes(self, uid: str) -> Optional[bytes]:
+        if self.zf is None:
+            return None
+        name = self.by_uuid.get(uid)
+        if not name:
+            return None
+        with self.zf.open(name) as f:
+            return f.read()
+
+
+def render_grok_file_tokens(content: str, asset_index: Optional[GrokAssetIndex],
+                             asset_writer: Optional[AssetWriter],
+                             rel_prefix: Optional[str]) -> str:
+    """Sustituye los marcadores \\x00GROKFILE:<uid>\\x00 por un embed (si es
+    imagen) o un enlace de archivo, o por el aviso legible de siempre si no
+    hay banco configurado o el binario no esta en el export."""
+
+    def _sub(m: "re.Match[str]") -> str:
+        uid = m.group("uid")
+        if asset_index is None or asset_writer is None or rel_prefix is None:
+            return f"📎 Archivo adjunto del export de Grok (asset `{uid}`, binario en el zip original)"
+        data = asset_index.get_bytes(uid)
+        if data is None:
+            return f"📎 Archivo adjunto del export de Grok (asset `{uid}`, no disponible en el export)"
+        ext = sniff_ext(data)
+        fname = asset_writer.write(data, ext)
+        rel_path = f"{rel_prefix}/{fname}".replace("\\", "/")
+        if ext in (".png", ".jpg", ".gif", ".webp"):
+            return f"![]({rel_path})"
+        return f"📎 [Archivo adjunto]({rel_path})"
+
+    return GROK_FILE_TOKEN_RE.sub(_sub, content)
+
+
+# ---------- Artefactos de Claude: subdirectorio por tipo dentro del banco ----------
+
+CLAUDE_ARTIFACT_TOKEN_RE = re.compile(r"\x00CLAUDEARTIFACT:(?P<aid>[^\x00]+)\x00")
+
+# type (Content-Type real de Claude) -> (subcarpeta, extension). "language"
+# (solo presente en application/vnd.ant.code) afina la extension del codigo.
+_ARTIFACT_TYPE_MAP = {
+    "text/markdown": ("markdown", ".md"),
+    "text/html": ("html", ".html"),
+    "application/vnd.ant.code": ("codigo", ".txt"),
+    "image/svg+xml": ("svg", ".svg"),
+    "application/vnd.ant.react": ("react", ".jsx"),
+    "application/vnd.ant.mermaid": ("mermaid", ".mmd"),
+}
+_LANGUAGE_EXT_MAP = {
+    "python": ".py", "javascript": ".js", "typescript": ".ts", "jsx": ".jsx", "tsx": ".tsx",
+    "html": ".html", "css": ".css", "json": ".json", "yaml": ".yaml", "sql": ".sql",
+    "bash": ".sh", "shell": ".sh", "go": ".go", "rust": ".rs", "java": ".java",
+    "c": ".c", "cpp": ".cpp", "csharp": ".cs", "ruby": ".rb", "php": ".php",
+}
+
+
+def _artifact_subdir_ext(art: dict) -> Tuple[str, str]:
+    subdir, ext = _ARTIFACT_TYPE_MAP.get(art.get("type"), ("otros", ".txt"))
+    if art.get("type") == "application/vnd.ant.code":
+        ext = _LANGUAGE_EXT_MAP.get((art.get("language") or "").lower(), ".txt")
+    return subdir, ext
+
+
+def render_claude_artifact_tokens(content: str, artifacts: Optional[Dict[str, dict]],
+                                   writer: Optional[AssetWriter], bank_prefix: Optional[str],
+                                   conv_id: Optional[str] = None) -> str:
+    """Sustituye \\x00CLAUDEARTIFACT:<id>\\x00 por un enlace al artefacto ya
+    escrito en CLAUDE/ARTEFACTOS/<tipo>/, o por un aviso legible si no hay
+    banco configurado. El contenido escrito es siempre la version FINAL
+    (ver claude_adapter._resolve_artifacts), independientemente de cuantas
+    revisiones tuviera en el export. conv_id entra en el nombre de fichero
+    porque el id del artefacto solo es unico DENTRO de su conversacion --
+    dos chats distintos pueden crear ambos un artefacto "app"."""
+
+    def _sub(m: "re.Match[str]") -> str:
+        aid = m.group("aid")
+        art = (artifacts or {}).get(aid)
+        if art is None:
+            return f"*[artefacto no resuelto: {aid}]*"
+        if writer is None or bank_prefix is None:
+            return f"🧩 Artefacto: **{art.get('title') or aid}** (omitido: sin banco de artefactos configurado)"
+        subdir, ext = _artifact_subdir_ext(art)
+        fname = f"{slugify(art.get('title') or aid)[:60]}-{content_hash(f'{conv_id}:{aid}')}{ext}"
+        full_dir = os.path.join(writer.assets_dir, subdir)
+        ensure_dir(full_dir)
+        path = os.path.join(full_dir, fname)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write(art.get("content") or "")
+        rel_path = f"{bank_prefix}/{subdir}/{fname}".replace("\\", "/")
+        return f"🧩 Artefacto: **{art.get('title') or aid}** → [{fname}]({rel_path})"
+
+    return CLAUDE_ARTIFACT_TOKEN_RE.sub(_sub, content)
 
 
 def render_tether_quote(obj: dict) -> Optional[str]:
@@ -386,11 +581,25 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                     chunks.append(f"\x00IMG:{pointer}\x00")
                     if image_meta_out is not None and pointer:
                         pid = AssetIndex.resolve_pointer_id(pointer)
-                        dalle = (p.get("metadata") or {}).get("dalle") or {}
+                        meta_raw = p.get("metadata") or {}
+                        dalle = meta_raw.get("dalle") or {}
+                        generation = meta_raw.get("generation") or {}
                         meta: dict = {}
                         if dalle.get("prompt"):
-                            meta["origen"] = "dalle"
+                            meta["origen"] = "generada"
                             meta["prompt"] = dalle.get("prompt")
+                        elif dalle.get("gen_id") or generation.get("gen_id"):
+                            # Generacion nativa (GPT-4o/GPT-5 in-context image
+                            # gen, tool "t2uay3k.sj1i4kz" en el export crudo):
+                            # el prompt no viaja en la metadata de la imagen
+                            # (vive en el texto de la conversacion que la
+                            # origino), pero gen_id/generation confirman que SI
+                            # es una imagen generada por el modelo, no una
+                            # subida del usuario. Bug real 2026-07-22:
+                            # comprobar solo dalle.prompt clasificaba 830
+                            # imagenes generadas como "subida" porque el
+                            # campo prompt viene vacio por esta via mas nueva.
+                            meta["origen"] = "generada"
                         else:
                             meta["origen"] = "subida"
                         if p.get("width"):
@@ -570,6 +779,66 @@ def _dispatch(data: Any, image_meta_out: Optional[Dict[str, dict]] = None) -> Li
     return parse_json_conversations(data, image_meta_out=image_meta_out)
 
 
+def load_grok_media_posts(zf: Optional[zipfile.ZipFile]) -> List[dict]:
+    """media_posts (generaciones de Imagine) vive en la raiz del JSON de
+    Grok, fuera de cualquier conversacion -- load_conversations no lo
+    expone (su contrato es solo la lista de conversaciones), asi que se
+    relee aparte, una sola vez por zip. Tolerante: si no es un export de
+    Grok o algo falla, lista vacia."""
+    if zf is None:
+        return []
+    try:
+        json_name = next((n for n in zf.namelist() if n.lower().endswith("prod-grok-backend.json")), None)
+        if not json_name:
+            return []
+        with zf.open(json_name) as f:
+            data = json.load(f)
+        mp = data.get("media_posts")
+        return mp if isinstance(mp, list) else []
+    except (zipfile.BadZipFile, json.JSONDecodeError, OSError, KeyError):
+        return []
+
+
+def process_grok_media_posts(media_posts: List[dict], asset_index: "GrokAssetIndex",
+                              imagen_writer: Optional[AssetWriter], imagen_rel_prefix: str,
+                              video_writer: Optional[AssetWriter], video_rel_prefix: str) -> Tuple[int, List[dict]]:
+    """Extrae a GROK/GENERADAS_IMAGEN o GROK/GENERADAS_VIDEO segun
+    media_type los media_posts cuyo binario SI viaja en el zip (verificado
+    contra export real: ~18%, prod-mc-asset-server indexado por el mismo
+    uuid que media_post['id']). El resto (~82%, solo un link externo a
+    grok.com que puede caducar o pedir sesion) se devuelve como lista de
+    pendientes para --grok-pendientes-out, NUNCA se descarga solo.
+    Devuelve (num_extraidas, pendientes)."""
+    extraidas = 0
+    pendientes: List[dict] = []
+    for mp in media_posts:
+        if not isinstance(mp, dict):
+            continue
+        mp_id = mp.get("id")
+        media_type = mp.get("media_type")
+        data = asset_index.get_bytes(mp_id) if mp_id else None
+        if data is None:
+            pendientes.append({
+                "id": mp_id,
+                "prompt": mp.get("original_prompt"),
+                "link": mp.get("link"),
+                "media_type": media_type,
+                "create_time": mp.get("create_time"),
+            })
+            continue
+        writer = video_writer if media_type == "video" else imagen_writer
+        if writer is None:
+            continue
+        ext = sniff_ext(data)
+        meta = {
+            "origen": "generada", "prompt": mp.get("original_prompt"), "media_type": media_type,
+            "create_time": mp.get("create_time"),
+        }
+        writer.write(data, ext, meta=meta)
+        extraidas += 1
+    return extraidas, pendientes
+
+
 def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]] = None) -> Tuple[List[Dict[str, Any]], Optional[zipfile.ZipFile]]:
     """Devuelve (conversaciones, zip_abierto_o_None). El zip se deja abierto para
     poder extraer imágenes de él más tarde; el llamador debe cerrarlo al terminar."""
@@ -680,9 +949,28 @@ def main():
     ap.add_argument("--force-project", default=None, help="Forzar source_project (nombre/slug)")
     ap.add_argument("--project-tag", action="store_true", help="Añade tag #project/<slug> si hay nombre")
 
-    ap.add_argument("--assets-dir", default=None,
-                    help="Carpeta donde extraer imágenes (subidas y generadas), deduplicadas por hash. "
-                         "Si se omite, las imágenes quedan como aviso de texto, sin extraer binarios.")
+    ap.add_argument("--generadas-dir", default=None,
+                    help="Carpeta donde extraer imagenes generadas por IA (DALL-E, generacion nativa), "
+                         "deduplicadas por hash. Si se omite, esas imagenes quedan como aviso de texto.")
+    ap.add_argument("--adjuntos-dir", default=None,
+                    help="Carpeta donde extraer imagenes subidas por el usuario, deduplicadas por hash. "
+                         "Si se omite, esas imagenes quedan como aviso de texto.")
+
+    ap.add_argument("--grok-adjuntos-dir", default=None,
+                    help="[Solo exports de Grok] Carpeta donde extraer file_attachments, deduplicados por hash.")
+    ap.add_argument("--grok-generadas-imagen-dir", default=None,
+                    help="[Solo exports de Grok] Carpeta donde extraer media_posts de tipo imagen (Imagine) "
+                         "cuyo binario SI viaja en el zip.")
+    ap.add_argument("--grok-generadas-video-dir", default=None,
+                    help="[Solo exports de Grok] Carpeta donde extraer media_posts de tipo video (Imagine) "
+                         "cuyo binario SI viaja en el zip.")
+    ap.add_argument("--grok-pendientes-out", default=None,
+                    help="[Solo exports de Grok] Ruta a un JSON donde anotar los media_posts (Imagine) SIN "
+                         "binario en el zip -- prompt+link+tipo, para descargarlos a mano.")
+
+    ap.add_argument("--claude-artefactos-dir", default=None,
+                    help="[Solo exports de Claude] Carpeta donde escribir artefactos (solo version final), "
+                         "organizados en subcarpetas por tipo (markdown/html/codigo/...).")
 
     args = ap.parse_args()
 
@@ -719,10 +1007,57 @@ def main():
         print("No se encontraron conversaciones.")
         sys.exit(2)
 
-    asset_index = AssetIndex(zf) if args.assets_dir else None
-    asset_writer = AssetWriter(args.assets_dir) if args.assets_dir else None
-    if args.assets_dir:
+    tiene_bancos = bool(args.generadas_dir or args.adjuntos_dir)
+    asset_index = AssetIndex(zf) if tiene_bancos else None
+    asset_writers: Dict[str, BankTarget] = {}
+    if args.generadas_dir:
+        asset_writers["generada"] = BankTarget(AssetWriter(args.generadas_dir), "CHATGPT/GENERADAS")
+    if args.adjuntos_dir:
+        asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ADJUNTOS")
+    if tiene_bancos:
         print(f"Assets indexados en el ZIP: {len(asset_index.by_id)}")
+
+    # Assets de Grok: file_attachments (por mensaje, via token GROKFILE) y
+    # media_posts/Imagine (raiz del export, se procesan aparte una sola vez).
+    es_grok = bool(conversations) and conversations[0].get("provider") == "grok"
+    grok_asset_index = GrokAssetIndex(zf) if (es_grok and zf is not None) else None
+    grok_adjuntos_writer = AssetWriter(args.grok_adjuntos_dir) if (es_grok and args.grok_adjuntos_dir) else None
+
+    claude_artifacts_writer = AssetWriter(args.claude_artefactos_dir) if args.claude_artefactos_dir else None
+    if es_grok and grok_asset_index is not None:
+        imagen_writer = AssetWriter(args.grok_generadas_imagen_dir) if args.grok_generadas_imagen_dir else None
+        video_writer = AssetWriter(args.grok_generadas_video_dir) if args.grok_generadas_video_dir else None
+        media_posts = load_grok_media_posts(zf)
+        if media_posts:
+            n_extraidas, pendientes = process_grok_media_posts(
+                media_posts, grok_asset_index,
+                imagen_writer, "GROK/GENERADAS_IMAGEN",
+                video_writer, "GROK/GENERADAS_VIDEO",
+            )
+            print(f"Imagine (media_posts): {len(media_posts)} totales, {n_extraidas} extraidas, "
+                  f"{len(pendientes)} pendientes de descarga")
+            if imagen_writer:
+                imagen_writer.flush_manifest()
+            if video_writer:
+                video_writer.flush_manifest()
+            if args.grok_pendientes_out and pendientes:
+                pend_path = args.grok_pendientes_out
+                existentes: List[dict] = []
+                if os.path.exists(pend_path):
+                    try:
+                        with open(pend_path, "r", encoding="utf-8-sig") as f:
+                            existentes = json.load(f)
+                    except Exception:
+                        existentes = []
+                vistos = {p.get("id") for p in existentes}
+                for p in pendientes:
+                    if p.get("id") not in vistos:
+                        existentes.append(p)
+                        vistos.add(p.get("id"))
+                os.makedirs(os.path.dirname(pend_path) or ".", exist_ok=True)
+                with open(pend_path, "w", encoding="utf-8") as f:
+                    json.dump(existentes, f, ensure_ascii=False, indent=2)
+                print(f"Pendientes de descarga: {len(existentes)} en {pend_path}")
 
     # Manifiesto append-only de trazabilidad (opcional). Silencioso ante
     # fallos de I/O: registrar es opcional, importar no.
@@ -818,32 +1153,39 @@ def main():
             "conv_dt": datetime.datetime.fromtimestamp(float(ct_raw)) if (args.use_conv_timestamp and ct_raw) else None,
         }
 
-        # Resolver marcadores de imagen antes de escribir, con la ruta relativa
-        # correcta según la profundidad real de salida (year/month) de esta nota.
-        if args.assets_dir:
-            y, m, _ = date_primary.split("-")
-            note_dir = compute_out_dir(args.output, y, m, args.by_year, args.by_month)
-            # Enlaces desde la RAIZ del vault de Obsidian, no relativos.
-            # Los relativos ../../../_assets/ dependian del junction _assets
-            # dentro de cada subvault; cuando Obsidian abre la carpeta padre
-            # (02 Obsidian_vaults) los .. salen del sitio donde el junction
-            # existe y todas las imagenes se rompen (bug 2026-07-20). La ruta
-            # absoluta desde el vault raiz funciona en cualquier layout:
-            # va directo a IMAGE_BANK sin depender de la topologia.
-            rel_prefix = "IMAGE_BANK"
-            rendered_msgs = []
-            for msg in msgs:
-                raw_content = msg.get("content", "")
+        # Resolver marcadores de imagen antes de escribir. Enlaces desde la
+        # RAIZ del vault de Obsidian, no relativos. Los relativos
+        # ../../../_assets/ dependian del junction _assets dentro de cada
+        # subvault; cuando Obsidian abre la carpeta padre (02 Obsidian_vaults)
+        # los .. salen del sitio donde el junction existe y todas las
+        # imagenes se rompen (bug 2026-07-20). La ruta absoluta desde el
+        # vault raiz funciona en cualquier layout: va directa al banco
+        # correspondiente (CHATGPT/GENERADAS o CHATGPT/ADJUNTOS, ver
+        # BankTarget) sin depender de la topologia.
+        rendered_msgs = []
+        for msg in msgs:
+            raw_content = msg.get("content", "")
+            if tiene_bancos:
                 total_images += len(IMAGE_TOKEN_RE.findall(raw_content))
-                rendered = render_image_tokens(raw_content, asset_index, asset_writer, rel_prefix,
-                                                image_meta=image_meta, conv_title=title)
-                rendered_msgs.append({"role": msg.get("role"), "content": rendered})
-            msgs = rendered_msgs
-        else:
-            # Sin --assets-dir: deja aviso de texto en vez del marcador interno
-            msgs = [{"role": m.get("role"),
-                     "content": render_image_tokens(m.get("content", ""), None, None, None)}
-                    for m in msgs]
+                content = render_image_tokens(raw_content, asset_index, asset_writers,
+                                               image_meta=image_meta, conv_title=title)
+            else:
+                # Sin bancos configurados: deja aviso de texto en vez del marcador interno
+                content = render_image_tokens(raw_content, None, None)
+            # Independiente de los bancos de ChatGPT: si es Grok y file_attachments
+            # trae binario, se resuelve aqui tambien (o degrada a texto si no hay
+            # --grok-adjuntos-dir, mismo criterio que las imagenes de ChatGPT).
+            content = render_grok_file_tokens(content, grok_asset_index, grok_adjuntos_writer,
+                                               "GROK/ADJUNTOS" if grok_adjuntos_writer else None)
+            # Independiente de lo anterior: si es Claude y hay artefactos,
+            # se resuelven aqui (o degradan a texto sin --claude-artefactos-dir).
+            content = render_claude_artifact_tokens(
+                content, conv.get("artifacts"), claude_artifacts_writer,
+                "CLAUDE/ARTEFACTOS" if claude_artifacts_writer else None,
+                conv_id=conv.get("conv_id"),
+            )
+            rendered_msgs.append({"role": msg.get("role"), "content": content})
+        msgs = rendered_msgs
 
         path, rel = write_md(
             args.output, title, date_primary, msgs, tags,
@@ -900,23 +1242,19 @@ def main():
                     f.write(f"- [{it['title']}]({it['relpath']}) — {it['date']}\n")
 
     print(f"Listo. Exportadas {len(records)} conversaciones a: {args.output}")
-    if args.assets_dir:
+    if tiene_bancos:
         print(f"Referencias de imagen procesadas: {total_images}")
-        print(f"Binarios únicos copiados a assets: {len(asset_writer.hash_to_filename)}")
+        for origen, target in asset_writers.items():
+            writer = target.writer
+            print(f"  [{origen}] binarios únicos copiados a {writer.assets_dir}: {len(writer.hash_to_filename)}")
+            total = writer.flush_manifest()
+            if total:
+                print(f"  [{origen}] manifiesto actualizado: {total} imagenes con metadatos")
 
-        if asset_writer.manifest:
-            manifest_path = os.path.join(args.assets_dir, "_image_manifest.json")
-            existing_manifest: Dict[str, dict] = {}
-            if os.path.exists(manifest_path):
-                try:
-                    with open(manifest_path, "r", encoding="utf-8") as f:
-                        existing_manifest = json.load(f)
-                except Exception:
-                    existing_manifest = {}
-            existing_manifest.update(asset_writer.manifest)
-            with open(manifest_path, "w", encoding="utf-8") as f:
-                json.dump(existing_manifest, f, ensure_ascii=False, indent=2)
-            print(f"Manifiesto de imagenes actualizado: {manifest_path} ({len(existing_manifest)} imagenes con metadatos)")
+    if grok_adjuntos_writer and grok_adjuntos_writer.hash_to_filename:
+        print(f"[grok adjuntos] binarios únicos copiados a {grok_adjuntos_writer.assets_dir}: "
+              f"{len(grok_adjuntos_writer.hash_to_filename)}")
+        grok_adjuntos_writer.flush_manifest()
 
     if gizmos_pendientes:
         vault_root = os.path.dirname(os.path.normpath(args.output))

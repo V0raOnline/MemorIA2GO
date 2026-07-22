@@ -4,8 +4,8 @@
     "create_time": 1752100000,
     "update_time": 1752100400,
     "conversation_id": "conv-frag-001-0002",
-    "async_status": "completed",
-    "voice": "cove",
+    "x_test_campo_sintetico_a": "completed",
+    "x_test_campo_sintetico_b": "cove",
     "current_node": "m2",
     "mapping": {
       "m1": {

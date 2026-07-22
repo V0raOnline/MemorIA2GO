@@ -6,8 +6,8 @@
     "conversation_id": "conv-frag-000-0001",
     "conversation_template_id": "g-p-aabbccddeeff00112233445566778899",
     "memory_scope": "project_v2",
-    "async_status": "completed",
-    "voice": null,
+    "x_test_campo_sintetico_a": "completed",
+    "x_test_campo_sintetico_b": null,
     "current_node": "n2",
     "mapping": {
       "n1": {

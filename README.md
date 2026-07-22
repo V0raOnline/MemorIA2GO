@@ -21,11 +21,11 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 | Provider | Export format | Branch handling | Attachments |
 |----------|--------------|-----------------|-------------|
-| ChatGPT  | zip / json / html | `current_node` tree walk | text inline, images extracted to IMAGE_BANK |
-| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; binaries not shipped by the export |
-| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | referenced by asset id (binary extraction planned) |
+| ChatGPT  | zip / json / html | `current_node` tree walk | AI-generated images and user uploads extracted to separate banks (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
+| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; uploaded binaries not shipped by the export; **generated Artifacts** (documents, code, HTML...) extracted to `CLAUDE/ARTEFACTOS`, one file per artifact, sorted by type — only the final version, revision history is discarded |
+| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | file attachments extracted to `GROK/ADJUNTOS`; Imagine generations (images and video) extracted to `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` when the export ships the binary, otherwise logged as a pending-download list (prompt + link), never auto-downloaded |
 
-All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin.
+All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin. Every asset bank gets its own navigable index, same pattern as the classic image index.
 
 ---
 
@@ -60,6 +60,7 @@ Navigation indexes (project/year/month), attachment usage index, image index, an
 - Dependencies: `pip install -r requirements.txt`
   (beautifulsoup4, lxml, rich, pyyaml, flask)
 - Obsidian (to browse the result) and optionally Claude Desktop with an MCP filesystem server (to use it as live context)
+- Optional, for running the test suite: `pip install -r requirements-dev.txt && python -m pytest tests/`
 
 Developed and battle-tested on Windows; the pipeline itself is cross-platform.
 
@@ -185,6 +186,24 @@ Claude and Grok exports do not link conversations to projects: those notes are o
   - **Performance by design.** Statistics are computed once per pipeline run and cached atomically; the dashboard reads the cache in milliseconds regardless of vault size.
   - **Cartography instead of forced taxonomy.** Unassigned conversations aren't shoehorned into folders: a vocabulary cloud (seeded with project names from all three providers) feeds a many-to-many Themes system — words, phrases and `field=value` metadata rules — that generates linked indexes in Obsidian. Curation lives in one entry per theme, the derived index is regenerable, the notes stay untouched.
   - **Identity via `conv_id`.** Each conversation's native ID travels to the frontmatter and the merge groups by it: thread renames across exports (measured: 21 of 593 real conversations) fuse under the latest title while preserving `titulo_original`, instead of duplicating as ghosts.
+- **v2.5** made the project testable instead of just tested-by-hand:
+  - **A real regression suite.** Synthetic fixtures for all three providers (no personal data) cover adapters, pre-flight detection, thread-rename merging, and the themes system — every real bug caught during development now has a test that would have caught it sooner. Run with `pip install -r requirements-dev.txt && python -m pytest tests/`.
+  - **Format-drift detection.** Each adapter now declares the fields it actually reads. An opt-in deep check samples an export's real conversations and flags fields it's never seen before — the same kind of change that once made a whole batch of ChatGPT projects vanish silently. Off by default (it has to read the full export, which isn't free on a large one); one click in Verificación turns it on.
+  - **A path autocomplete that doesn't truncate.** The browser's native path suggestions cut off long Windows paths with no way to see the rest. Replaced with a small dropdown that wraps instead of clipping.
+  - **Collapsible pre-flight checks.** The exports folder check used to dump every file's status on screen at once. Now it's a single line — status light plus a one-line summary — that expands into the per-file list only when you want to look, and each file expands again into its full detail.
+- **v2.6 rebuilt how images and generated content are stored**, after a routine check turned up a real classification bug:
+  - **The bug**: ChatGPT's *newer* native image generation (the in-context "generate an image" flow, as opposed to the classic DALL·E tool call) doesn't fill in the field the pipeline was checking for a prompt. Result: **5,117 AI-generated images across a real 47-export history were being filed as user uploads.** Confirmed and fixed by checking for the generation ID instead of the prompt text.
+  - **New taxonomy.** Assets are no longer dumped into one shared `IMAGE_BANK`. Each provider gets banks split by *what the content actually is*: `CHATGPT/GENERADAS` vs `CHATGPT/ADJUNTOS`, `GROK/GENERADAS_IMAGEN` / `GROK/GENERADAS_VIDEO` / `GROK/ADJUNTOS`, `CLAUDE/ARTEFACTOS/<type>` (markdown, html, code by language, and so on). Each bank has its own navigable index.
+  - **Grok attachments and Imagine generations are now actually extracted** (previously just a text reference — see the provider table above). Imagine generations without a shipped binary (most of them, in practice: only ~18% of a real export's generations travel in the zip) are logged with their prompt and original link for manual download later, on purpose — this tool never reaches out to the network on your behalf.
+  - **Claude Artifacts are now extracted**, resolved to their *final* state: an artifact revised a dozen times in one conversation used to be invisible; now it's one clean file, not a pile of near-duplicate revisions.
+  - **A reusable relink tool** (`relink_assets.py`) rewrites asset links across the whole vault when a bank moves or gets renamed — this is the second time that's happened, and it won't be the last, so it's a proper tool now instead of a one-off script.
+  - **A dormant bug in six different scripts**, found while running this exact migration: a leftover compatibility shortcut from an earlier reorganization could point nowhere (e.g. after clearing out the old shared image folder), and the file-scanning code used everywhere had no graceful way to handle that — it just stopped scanning entirely, mid-vault, with no explanation. Fixed once, centrally, and now covered by a test that reproduces the exact broken-shortcut scenario rather than trusting it won't happen again.
+- **v2.7 replaced the old per-bank image indexes with one content index per provider**:
+  - **One file per provider** (`_index_chatgpt.md`, `_index_claude.md`, `_index_grok.md`) instead of one per bank. Each bank inside is its own collapsed branch, and each conversation inside that branch collapses too — native Obsidian `<details>`, no plugins required.
+  - **Grok's pending-download list lives in its own note** (`_grok_pendientes.md`), sorted newest first, kept separate from the main index so it doesn't clutter what's already downloaded.
+  - **Claude's index shows a link and a short summary only** — never the artifact's full content inline, since that already lives in the artifact file and the conversation note.
+  - **A bug caught in its own verification**: bank folders live next to `MERGED_VAULT`/`PRJ_VAULT` under the base vault, not inside them — a default that assumed otherwise silently produced empty captions and, for banks with no matching notes to scan (Grok's Imagine generations), an empty catalog despite real files on disk. Fixed with an explicit base-vault path, with a test that puts the two apart on purpose so the gap can't reopen unnoticed.
+  - **The three old per-bank index files are now retired automatically** on every run, since the new provider index replaces them outright.
 
 Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
 
@@ -192,10 +211,10 @@ Design principles throughout: diagnose before implementing, validate against rea
 
 ## Roadmap
 
-- Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred)
-- Grok asset extraction to IMAGE_BANK (binaries do ship in its export)
-- Fixture-based regression tests per provider
-- `model` field in frontmatter where the export records it (Grok, ChatGPT)
+- Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
+- A "reindex" button in the Cartografía tab, so any asset bank's index can be refreshed on demand without a full pipeline run
+- Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
+- Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
 
 ---
 

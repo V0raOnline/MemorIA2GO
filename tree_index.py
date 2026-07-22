@@ -39,6 +39,25 @@ DATE_RX = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 INDEX_FILENAMES = {"_tree_index.md", "scaffolding_index.md", "_image_index.md", "_index.md"}
 
 
+def iter_markdown_files(root: Path):
+    """Como root.rglob('*.md') pero robusto ante symlinks/junctions colgando.
+    Bug real 2026-07-22: el junction legado _assets (RAW_VAULT|PRJ_VAULT/
+    _assets -> IMAGE_BANK) quedo apuntando a una carpeta ya borrada tras
+    migrar su contenido a la taxonomia por proveedor/tipo, y Path.rglob()
+    revienta con FileNotFoundError en cuanto lo pisa -- especialmente grave
+    en PRJ_VAULT, donde conv_dir='.' hace que el escaneo arranque justo en
+    la raiz del vault, al mismo nivel que el junction. os.walk() con
+    onerror silencioso YA es robusto a esto (por eso tree_index.py nunca
+    tuvo el bug), pero se poda ademas cualquier symlink/junction de
+    dirnames antes de que os.walk baje a el: ni falta que hace explorarlo
+    en busca de notas .md, esten rotos o no."""
+    for dirpath, dirnames, filenames in os.walk(root, onerror=lambda e: None):
+        dirnames[:] = [d for d in dirnames if not (Path(dirpath) / d).is_symlink()]
+        for fn in filenames:
+            if fn.endswith(".md"):
+                yield Path(dirpath) / fn
+
+
 def read_frontmatter(path: Path) -> dict:
     """Lectura minima de front-matter YAML sin dependencias externas."""
     try:

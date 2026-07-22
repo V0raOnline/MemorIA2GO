@@ -23,9 +23,10 @@ def test_chatgpt_clasico_sin_claves_nuevas():
 
 
 def test_chatgpt_fragmentado_detecta_campos_nuevos_plausibles(tmp_path):
-    """El propio fixture trae async_status/voice a proposito -- este test
-    prueba que el mecanismo los detecta de verdad, no solo que existan en
-    el JSON."""
+    """El propio fixture trae x_test_campo_sintetico_a/b a proposito (nombres
+    sinteticos que nunca coincidiran con una clave real de ChatGPT, para que
+    este test no se rompa cada vez que se amplia CHATGPT_KNOWN_KEYS) -- prueba
+    que el mecanismo los detecta de verdad, no solo que existan en el JSON."""
     frag_dir = FIXTURES / "chatgpt_fragmentado"
     zpath = tmp_path / "chatgpt_frag.zip"
     with zipfile.ZipFile(zpath, "w") as zf:
@@ -35,8 +36,8 @@ def test_chatgpt_fragmentado_detecta_campos_nuevos_plausibles(tmp_path):
     result = preflight.detect_new_keys(zpath)
     assert result["muestreado"] is True
     assert result["provider"] == "chatgpt"
-    assert "async_status" in result["claves_nuevas"]
-    assert "voice" in result["claves_nuevas"]
+    assert "x_test_campo_sintetico_a" in result["claves_nuevas"]
+    assert "x_test_campo_sintetico_b" in result["claves_nuevas"]
     assert result["total_items"] == 2
 
 
@@ -125,4 +126,4 @@ def test_list_export_candidates_deep_true_anexa_aviso(tmp_path):
     assert candidatos[0]["valido"] is True
     assert candidatos[0]["aviso"] is True
     assert "AVISO" in candidatos[0]["mensaje"]
-    assert "async_status" in candidatos[0]["mensaje"]
+    assert "x_test_campo_sintetico_a" in candidatos[0]["mensaje"]
