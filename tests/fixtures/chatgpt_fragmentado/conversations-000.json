@@ -1,0 +1,31 @@
+[
+  {
+    "title": "Plan de contenidos redes sociales",
+    "create_time": 1752000000,
+    "update_time": 1752000500,
+    "conversation_id": "conv-frag-000-0001",
+    "conversation_template_id": "g-p-aabbccddeeff00112233445566778899",
+    "memory_scope": "project_v2",
+    "async_status": "completed",
+    "voice": null,
+    "current_node": "n2",
+    "mapping": {
+      "n1": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {"content_type": "text", "parts": ["Necesito un calendario de publicaciones para julio."]},
+          "metadata": {}
+        },
+        "parent": null
+      },
+      "n2": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["Aquí tienes un calendario de 4 semanas con temas por día."]},
+          "metadata": {"model_slug": "gpt-5"}
+        },
+        "parent": "n1"
+      }
+    }
+  }
+]

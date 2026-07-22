@@ -17,7 +17,17 @@ from typing import Dict
 
 from tree_index import read_frontmatter, INDEX_FILENAMES
 
-IMG_LINK_RE = re.compile(r"!\[\]\(([^)]+)\)")
+# Solo enlaces con el prefijo real que este pipeline usa al incrustar
+# imagenes (ver rel_prefix="IMAGE_BANK" en split_chatgpt_export.py). Sin
+# este filtro, cualquier "![](...)" pegado dentro de una conversacion --
+# ejemplos de sintaxis markdown, URLs externas dentro de texto citado/tether
+# (Medium, capturas de pantalla ajenas, etc.) -- se contaba como imagen real
+# y aparecia como icono roto en el indice (bug reportado 2026-07-21: se leyo
+# como "hemos perdido los indices" cuando en realidad el indice era correcto
+# y el ruido era de siempre). Verificado contra el vault real: de 3331
+# coincidencias crudas del regex, 1724 no tenian el prefijo IMAGE_BANK/ y
+# CERO de las que si lo tenian apuntaban a un archivo inexistente.
+IMG_LINK_RE = re.compile(r"!\[\]\(IMAGE_BANK/([^)]+)\)")
 
 
 def load_manifest(vault_path: Path) -> Dict[str, dict]:

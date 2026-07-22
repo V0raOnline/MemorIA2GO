@@ -394,10 +394,16 @@ def get_verificar():
         base_vault = get_path(cfg, "base_vault")
         exports_dir = get_path(cfg, "exports_dir")
         gizmo_map = get_path(cfg, "gizmo_map")
+        # deep=1 activa el muestreo de deriva de formato (detect_new_keys),
+        # que parsea el JSON completo de cada export -- caro en exports
+        # grandes. Solo se pide explicitamente desde el boton "Verificar
+        # ahora", nunca desde el poll automatico del badge al cambiar de tab.
+        deep = request.args.get("deep") == "1"
         report = validate_config(
             str(base_vault) if base_vault else None,
             str(exports_dir) if exports_dir else None,
             str(gizmo_map) if gizmo_map else None,
+            deep=deep,
         )
         return jsonify(report)
     except Exception as e:

@@ -43,6 +43,18 @@ UUID_SUFFIX_RE = re.compile(
 )
 IMAGE_TOKEN_RE = re.compile(r"\x00IMG:(?P<pointer>[^\x00]+)\x00")
 
+# Claves de nivel superior de cada conversacion que parse_json_conversations
+# conoce y consume (clasico + fragmentado 2026+). Usado por
+# preflight.detect_new_keys para avisar (no bloquear) de deriva de formato:
+# la autopsia 2026-07 midio 21 claves nuevas de ChatGPT entre 2025-06 y
+# 2026-07, todas opcionales -- este es el chequeo que las hubiera detectado
+# antes de que conversation_template_id se perdiera en silencio.
+CHATGPT_KNOWN_KEYS = frozenset({
+    "title", "create_time", "createTime", "update_time", "updateTime",
+    "gizmo_id", "gizmoId", "mapping", "current_node", "messages", "items",
+    "conversation_id", "id", "conversation_template_id", "memory_scope",
+})
+
 
 def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)

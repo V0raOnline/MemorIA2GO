@@ -104,18 +104,18 @@
       <h2>Rutas</h2>
       <div class="field">
         <label for="cfg-base_vault">Carpeta base (donde viven RAW_VAULT / MERGED_VAULT / PRJ_VAULT / IMAGE_BANK)</label>
-        <input type="text" id="cfg-base_vault" list="browse-base_vault" autocomplete="off">
-        <datalist id="browse-base_vault"></datalist>
+        <input type="text" id="cfg-base_vault" autocomplete="off">
+        <div class="path-suggest" id="suggest-base_vault"></div>
       </div>
       <div class="field">
         <label for="cfg-exports_dir">Carpeta con los exports de ChatGPT (.zip / .json / .html)</label>
-        <input type="text" id="cfg-exports_dir" list="browse-exports_dir" autocomplete="off">
-        <datalist id="browse-exports_dir"></datalist>
+        <input type="text" id="cfg-exports_dir" autocomplete="off">
+        <div class="path-suggest" id="suggest-exports_dir"></div>
       </div>
       <div class="field">
         <label for="cfg-gizmo_map">Ruta a gizmo_map.json (mapa de proyectos)</label>
-        <input type="text" id="cfg-gizmo_map" list="browse-gizmo_map" autocomplete="off">
-        <datalist id="browse-gizmo_map"></datalist>
+        <input type="text" id="cfg-gizmo_map" autocomplete="off">
+        <div class="path-suggest" id="suggest-gizmo_map"></div>
       </div>
     </div>
 

@@ -35,6 +35,13 @@ from typing import Any, Dict, List, Optional
 
 ROLE_MAP = {"human": "user", "assistant": "assistant"}
 
+# Claves del dict 'conversation' (metadatos) que este adaptador conoce y
+# consume -- el wrapper {conversation, responses} en si es parte del
+# contrato de deteccion (detect()) y no se espera que derive, asi que el
+# muestreo de deriva de formato se centra en los metadatos, que es donde
+# aparecerian campos nuevos del proveedor. Usado por preflight.detect_new_keys.
+KNOWN_KEYS = frozenset({"id", "title", "create_time", "modify_time", "leaf_response_id"})
+
 
 def detect(data: Any) -> bool:
     """True si `data` tiene la estructura del export de Grok: dict raíz con

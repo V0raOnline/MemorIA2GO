@@ -1,0 +1,103 @@
+[
+  {
+    "title": "Optimizar rutina de entrenamiento",
+    "create_time": 1751328000,
+    "update_time": 1751328300,
+    "gizmo_id": "g-1234567890abcdef1234567890abcdef",
+    "conversation_id": "conv-classic-a-0001",
+    "current_node": "node-4",
+    "mapping": {
+      "node-1": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {"content_type": "text", "parts": ["Ayúdame a diseñar una rutina de entrenamiento semanal."]},
+          "metadata": {}
+        },
+        "parent": null
+      },
+      "node-2": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["Aquí tienes una rutina de 4 días con progresión de carga."]},
+          "metadata": {"model_slug": "gpt-4o"}
+        },
+        "parent": "node-1"
+      },
+      "node-3": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {"content_type": "text", "parts": ["Genial, añade un día de cardio."]},
+          "metadata": {}
+        },
+        "parent": "node-2"
+      },
+      "node-4": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["Añadido: día 5 de cardio ligero de 30 minutos."]},
+          "metadata": {"model_slug": "gpt-4o"}
+        },
+        "parent": "node-3"
+      }
+    }
+  },
+  {
+    "title": "Receta de pan casero",
+    "create_time": 1751414400,
+    "update_time": 1751414500,
+    "conversation_id": "conv-classic-b-0002",
+    "messages": [
+      {"role": "user", "content": "¿Cómo hago pan casero sin gluten?"},
+      {"role": "assistant", "content": "Puedes usar harina de arroz y almidón de tapioca en partes iguales."}
+    ]
+  },
+  {
+    "title": "Depurar función de parseo",
+    "create_time": 1751500800,
+    "update_time": 1751501200,
+    "conversation_id": "conv-classic-c-0003",
+    "current_node": "node-c4",
+    "mapping": {
+      "node-c1": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {"content_type": "text", "parts": ["Tengo un bug en mi parser de JSON."]},
+          "metadata": {}
+        },
+        "parent": null
+      },
+      "node-c2": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["Prueba a revisar el manejo de comillas escapadas."]},
+          "metadata": {"model_slug": "gpt-4o-mini"}
+        },
+        "parent": "node-c1"
+      },
+      "node-c3-discarded": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["RESPUESTA DESCARTADA: prueba otra cosa que no vale."]},
+          "metadata": {"model_slug": "gpt-4o-mini"}
+        },
+        "parent": "node-c1"
+      },
+      "node-c3": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {"content_type": "text", "parts": ["Sigue fallando con arrays anidados."]},
+          "metadata": {}
+        },
+        "parent": "node-c2"
+      },
+      "node-c4": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["Añade recursión para manejar arrays anidados."]},
+          "metadata": {"model_slug": "gpt-4o-mini"}
+        },
+        "parent": "node-c3"
+      }
+    }
+  }
+]

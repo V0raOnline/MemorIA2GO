@@ -41,6 +41,12 @@ ATTACH_MAX_CHARS = 800
 
 ROLE_MAP = {"human": "user", "assistant": "assistant"}
 
+# Claves de nivel superior de cada conversacion que este adaptador conoce y
+# consume. Usado por preflight.detect_new_keys para avisar (no bloquear) si
+# el export trae claves nunca vistas -- la senal de que Claude cambio de
+# formato antes de que un campo se pierda en silencio por el pipeline.
+KNOWN_KEYS = frozenset({"uuid", "name", "created_at", "updated_at", "chat_messages"})
+
 
 def detect(data: Any) -> bool:
     """True si `data` (el JSON ya cargado de conversations.json) tiene la

@@ -146,9 +146,12 @@ def validate_export_file(path) -> dict:
     return {"valido": False, "mensaje": f"Extension no soportada: {ext or '(sin extension)'}. Usa .zip, .json o .html."}
 
 
-def list_export_candidates(exports_dir) -> list:
+def list_export_candidates(exports_dir, deep: bool = False) -> list:
     """Lista TODOS los .zip/.json/.html de la carpeta, mas recientes primero,
-    cada uno ya validado."""
+    cada uno ya validado. Con deep=True, ademas muestrea cada candidato
+    valido con detect_new_keys y anexa el aviso al mensaje (ver su
+    docstring: es una lectura completa del JSON, deliberadamente NO
+    automatica en cada poll de la UI)."""
     p = Path(exports_dir)
     if not p.is_dir():
         return []
@@ -159,8 +162,132 @@ def list_export_candidates(exports_dir) -> list:
     out = []
     for f in all_files:
         result = validate_export_file(f)
-        out.append({"nombre": f.name, "ruta": str(f), "valido": result["valido"], "mensaje": result["mensaje"]})
+        mensaje = result["mensaje"]
+        aviso = False  # deriva de formato detectada (deep=True): valido sigue en True, solo es aviso
+        if deep and result["valido"]:
+            drift = detect_new_keys(f)
+            claves = drift.get("claves_nuevas") or []
+            if claves:
+                aviso = True
+                mensaje += (
+                    f" ⚠ AVISO: {len(claves)} clave(s) nueva(s) nunca vistas en "
+                    f"conversaciones de {drift.get('provider')}: {', '.join(claves)}. "
+                    "El proveedor puede haber cambiado de formato; revisa si el "
+                    "adaptador necesita actualizarse."
+                )
+        out.append({
+            "nombre": f.name,
+            "ruta": str(f),
+            "valido": result["valido"],
+            "tipo": result.get("tipo"),
+            "mensaje": mensaje,
+            "aviso": aviso,
+        })
     return out
+
+
+# ─────────────────────────────────────────
+# Deteccion de deriva de formato (detect_strict): avisa si un export trae
+# claves de conversacion nunca vistas por el adaptador correspondiente.
+# ─────────────────────────────────────────
+
+def _load_raw_json_for_sampling(p: Path):
+    """Carga cruda del JSON de un export, SOLO para muestreo de claves.
+    Duplica deliberadamente (en pequeno) el sniffing de zip que ya hace
+    validate_export_file en vez de reutilizar split_chatgpt_export.load_conversations:
+    ese loader hace parseo+render completos (mapping, imagenes, hilos) y es
+    codigo sensible con historial de incidentes (Nido_Delta); esta funcion
+    es de solo lectura y, si falla, el peor caso es un aviso que no aparece
+    -- nunca afecta a la importacion real."""
+    ext = p.suffix.lower()
+    if ext == ".zip":
+        with zipfile.ZipFile(p, "r") as zf:
+            names = zf.namelist()
+            shards = sorted(n for n in names if SHARD_RX.search(n))
+            if shards:
+                combinado = []
+                for name in shards:
+                    with zf.open(name) as f:
+                        parte = json.load(f)
+                    if isinstance(parte, list):
+                        combinado.extend(parte)
+                return combinado
+            json_name = next((n for n in names if n.lower().endswith("conversations.json")), None)
+            if not json_name:
+                json_name = next((n for n in names if n.lower().endswith("prod-grok-backend.json")), None)
+            if not json_name:
+                return None
+            with zf.open(json_name) as f:
+                return json.load(f)
+        return None
+    if ext == ".json":
+        with open(p, "r", encoding="utf-8-sig") as f:
+            return json.load(f)
+    return None  # HTML u otro formato degradado: no hay JSON que muestrear
+
+
+def _sample_items_for_schema(data):
+    """Decide el proveedor por estructura (mismo criterio que _dispatch en
+    split_chatgpt_export.py) y devuelve los dicts de nivel 'conversacion'
+    sobre los que se comparan claves."""
+    from providers import claude_adapter, grok_adapter
+
+    if claude_adapter.detect(data):
+        return "claude", claude_adapter.KNOWN_KEYS, list(data)
+    if grok_adapter.detect(data):
+        metas = [
+            (cw.get("conversation") or {})
+            for cw in (data.get("conversations") or [])
+            if isinstance(cw, dict)
+        ]
+        return "grok", grok_adapter.KNOWN_KEYS, metas
+
+    import split_chatgpt_export as sce
+    if isinstance(data, dict) and isinstance(data.get("conversations"), list):
+        raw = data["conversations"]
+    elif isinstance(data, list):
+        raw = data
+    else:
+        raw = []
+    return "chatgpt", sce.CHATGPT_KNOWN_KEYS, raw
+
+
+def detect_new_keys(path, sample_size: int = 20) -> dict:
+    """Muestrea hasta `sample_size` conversaciones de un export y compara
+    sus claves de nivel superior contra las que el adaptador correspondiente
+    declara conocer (KNOWN_KEYS). No bloquea nada -- es un aviso (pensado
+    para pintarse en amarillo en la UI) de que el proveedor pudo haber
+    cambiado de formato, la misma familia de bug que conversation_template_id
+    (Nido_Delta, 2026-07-20): una clave nueva que el parser todavia no conoce
+    y que hoy viajaria invisible al resto del pipeline.
+
+    A diferencia de validate_export_file (deliberadamente barata, no parsea),
+    esta funcion SI carga el JSON completo -- es cara en exports grandes y no
+    debe llamarse en cada poll automatico de la UI, solo ante una accion
+    explicita del usuario (o en CLI/tests)."""
+    p = Path(path)
+    try:
+        data = _load_raw_json_for_sampling(p)
+    except (zipfile.BadZipFile, OSError, ValueError) as e:
+        return {"muestreado": False, "motivo": f"No se pudo leer para muestreo: {type(e).__name__}: {e}"}
+
+    if data is None:
+        return {"muestreado": False, "motivo": "Formato sin JSON muestreable (HTML u otro no reconocido)."}
+
+    provider, known_keys, items = _sample_items_for_schema(data)
+    muestra = items[:sample_size]
+    claves_nuevas = set()
+    for it in muestra:
+        if isinstance(it, dict):
+            claves_nuevas.update(k for k in it.keys() if k not in known_keys)
+
+    return {
+        "muestreado": True,
+        "provider": provider,
+        "total_items": len(items),
+        "muestra_size": len(muestra),
+        "claves_nuevas": sorted(claves_nuevas),
+    }
 
 
 # ─────────────────────────────────────────
@@ -238,11 +365,12 @@ def mark_processed(raw_vault, files: list) -> None:
 # Informe de configuracion completo
 # ─────────────────────────────────────────
 
-def validate_config(base_vault, exports_dir, gizmo_map_path=None) -> dict:
+def validate_config(base_vault, exports_dir, gizmo_map_path=None, deep: bool = False) -> dict:
     """Informe completo: cada campo de la config con su estado, la lista de
     candidatos en exports_dir (validos o no), y cuantos de los validos estan
     ya procesados frente a pendientes (si base_vault existe, para poder
-    consultar su registro)."""
+    consultar su registro). deep=True activa ademas el muestreo de deriva de
+    formato (detect_new_keys) por candidato -- ver list_export_candidates."""
     checks = []
 
     if not base_vault:
@@ -255,7 +383,14 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None) -> dict:
             "mensaje": "OK." if parent_ok else f"Ni la carpeta ni su carpeta padre existen: {bv.parent}",
         })
 
-    export_check = {"campo": "exports_dir", "ok": False, "mensaje": "", "candidatos": [],
+    # estado: semaforo agregado para la UI (caja nivel-1 colapsable de
+    # exports_dir). "err" mientras no haya ni un export valido (nada que
+    # importar); "warn" si hay validos pero alguno esta invalido/sin
+    # reconocer o tiene aviso de deriva de formato; "ok" solo si todos los
+    # candidatos estan limpios. Tener "pendientes" NO baja el semaforo --
+    # es el estado normal antes de un import, no un problema (decision
+    # V0ra 2026-07-21).
+    export_check = {"campo": "exports_dir", "ok": False, "estado": "err", "mensaje": "", "candidatos": [],
                      "validos": 0, "pendientes": 0, "ya_procesados": 0}
     if not exports_dir:
         export_check["mensaje"] = "No configurado."
@@ -264,7 +399,7 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None) -> dict:
         if not ed.is_dir():
             export_check["mensaje"] = f"La carpeta no existe: {ed}"
         else:
-            candidatos = list_export_candidates(ed)
+            candidatos = list_export_candidates(ed, deep=deep)
             export_check["candidatos"] = candidatos
             validos = [c for c in candidatos if c["valido"]]
             export_check["validos"] = len(validos)
@@ -272,6 +407,8 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None) -> dict:
             if not validos:
                 export_check["mensaje"] = "No hay ningun export valido en esta carpeta."
             else:
+                hay_problema = any((not c["valido"]) or c.get("aviso") for c in candidatos)
+                export_check["estado"] = "warn" if hay_problema else "ok"
                 raw_vault = (Path(base_vault) / "RAW_VAULT") if base_vault else None
                 if raw_vault is not None:
                     pending = list_pending_exports(ed, raw_vault)
@@ -310,9 +447,12 @@ if __name__ == "__main__":
     ap.add_argument("--base-vault", default=None)
     ap.add_argument("--exports-dir", required=True)
     ap.add_argument("--gizmo-map", default=None)
+    ap.add_argument("--deep", action="store_true",
+                     help="Muestrea el contenido de cada export y avisa de claves nuevas "
+                          "nunca vistas (deriva de formato). Mas lento: parsea el JSON completo.")
     args = ap.parse_args()
 
-    report = validate_config(args.base_vault, args.exports_dir, args.gizmo_map)
+    report = validate_config(args.base_vault, args.exports_dir, args.gizmo_map, deep=args.deep)
     for c in report["checks"]:
         estado = "OK " if c["ok"] else "FALLO"
         print(f"[{estado}] {c['campo']}: {c['mensaje']}")

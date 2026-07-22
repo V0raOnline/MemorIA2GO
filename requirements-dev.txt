@@ -1,0 +1,3 @@
+# Dependencias solo para desarrollo/tests (no necesarias para ejecutar el pipeline)
+-r requirements.txt
+pytest>=8.0.0

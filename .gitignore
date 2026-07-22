@@ -9,6 +9,7 @@ dist/
 build/
 
 #miga de pan
+.claude
 _SESION_EN_CURSO.md
 CONTEXT.md
 

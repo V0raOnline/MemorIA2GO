@@ -1,0 +1,29 @@
+[
+  {
+    "title": "Dudas sobre impuestos autónomos",
+    "create_time": 1752100000,
+    "update_time": 1752100400,
+    "conversation_id": "conv-frag-001-0002",
+    "async_status": "completed",
+    "voice": "cove",
+    "current_node": "m2",
+    "mapping": {
+      "m1": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {"content_type": "text", "parts": ["¿Cómo declaro gastos de coworking?"]},
+          "metadata": {}
+        },
+        "parent": null
+      },
+      "m2": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {"content_type": "text", "parts": ["Puedes deducirlos como gasto de local afecto a la actividad."]},
+          "metadata": {"model_slug": "gpt-5"}
+        },
+        "parent": "m1"
+      }
+    }
+  }
+]

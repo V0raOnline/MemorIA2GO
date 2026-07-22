@@ -69,25 +69,64 @@ async function saveConfig() {
 
 document.getElementById("btn-save-config").addEventListener("click", saveConfig);
 
+// Estado de un candidato: "ok" (valido, sin aviso) | "warn" (valido pero con
+// deriva de formato detectada, deep=True) | "err" (invalido). valido sigue
+// siendo la unica senal dura -- "warn" nunca bloquea nada, es solo aviso.
+function candidatoEstado(cand) {
+  if (!cand.valido) return "err";
+  if (cand.aviso) return "warn";
+  return "ok";
+}
+
+const ESTADO_BADGE_LABEL = { ok: "OK", warn: "revisar", err: "inválido" };
+
+function candidatoRow(cand) {
+  const estado = candidatoEstado(cand);
+  const subtitulo = [cand.tipo || (cand.valido ? "" : "sin reconocer"), cand.aviso ? "deriva de formato" : ""]
+    .filter(Boolean).join(" · ");
+  return `<details class="check-fold check-fold-${estado}">
+    <summary>
+      <span class="badge ${estado}">${ESTADO_BADGE_LABEL[estado]}</span>
+      <span class="check-fold-name">${escapeHtml(cand.nombre)}</span>
+      ${subtitulo ? `<span class="check-fold-sub">${escapeHtml(subtitulo)}</span>` : ""}
+    </summary>
+    <div class="check-fold-body">${escapeHtml(cand.mensaje)}</div>
+  </details>`;
+}
+
+// exports_dir es el unico check con un segundo nivel: caja nivel-1
+// colapsada por defecto (semaforo + resumen de una linea en la cabecera),
+// que al desplegarse muestra la lista de zips -- cada uno con su propio
+// plegable (candidatoRow). base_vault/gizmo_map no tienen ese segundo
+// nivel y se quedan en la caja plana de siempre (ver checkRow). Diseno
+// confirmado con V0ra 2026-07-21 antes de implementar.
+function exportsDirFold(c) {
+  const estado = c.estado || "err";
+  const resumen = (c.candidatos && c.candidatos.length)
+    ? `${c.validos} válido(s) · ${c.ya_procesados} ya importado(s) · ${c.pendientes} pendiente(s)`
+    : c.mensaje;
+  const body = (c.candidatos && c.candidatos.length)
+    ? c.candidatos.map(candidatoRow).join("")
+    : `<div class="sub">${escapeHtml(c.mensaje)}</div>`;
+  return `<details class="check-fold check-fold-${estado}" style="margin-bottom:8px; padding:12px 14px;">
+    <summary>
+      <span class="badge ${estado}">${ESTADO_BADGE_LABEL[estado]}</span>
+      <span class="check-fold-campo">${c.campo}</span>
+      <span class="check-fold-sub" style="margin-left:auto;">${escapeHtml(resumen)}</span>
+    </summary>
+    <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">${body}</div>
+  </details>`;
+}
+
 function checkRow(c) {
+  if (c.campo === "exports_dir") return exportsDirFold(c);
+
   const badge = c.ok ? `<span class="badge ok">OK</span>` : `<span class="badge warn">revisar</span>`;
   const detalle = (c.detalle && c.detalle.contenido_encontrado) || c.contenido_encontrado;
-  let resumen = "";
-  if (c.campo === "exports_dir" && c.candidatos && c.candidatos.length) {
-    resumen = `<div class="sub" style="margin-top:4px;">${c.validos} válido(s) · ${c.ya_procesados} ya importado(s) · ${c.pendientes} pendiente(s)</div>`;
-  }
-  let candidatosHtml = "";
-  if (c.candidatos && c.candidatos.length > 0) {
-    candidatosHtml = `<div class="sub" style="margin-top:8px;">Archivos encontrados en la carpeta:<ul style="margin:4px 0 0; padding-left:18px;">` +
-      c.candidatos.map(cand => `<li>${cand.valido ? "✓" : "✗"} ${cand.nombre} — ${cand.mensaje}</li>`).join("") +
-      `</ul></div>`;
-  }
   return `<div class="stat-box" style="margin-bottom:8px;">
     <div class="label">${c.campo} ${badge}</div>
     <div style="font-size:13px; margin-top:4px;">${c.mensaje}</div>
-    ${resumen}
     ${detalle ? `<div class="sub">Contenido encontrado: ${detalle.join(", ")}</div>` : ""}
-    ${candidatosHtml}
   </div>`;
 }
 
@@ -95,7 +134,12 @@ async function runVerificar() {
   const el = document.getElementById("verificar-results");
   el.innerHTML = `<div class="empty-note">Verificando...</div>`;
   try {
-    const res = await fetch("/api/verificar");
+    // deep=1: ademas de la validacion estructural barata, muestrea el
+    // contenido de cada export para avisar de claves nuevas (deriva de
+    // formato). Solo se pide aqui, en la accion explicita del boton -- el
+    // poll automatico del badge (loadVerificarBadge) se queda con el chequeo
+    // barato para no parsear JSON grande en cada cambio de pestaña.
+    const res = await fetch("/api/verificar?deep=1");
     const report = await res.json();
     if (report.error) {
       el.innerHTML = `<div class="msg error">${report.error}</div>`;
@@ -718,38 +762,98 @@ loadTopics();
 // Arranque
 // ─────────────────────────────────────────
 // ─────────────────────────────────────────
-// Autocompletado de rutas: estilo "Ejecutar" de Windows. Cada input tiene
-// un <datalist> asociado; al teclear preguntamos al backend por los
-// subdirectorios que casan y los pintamos como sugerencias del navegador.
-// Debounce para no martillar el disco con cada tecla.
+// Autocompletado de rutas: estilo "Ejecutar" de Windows, con un dropdown
+// propio en vez de <datalist> nativo -- el datalist del navegador trunca
+// rutas largas sin forma de verlas completas (ni scroll ni wrap), y las
+// rutas reales de V0ra ("G:\GHU Codexsphere\01 GitHub repos\...") son
+// justo el caso que rompía. Cada input tiene un <div class="path-suggest">
+// hermano que se posiciona debajo via CSS; las opciones envuelven en vez
+// de truncarse. Debounce para no martillar el disco con cada tecla.
 // ─────────────────────────────────────────
 
-function attachPathAutocomplete(inputId, datalistId, ext) {
+function attachPathAutocomplete(inputId, suggestId, ext) {
   const input = document.getElementById(inputId);
-  const list = document.getElementById(datalistId);
-  if (!input || !list) return;
+  const box = document.getElementById(suggestId);
+  if (!input || !box) return;
   let timeout = null;
+  let opciones = [];
+  let activeIdx = -1;
+
+  const cerrar = () => {
+    box.classList.remove("open");
+    box.innerHTML = "";
+    opciones = [];
+    activeIdx = -1;
+  };
+
+  const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const pintar = () => {
+    if (!opciones.length) { cerrar(); return; }
+    box.innerHTML = opciones
+      .map((p, i) => `<div class="opt${i === activeIdx ? " active" : ""}" data-idx="${i}">${escapeHtml(p)}</div>`)
+      .join("");
+    box.classList.add("open");
+  };
+
+  const elegir = (idx) => {
+    if (idx < 0 || idx >= opciones.length) return;
+    input.value = opciones[idx];
+    input.setSelectionRange(input.value.length, input.value.length);
+    refrescar(); // tras elegir una carpeta, ofrece de inmediato su contenido
+  };
+
   const refrescar = async () => {
     try {
       const params = new URLSearchParams({ path: input.value });
       if (ext) params.set("ext", ext);
       const r = await fetch("/api/browse?" + params.toString());
       const data = await r.json();
-      list.innerHTML = (data.opciones || [])
-        .map(p => `<option value="${p.replace(/"/g, "&quot;")}"></option>`)
-        .join("");
-    } catch (_) { /* silencioso: si falla, el usuario simplemente escribe a mano */ }
+      opciones = data.opciones || [];
+      activeIdx = -1;
+      pintar();
+    } catch (_) { cerrar(); /* silencioso: si falla, el usuario simplemente escribe a mano */ }
   };
+
   input.addEventListener("input", () => {
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(refrescar, 180);
   });
   input.addEventListener("focus", refrescar);
+
+  input.addEventListener("keydown", (e) => {
+    if (!box.classList.contains("open")) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, opciones.length - 1);
+      pintar();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      pintar();
+    } else if (e.key === "Enter") {
+      if (activeIdx >= 0) { e.preventDefault(); elegir(activeIdx); }
+    } else if (e.key === "Escape") {
+      cerrar();
+    }
+  });
+
+  // mousedown (no click) para adelantarse al blur del input al pulsar una opcion
+  box.addEventListener("mousedown", (e) => {
+    const opt = e.target.closest(".opt");
+    if (!opt) return;
+    e.preventDefault();
+    elegir(Number(opt.dataset.idx));
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target !== input && !box.contains(e.target)) cerrar();
+  });
 }
 
-attachPathAutocomplete("cfg-base_vault", "browse-base_vault");
-attachPathAutocomplete("cfg-exports_dir", "browse-exports_dir");
-attachPathAutocomplete("cfg-gizmo_map", "browse-gizmo_map", "json");
+attachPathAutocomplete("cfg-base_vault", "suggest-base_vault");
+attachPathAutocomplete("cfg-exports_dir", "suggest-exports_dir");
+attachPathAutocomplete("cfg-gizmo_map", "suggest-gizmo_map", "json");
 
 loadConfig();
 loadDashboard();
