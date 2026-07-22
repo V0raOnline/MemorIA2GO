@@ -104,6 +104,10 @@ def test_generate_provider_index_combina_varios_bancos_colapsados(tmp_path):
     assert md.count("<details>") >= 4  # 2 ramas + 2 conversaciones (una por banco)
     assert resultado["stats"]["Generadas"]["items"] == 1
     assert resultado["stats"]["Adjuntos"]["items"] == 1
+    # bug real 2026-07-22: el resumen llevaba un \n embebido que, sumado al
+    # separador del join, dejaba DOS lineas en blanco antes de la primera
+    # rama en vez de una -- se ve "raro" en Obsidian (hueco de mas).
+    assert "\n\n\n" not in md
 
 
 def test_banco_catalogo_lista_directo_desde_manifest_sin_notas(tmp_path):
@@ -131,6 +135,36 @@ def test_banco_catalogo_lista_directo_desde_manifest_sin_notas(tmp_path):
     assert "Generadas (imagen) (2)" in md
     assert "<details open" not in md
     assert '"un gato"' in md
+
+
+def test_banco_catalogo_prompt_con_comillas_propias_no_se_dobla(tmp_path):
+    """Bug real 2026-07-22: algunos prompts de Grok Imagine ya vienen con
+    comillas literales tecleadas por V0ra (p.ej. '"Arte en estilo...'), y
+    render_catalog_branch envolvia el prompt en comillas sin comprobarlo,
+    dejando '""Arte...' -- se veia "raro" en el indice real."""
+    vault = tmp_path
+    bank_dir = vault / "GROK" / "GENERADAS_IMAGEN"
+    bank_dir.mkdir(parents=True)
+    (bank_dir / "abc.png").write_bytes(b"fake")
+    (bank_dir / "_image_manifest.json").write_text(json.dumps({
+        "abc.png": {"origen": "generada", "prompt": '"Arte en estilo cyberpunk', "create_time": ""},
+    }), encoding="utf-8")
+
+    bank = ci.BankSpec(prefix="GROK/GENERADAS_IMAGEN", label="Generadas (imagen)", catalog=True)
+    items = ci.collect_catalog_entries(bank, vault)
+    assert items[0]["prompt"] == "Arte en estilo cyberpunk"
+
+    md = ci.render_catalog_branch(bank, items)
+    assert '> "Arte en estilo cyberpunk"' in md
+    assert '""Arte' not in md
+
+
+def test_render_pendientes_note_prompt_con_comillas_propias_no_se_dobla():
+    pendientes = [{"id": "a", "prompt": '"un perro corriendo"', "link": "https://grok.com/x",
+                   "media_type": "video", "create_time": "2025-06-01T00:00:00Z"}]
+    md = ci.render_pendientes_note(pendientes, "Grok — pendientes de descarga")
+    assert '""un perro' not in md
+    assert '> "un perro corriendo"' in md
 
 
 def test_bank_dir_fuera_del_vault_se_respeta(tmp_path):

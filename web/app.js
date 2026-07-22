@@ -86,8 +86,8 @@ function candidatoRow(cand) {
     .filter(Boolean).join(" · ");
   return `<details class="check-fold check-fold-${estado}">
     <summary>
-      <span class="badge ${estado}">${ESTADO_BADGE_LABEL[estado]}</span>
       <span class="check-fold-name">${escapeHtml(cand.nombre)}</span>
+      <span class="badge ${estado}">${ESTADO_BADGE_LABEL[estado]}</span>
       ${subtitulo ? `<span class="check-fold-sub">${escapeHtml(subtitulo)}</span>` : ""}
     </summary>
     <div class="check-fold-body">${escapeHtml(cand.mensaje)}</div>
@@ -110,8 +110,8 @@ function exportsDirFold(c) {
     : `<div class="sub">${escapeHtml(c.mensaje)}</div>`;
   return `<details class="check-fold check-fold-${estado}" style="margin-bottom:8px; padding:12px 14px;">
     <summary>
-      <span class="badge ${estado}">${ESTADO_BADGE_LABEL[estado]}</span>
       <span class="check-fold-campo">${c.campo}</span>
+      <span class="badge ${estado}">${ESTADO_BADGE_LABEL[estado]}</span>
       <span class="check-fold-sub" style="margin-left:auto;">${escapeHtml(resumen)}</span>
     </summary>
     <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">${body}</div>

@@ -160,7 +160,7 @@ def collect_catalog_entries(bank: BankSpec, vault: Path) -> list:
         items.append({
             "fname": fname,
             "es_imagen": Path(fname).suffix.lower() in IMG_EXTS,
-            "prompt": (meta.get("prompt") or "").strip(),
+            "prompt": (meta.get("prompt") or "").strip().strip('"'),
             "create_time": meta.get("create_time") or "",
         })
     items.sort(key=lambda it: it["create_time"], reverse=True)
@@ -234,7 +234,7 @@ def generate_provider_index(vault: Path, conversations_dir: str, provider_title:
         resumen_partes.append(f"{total} {bank.label.lower()}")
         lines.append(render_bank_branch(bank, entries))
     resumen = " · ".join(resumen_partes) if resumen_partes else "sin contenido"
-    lines.insert(1, f"_{resumen}_\n")
+    lines.insert(1, f"_{resumen}_")
     return {"markdown": "\n".join(lines), "stats": stats}
 
 
@@ -254,7 +254,7 @@ def render_pendientes_note(pendientes: list, titulo: str) -> str:
     for p in pendientes_ordenados:
         fecha = (p.get("create_time") or "")[:10] or "fecha desconocida"
         tipo = p.get("media_type") or "?"
-        prompt = (p.get("prompt") or "").strip()
+        prompt = (p.get("prompt") or "").strip().strip('"')
         resumen = (prompt[:70] + "...") if len(prompt) > 70 else (prompt or "(sin prompt)")
         lines.append("<details>")
         lines.append(f"<summary>{fecha} — {tipo} — \"{resumen}\"</summary>")
