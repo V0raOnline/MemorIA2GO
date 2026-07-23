@@ -4,237 +4,235 @@
   <img src="assets/M3M0R-IA.png" alt="M3M0R·IA" width="180">
 </p>
 
-> Turn your AI conversation history — ChatGPT, Claude, Grok — into a structured, MCP-ready Obsidian vault. Your context, local and yours.
+> Convierte tu historial de conversaciones con IAs — ChatGPT, Claude, Grok — en un vault de Obsidian estructurado y listo para MCP. Tu contexto, local y tuyo.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 ---
 
-## Language editions
+## Ediciones por idioma
 
-M3M0R·IA is maintained as two parallel product lines while the English localization is completed:
+M3M0R·IA se mantiene como dos líneas de producto en paralelo mientras se completa la localización al inglés:
 
-- **`release/es` (this branch) — Spanish edition.** The original, fully functional application: web UI, runtime messages and generated vault content in Spanish. Receives bug fixes during the localization effort.
-- **`release/en` — English edition.** The web UI is fully translated (milestone tag `i18n-web`); runtime messages and generated vault content are still in Spanish until localization phases 2 (`i18n-runtime`) and 3 (`i18n-content`) land.
-- **`main`** is frozen at the last common state (v2.8.0) as an immutable reference until both editions reach feature parity.
+- **`release/es` (esta rama) — edición española.** La aplicación original, completamente funcional: interfaz web, mensajes en tiempo de ejecución y contenido generado en el vault, todo en español. Recibe correcciones de errores mientras dura el esfuerzo de localización.
+- **`release/en` — edición inglesa.** La interfaz web ya está traducida por completo (hito `i18n-web`); los mensajes en tiempo de ejecución y el contenido generado en el vault siguen en español hasta que aterricen las fases de localización 2 (`i18n-runtime`) y 3 (`i18n-content`).
+- **`main`** está congelada en el último estado común (v2.8.0) como referencia inmutable hasta que ambas ediciones alcancen paridad de funcionalidades.
 
 ---
 
-## What is M3M0R·IA?
+## ¿Qué es M3M0R·IA?
 
-M3M0R·IA converts the native exports of your AI chat providers into a clean, project-organized vault of Markdown notes, ready to be browsed in Obsidian and consumed as live context by Claude Desktop via MCP (Model Context Protocol).
+M3M0R·IA convierte los exports nativos de tus proveedores de chat con IA en un vault limpio de notas Markdown, organizado por proyectos, listo para navegarse en Obsidian y para servir de contexto vivo a Claude Desktop vía MCP (Model Context Protocol).
 
-Unlike generic migration tools that only transfer saved memories, M3M0R·IA brings your **full conversation history** — deduplicated, merged, organized by project and date, with images extracted and navigation indexes generated.
+A diferencia de las herramientas genéricas de migración que solo transfieren memorias guardadas, M3M0R·IA trae tu **historial completo de conversaciones** — deduplicado, fusionado, organizado por proyecto y fecha, con imágenes extraídas e índices de navegación generados.
 
-**Supported providers** (detected by internal JSON structure, never by filename):
+**Proveedores soportados** (detección por estructura interna del JSON, nunca por nombre de archivo):
 
-| Provider | Export format | Branch handling | Attachments |
+| Proveedor | Formato del export | Gestión de ramas | Adjuntos |
 |----------|--------------|-----------------|-------------|
-| ChatGPT  | zip / json / html | `current_node` tree walk | AI-generated images and user uploads extracted to separate banks (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
-| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; uploaded binaries not shipped by the export; **generated Artifacts** (documents, code, HTML...) extracted to `CLAUDE/ARTEFACTOS`, one file per artifact, sorted by type — only the final version, revision history is discarded |
-| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | file attachments extracted to `GROK/ADJUNTOS`; Imagine generations (images and video) extracted to `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` when the export ships the binary, otherwise logged as a pending-download list (prompt + link), never auto-downloaded |
+| ChatGPT  | zip / json / html | recorrido del árbol por `current_node` | imágenes generadas por IA y subidas del usuario extraídas a bancos separados (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
+| Claude   | zip (puede llegar en partes `batch-NNNN`) | reconstrucción por la hoja más reciente (el export no trae `current_node`) | texto extraído citado inline; los binarios subidos no vienen en el export; los **Artefactos generados** (documentos, código, HTML...) se extraen a `CLAUDE/ARTEFACTOS`, un fichero por artefacto, clasificados por tipo — solo la versión final, el historial de revisiones se descarta |
+| Grok     | zip (estructura `ttl/30d/...`) | `leaf_response_id` cuando existe, si no la hoja más reciente | adjuntos extraídos a `GROK/ADJUNTOS`; las generaciones de Imagine (imagen y vídeo) se extraen a `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` cuando el export trae el binario, si no se registran como lista de pendientes de descarga (prompt + enlace), nunca se descargan solas |
 
-All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin. Every asset bank gets its own navigable index, same pattern as the classic image index.
-
----
-
-## How it works
-
-The pipeline runs in 4 non-destructive steps:
-
-**Step 1 — Import** (`split_chatgpt_export.py` + `providers/` adapters)
-Each valid, pending export in your exports folder is detected by structure and dispatched to its adapter. One Markdown note per conversation lands in `RAW_VAULT`, with YAML frontmatter (title, date, provider, source, project mapping). Discarded regeneration branches are excluded — only the thread you actually kept.
-
-**Step 2 — Merge** (`vault_merge.py`)
-Consolidates variants of the same conversation across exports into `MERGED_VAULT` without losing messages: the longest variant wins as champion and any message missing from it is recovered from the others.
-
-**Step 3 — Projects** (`project_organizer.py`)
-Builds `PRJ_VAULT` as a project/year/month view of MERGED. Refreshed on every run (symlinks where the OS allows them, real copies on Windows).
-
-**Step 4 — Indexes** (`tree_index.py`, `scaffolding_index.py`, `image_index.py`, `vault_stats.py`)
-Navigation indexes (project/year/month), attachment usage index, image index, and the statistics cache that powers the dashboard.
-
-### When to run what
-
-- **Import pending (step 1→4)** — the everyday mode: you dropped new exports in your folder and want them in. Only processes what wasn't imported yet.
-- **Update only (step 2→4)** — no new data, but how things consolidate or organize changed: after naming gizmos, or after an M3M0R·IA update touching the merge, the project view or the indexes.
-- **Reprocess all** — after an M3M0R·IA version that adds or changes frontmatter fields (`provider`, `conv_id`, `model`...) or modifies the parsers: existing notes only gain new fields by re-importing from the exports. Safe (exports are the source of truth, nothing is destroyed) but takes time proportional to your history — coffee recommended.
-- **Generate themes index** (Cartografía tab) — whenever you edit themes; no restart needed. Step 4 also regenerates it automatically on every pipeline run.
+Todos los proveedores conviven en un único vault fusionado (MERGED). Cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Cada banco de assets tiene su propio índice navegable, mismo patrón que el índice de imágenes clásico.
 
 ---
 
-## Requirements
+## Cómo funciona
+
+El pipeline corre en 4 pasos no destructivos:
+
+**Paso 1 — Importar** (`split_chatgpt_export.py` + adaptadores en `providers/`)
+Cada export válido y pendiente en tu carpeta de exports se detecta por estructura y se despacha a su adaptador. Una nota Markdown por conversación aterriza en `RAW_VAULT`, con frontmatter YAML (título, fecha, proveedor, origen, mapeo de proyecto). Las ramas de regeneración descartadas quedan excluidas — solo el hilo que de verdad conservaste.
+
+**Paso 2 — Fusionar** (`vault_merge.py`)
+Consolida variantes de la misma conversación entre exports en `MERGED_VAULT` sin perder mensajes: la variante más larga gana como campeona, y cualquier mensaje que le falte se recupera de las demás.
+
+**Paso 3 — Proyectos** (`project_organizer.py`)
+Construye `PRJ_VAULT` como una vista de proyecto/año/mes de MERGED. Se refresca en cada corrida (symlinks donde el sistema operativo lo permite, copias reales en Windows).
+
+**Paso 4 — Índices** (`tree_index.py`, `scaffolding_index.py`, `image_index.py`, `vault_stats.py`)
+Índices de navegación (proyecto/año/mes), índice de uso de adjuntos, índice de imágenes, y la caché de estadísticas que alimenta el dashboard.
+
+### Cuándo lanzar qué
+
+- **Importar pendientes (paso 1→4)** — el modo del día a día: soltaste exports nuevos en tu carpeta y quieres que entren. Solo procesa lo que aún no se había importado.
+- **Solo actualizar (paso 2→4)** — no hay datos nuevos, pero cambió cómo se consolida u organiza: tras nombrar gizmos, o tras una actualización de M3M0R·IA que toque la fusión, la vista de proyectos o los índices.
+- **Reprocesar todo** — tras una versión de M3M0R·IA que añade o cambia campos del frontmatter (`provider`, `conv_id`, `model`...) o modifica los parsers: las notas existentes solo ganan campos nuevos si se re-importan desde los exports. Seguro (los exports son la fuente de verdad, nada se destruye) pero tarda proporcionalmente a tu historial — café recomendado.
+- **Generar índice de temas** (pestaña Cartografía) — cada vez que edites temas; no hace falta reiniciar. El paso 4 también lo regenera automáticamente en cada corrida del pipeline.
+
+---
+
+## Requisitos
 
 - Python **3.10+**
-- Dependencies: `pip install -r requirements.txt`
+- Dependencias: `pip install -r requirements.txt`
   (beautifulsoup4, lxml, rich, pyyaml, flask)
-- Obsidian (to browse the result) and optionally Claude Desktop with an MCP filesystem server (to use it as live context)
-- Optional, for running the test suite: `pip install -r requirements-dev.txt && python -m pytest tests/`
+- Obsidian (para navegar el resultado) y opcionalmente Claude Desktop con un servidor MCP de filesystem (para usarlo como contexto vivo)
+- Opcional, para correr el suite de tests: `pip install -r requirements-dev.txt && python -m pytest tests/`
 
-Developed and battle-tested on Windows; the pipeline itself is cross-platform.
+Desarrollado y probado a fondo en Windows; el pipeline en sí es multiplataforma.
 
 ---
 
-## Quick start (web UI)
+## Arranque rápido (interfaz web)
 
-M3M0R·IA ships with a local web interface — dashboard, configuration, pre-flight verification, pipeline runner with live log, and orphan-project curation.
+M3M0R·IA viene con una interfaz web local — dashboard, configuración, verificación previa, lanzador del pipeline con log en vivo, y curación de proyectos huérfanos.
 
 ```bash
-git clone <this repo>
+git clone <este repo>
 cd MemorIA2GO
 pip install -r requirements.txt
 
-# 1. Create your config from the template and set your paths
+# 1. Crea tu configuración desde la plantilla y ajusta tus rutas
 copy memoria_config.yaml.example memoria_config.yaml   # Windows
 cp memoria_config.yaml.example memoria_config.yaml     # Linux / macOS
 
-# 2. Launch
-python launcher.py     # on Linux, depending on your distro: python3 launcher.py
+# 2. Arranca
+python launcher.py     # en Linux, según tu distro: python3 launcher.py
 ```
 
-Your browser opens at `http://127.0.0.1:8765`. The server binds to localhost only — it has no authentication and can run the pipeline, so keep it that way.
+Tu navegador se abre en `http://127.0.0.1:8765`. El servidor solo escucha en localhost — no tiene autenticación y puede lanzar el pipeline, así que déjalo así.
 
-Options:
+Opciones:
 
 ```bash
-python launcher.py --port 80 --no-browser   # for a persistent local server
+python launcher.py --port 80 --no-browser   # para un servidor local persistente
 ```
 
-Optional pretty URL: add `127.0.0.1  m3m0ria` to your hosts file (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, with `sudo`) and run on port 80 → `http://m3m0ria/`. On Windows you can register a logon Scheduled Task running `pythonw launcher.py --port 80 --no-browser` from the repo folder; on Linux, a systemd user service or an autostart entry running `python3 launcher.py --port 8765 --no-browser` does the same job (port 80 on Linux needs privileges: stay on 8765 or put a proxy in front).
+URL bonita opcional: añade `127.0.0.1  m3m0ria` a tu fichero hosts (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, con `sudo`) y arranca en el puerto 80 → `http://m3m0ria/`. En Windows puedes registrar una tarea programada de inicio de sesión que lance `pythonw launcher.py --port 80 --no-browser` desde la carpeta del repo; en Linux, un servicio de usuario de systemd o una entrada de autoarranque lanzando `python3 launcher.py --port 8765 --no-browser` hace el mismo trabajo (el puerto 80 en Linux necesita privilegios: quédate en el 8765 o pon un proxy delante).
 
-First dashboard load computes statistics once and caches them next to your vault (`.m3m0ria_stats.json`); after that, loads are instant. The pipeline refreshes the cache at the end of step 4, and the dashboard offers a manual *recalcular* link.
+La primera carga del dashboard calcula las estadísticas una vez y las cachea junto a tu vault (`.m3m0ria_stats.json`); después de eso, las cargas son instantáneas. El pipeline refresca la caché al final del paso 4, y el dashboard ofrece un enlace manual de *recalcular*.
 
-### CLI (no web)
+### CLI (sin web)
 
 ```bash
-python MemorIA2GO.py                  # interactive, full pipeline
-python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
+python MemorIA2GO.py                  # interactivo, pipeline completo
+python MemorIA2GO.py --reprocess-all  # re-parsea todos los exports válidos desde cero
 ```
 
 ---
 
-## I've never used a terminal: step-by-step guide
+## Nunca he usado una terminal: guía paso a paso
 
-Did everything above sound like gibberish? This section is for you. No prior knowledge, on Windows, step by step.
+¿Todo lo de arriba sonó a chino? Esta sección es para ti. Sin conocimientos previos, en Windows, paso a paso.
 
-**1. Install Python.**
-Go to [python.org/downloads](https://www.python.org/downloads/) and click the yellow download button. When running the installer, **check the "Add Python to PATH" box** (at the very bottom, easy to miss — it is the single most important step here). Then "Install Now" and wait.
+**1. Instala Python.**
+Ve a [python.org/downloads](https://www.python.org/downloads/) y pulsa el botón amarillo de descarga. Al ejecutar el instalador, **marca la casilla "Add Python to PATH"** (abajo del todo, fácil de pasar por alto — es el paso más importante de todos). Luego "Install Now" y espera.
 
-**2. Download this project.**
-On this GitHub page, click the green **Code** button → **Download ZIP**. Extract the ZIP anywhere — for example `C:\M3M0RIA`. (Right-click the ZIP → "Extract all".)
+**2. Descarga este proyecto.**
+En esta página de GitHub, pulsa el botón verde **Code** → **Download ZIP**. Extrae el ZIP donde quieras — por ejemplo `C:\M3M0RIA`. (Clic derecho en el ZIP → "Extraer todo".)
 
-**3. Open a console.**
-Press the Windows key, type `powershell` and press Enter. A blue or black window with text opens: that is the console or terminal. You use it by typing commands and pressing Enter. It doesn't bite.
+**3. Abre una consola.**
+Pulsa la tecla Windows, escribe `powershell` y pulsa Enter. Se abre una ventana azul o negra con texto: eso es la consola o terminal. Se usa escribiendo comandos y pulsando Enter. No muerde.
 
-**4. Enter the project folder.**
-Type this (or copy it and paste with right-click) and press Enter — adjust the path if you extracted somewhere else:
+**4. Entra en la carpeta del proyecto.**
+Escribe esto (o cópialo y pégalo con clic derecho) y pulsa Enter — ajusta la ruta si lo extrajiste en otro sitio:
 
 ```
 cd "C:\M3M0RIA"
 ```
 
-**5. Install what the program needs.**
-Copy this, paste, Enter:
+**5. Instala lo que el programa necesita.**
+Copia esto, pega, Enter:
 
 ```
 pip install -r requirements.txt
 ```
 
-A wall of text will scroll by for a while. That's normal: it is downloading the pieces the program uses. When the cursor comes back, it's done.
+Va a desfilar un muro de texto durante un rato. Es normal: está descargando las piezas que usa el programa. Cuando vuelva el cursor, ha terminado.
 
-**6. Create your configuration.**
-Copy, paste, Enter:
+**6. Crea tu configuración.**
+Copia, pega, Enter:
 
 ```
 copy memoria_config.yaml.example memoria_config.yaml
 notepad memoria_config.yaml
 ```
 
-Notepad opens with the configuration. You only need to adjust two paths: `base_vault` (the folder where your notes vault will live — a new empty folder is fine) and `exports_dir` (the folder where you'll drop the ZIPs you download from ChatGPT/Claude/Grok). Save and close.
+Se abre el Bloc de notas con la configuración. Solo necesitas ajustar dos rutas: `base_vault` (la carpeta donde vivirá tu vault de notas — sirve una carpeta vacía nueva) y `exports_dir` (la carpeta donde soltarás los ZIP que te descargues de ChatGPT/Claude/Grok). Guarda y cierra.
 
-**7. Get your exports.**
-- **ChatGPT**: Settings → Data controls → Export data. You'll get an email with a ZIP.
-- **Claude**: Settings → Privacy → Export data. You'll get an email with a ZIP (sometimes several).
-- **Grok**: Settings → Data → Download your data.
+**7. Consigue tus exports.**
+- **ChatGPT**: Configuración → Controles de datos → Exportar datos. Te llega un email con un ZIP.
+- **Claude**: Configuración → Privacidad → Exportar datos. Te llega un email con un ZIP (a veces varios).
+- **Grok**: Configuración → Datos → Descarga tus datos.
 
-Drop the ZIPs as-is (do not unzip them) into the folder you set as `exports_dir`.
+Suelta los ZIP tal cual (no los descomprimas) en la carpeta que pusiste como `exports_dir`.
 
-**8. Launch M3M0R·IA.**
-In the console:
+**8. Lanza M3M0R·IA.**
+En la consola:
 
 ```
 python launcher.py
 ```
 
-Your browser opens with the interface. From here on, everything is clicks: **Configuración** tab to review paths, **Verificación** to check your ZIPs are recognized, and **Construcción** → "Importar pendientes" to run the conversion. The live log tells you what it's doing. When it finishes, open your vault folder with Obsidian and enjoy.
+Tu navegador se abre con la interfaz. A partir de aquí, todo son clics: pestaña **Configuración** para revisar rutas, **Verificación** para comprobar que tus ZIP se reconocen, y **Construcción** → "Importar pendientes" para lanzar la conversión. El log en vivo te cuenta qué está haciendo. Cuando termine, abre la carpeta de tu vault con Obsidian y disfruta.
 
-**If something fails:**
-- *"python is not recognized as a command..."* → the PATH checkbox from step 1 wasn't ticked. Reinstall Python with it checked, close the console and open a new one.
-- *"pip is not recognized..."* → same as above.
-- The browser window doesn't open → manually type `http://127.0.0.1:8765` in your browser.
-
----
-
-## Configuration
-
-- `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
-- `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartografía tab); never committed.
-- `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Temas`. Never committed.
-
-Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
+**Si algo falla:**
+- *"python no se reconoce como un comando..."* → no marcaste la casilla de PATH del paso 1. Reinstala Python marcándola, cierra la consola y abre una nueva.
+- *"pip no se reconoce..."* → lo mismo que arriba.
+- No se abre la ventana del navegador → escribe a mano `http://127.0.0.1:8765` en tu navegador.
 
 ---
 
-## How this project evolved
+## Configuración
 
-- **v1** was a CLI-only, ChatGPT-only, 3-step pipeline: import, organize by project, index.
-- **v2** (current) grew in four directions, each driven by a real failure or a real need:
-  - **Merge became its own step.** Deduplication used to be destructive; now variants are consolidated without losing a single message, and the champion's provenance is preserved.
-  - **Multi-provider adapters.** Claude and Grok exports were dissected against real data before writing any code. Detection is structural — a Claude zip also contains a `conversations.json`, and Grok's root also has a `conversations` key, so filename-based detection would silently produce garbage. Each adapter reconstructs the active conversation thread from its provider's own branch model.
-  - **A web UI (M3M0R·IA).** Dashboard with evolution charts, per-provider and per-project stats, pre-flight verification that names each export's provider (and rejects what it can't parse yet, honestly), pipeline runner with live log, and orphan-project curation.
-  - **Performance by design.** Statistics are computed once per pipeline run and cached atomically; the dashboard reads the cache in milliseconds regardless of vault size.
-  - **Cartography instead of forced taxonomy.** Unassigned conversations aren't shoehorned into folders: a vocabulary cloud (seeded with project names from all three providers) feeds a many-to-many Themes system — words, phrases and `field=value` metadata rules — that generates linked indexes in Obsidian. Curation lives in one entry per theme, the derived index is regenerable, the notes stay untouched.
-  - **Identity via `conv_id`.** Each conversation's native ID travels to the frontmatter and the merge groups by it: thread renames across exports (measured: 21 of 593 real conversations) fuse under the latest title while preserving `titulo_original`, instead of duplicating as ghosts.
-- **v2.5** made the project testable instead of just tested-by-hand:
-  - **A real regression suite.** Synthetic fixtures for all three providers (no personal data) cover adapters, pre-flight detection, thread-rename merging, and the themes system — every real bug caught during development now has a test that would have caught it sooner. Run with `pip install -r requirements-dev.txt && python -m pytest tests/`.
-  - **Format-drift detection.** Each adapter now declares the fields it actually reads. An opt-in deep check samples an export's real conversations and flags fields it's never seen before — the same kind of change that once made a whole batch of ChatGPT projects vanish silently. Off by default (it has to read the full export, which isn't free on a large one); one click in Verificación turns it on.
-  - **A path autocomplete that doesn't truncate.** The browser's native path suggestions cut off long Windows paths with no way to see the rest. Replaced with a small dropdown that wraps instead of clipping.
-  - **Collapsible pre-flight checks.** The exports folder check used to dump every file's status on screen at once. Now it's a single line — status light plus a one-line summary — that expands into the per-file list only when you want to look, and each file expands again into its full detail.
-- **v2.6 rebuilt how images and generated content are stored**, after a routine check turned up a real classification bug:
-  - **The bug**: ChatGPT's *newer* native image generation (the in-context "generate an image" flow, as opposed to the classic DALL·E tool call) doesn't fill in the field the pipeline was checking for a prompt. Result: **5,117 AI-generated images across a real 47-export history were being filed as user uploads.** Confirmed and fixed by checking for the generation ID instead of the prompt text.
-  - **New taxonomy.** Assets are no longer dumped into one shared `IMAGE_BANK`. Each provider gets banks split by *what the content actually is*: `CHATGPT/GENERADAS` vs `CHATGPT/ADJUNTOS`, `GROK/GENERADAS_IMAGEN` / `GROK/GENERADAS_VIDEO` / `GROK/ADJUNTOS`, `CLAUDE/ARTEFACTOS/<type>` (markdown, html, code by language, and so on). Each bank has its own navigable index.
-  - **Grok attachments and Imagine generations are now actually extracted** (previously just a text reference — see the provider table above). Imagine generations without a shipped binary (most of them, in practice: only ~18% of a real export's generations travel in the zip) are logged with their prompt and original link for manual download later, on purpose — this tool never reaches out to the network on your behalf.
-  - **Claude Artifacts are now extracted**, resolved to their *final* state: an artifact revised a dozen times in one conversation used to be invisible; now it's one clean file, not a pile of near-duplicate revisions.
-  - **A reusable relink tool** (`relink_assets.py`) rewrites asset links across the whole vault when a bank moves or gets renamed — this is the second time that's happened, and it won't be the last, so it's a proper tool now instead of a one-off script.
-  - **A dormant bug in six different scripts**, found while running this exact migration: a leftover compatibility shortcut from an earlier reorganization could point nowhere (e.g. after clearing out the old shared image folder), and the file-scanning code used everywhere had no graceful way to handle that — it just stopped scanning entirely, mid-vault, with no explanation. Fixed once, centrally, and now covered by a test that reproduces the exact broken-shortcut scenario rather than trusting it won't happen again.
-- **v2.7 replaced the old per-bank image indexes with one content index per provider**:
-  - **One file per provider** (`_index_chatgpt.md`, `_index_claude.md`, `_index_grok.md`) instead of one per bank. Each bank inside is its own collapsed branch, and each conversation inside that branch collapses too — native Obsidian `<details>`, no plugins required.
-  - **Grok's pending-download list lives in its own note** (`_grok_pendientes.md`), sorted newest first, kept separate from the main index so it doesn't clutter what's already downloaded.
-  - **Claude's index shows a link and a short summary only** — never the artifact's full content inline, since that already lives in the artifact file and the conversation note.
-  - **A bug caught in its own verification**: bank folders live next to `MERGED_VAULT`/`PRJ_VAULT` under the base vault, not inside them — a default that assumed otherwise silently produced empty captions and, for banks with no matching notes to scan (Grok's Imagine generations), an empty catalog despite real files on disk. Fixed with an explicit base-vault path, with a test that puts the two apart on purpose so the gap can't reopen unnoticed.
-  - **The three old per-bank index files are now retired automatically** on every run, since the new provider index replaces them outright.
+- `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, mapa de gizmos) y opciones (carpetas por año/mes, generación de índice). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
+- `gizmo_map.json` — mapea IDs de proyecto (gizmo) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Cartografía); nunca se commitea.
+- `topic_map.json` — tus temas para conversaciones sin asignar: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas de índice enlazadas en `MERGED_VAULT/_Temas`. Nunca se commitea.
 
-- **v2.8 retired `IMAGE_BANK` for good and gave the web UI a real identity**:
-  - **The dashboard's asset card was quietly measuring an empty folder.** `IMAGE_BANK` had been fully migrated away in v2.6, but the stats code never stopped pointing at it — the card just read 0/0 B forever. Rebuilt to count the real banks (including Claude artifacts and Grok video, not just images), with a total plus a per-provider, per-type breakdown.
-  - **`IMAGE_BANK` itself is gone**, not just unused: the junction mechanism that once linked it into every vault (`ensure_image_bank_junction`) is removed from the pipeline, and the three leftover junctions plus the empty folder were cleared from the live vault after confirming zero real notes still depended on them. The old standalone `image_index.py` tool it existed for is gone too, superseded by `content_index.py`.
-  - **The interface got a name, not just a UI.** "Pipeline" and "Dashboard" were generic — the rest of the app talks about reconstructing memory from export files, and those two didn't. Renamed to **Observatorio**, **Configuración**, **Verificación**, **Construcción**, **Cartografía**, each with its own header: a one-line "what you do here," a consistent brand line underneath, and a small illustrated mascot per section.
-  - **A new tab, Reconexión, closes a real gap.** Regenerating indexes alone was never going to surface a manually downloaded Grok file — the catalog reads off the asset *manifest*, not the folder, so a file dropped in by hand with no manifest entry stayed invisible. Reconexión lists Grok's pending downloads, accepts the file by upload (never a hand-typed path — the server picks the bank and computes the same hash-based filename the automated extractor would), and a separate "Regenerar índices" button reruns just the indexing step (`--reindex-only`) without a full reprocess.
+Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas se organizan por temas (varios-a-varios), no por carpetas.
 
-Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
+---
+
+## Cómo evolucionó este proyecto
+
+- **v1** era un pipeline solo por CLI, solo ChatGPT, de 3 pasos: importar, organizar por proyecto, indexar.
+- **v2** (actual) creció en cuatro direcciones, cada una impulsada por un fallo real o una necesidad real:
+  - **La fusión se convirtió en su propio paso.** La deduplicación solía ser destructiva; ahora las variantes se consolidan sin perder un solo mensaje, y se conserva la procedencia de la campeona.
+  - **Adaptadores multi-proveedor.** Los exports de Claude y Grok se diseccionaron contra datos reales antes de escribir una sola línea de código. La detección es estructural — un zip de Claude también contiene un `conversations.json`, y la raíz de Grok también tiene una clave `conversations`, así que detectar por nombre de archivo produciría basura en silencio. Cada adaptador reconstruye el hilo activo de conversación según el modelo de ramas propio de su proveedor.
+  - **Una interfaz web (M3M0R·IA).** Dashboard con gráficos de evolución, estadísticas por proveedor y por proyecto, verificación previa que identifica el proveedor de cada export (y rechaza honestamente lo que aún no sabe parsear), lanzador del pipeline con log en vivo, y curación de proyectos huérfanos.
+  - **Rendimiento por diseño.** Las estadísticas se calculan una vez por corrida del pipeline y se cachean atómicamente; el dashboard lee la caché en milisegundos sin importar el tamaño del vault.
+  - **Cartografía en vez de taxonomía forzada.** Las conversaciones sin asignar no se embuten en carpetas: una nube de vocabulario (sembrada con nombres de proyecto de los tres proveedores) alimenta un sistema de Temas varios-a-varios — palabras, frases y reglas de metadatos `campo=valor` — que genera índices enlazados en Obsidian. La curación vive en una entrada por tema, el índice derivado es regenerable, las notas quedan intactas.
+  - **Identidad vía `conv_id`.** El ID nativo de cada conversación viaja al frontmatter y la fusión agrupa por él: los renombrados de hilo entre exports (medido: 21 de 593 conversaciones reales) se fusionan bajo el título más reciente conservando `titulo_original`, en vez de duplicarse como fantasmas.
+- **v2.5** hizo el proyecto testeable en vez de solo probado a mano:
+  - **Un suite de regresión de verdad.** Fixtures sintéticos para los tres proveedores (sin datos personales) cubren adaptadores, detección previa, fusión de renombrados de hilo, y el sistema de temas — cada bug real cazado durante el desarrollo tiene ahora un test que lo habría cazado antes. Se lanza con `pip install -r requirements-dev.txt && python -m pytest tests/`.
+  - **Detección de deriva de formato.** Cada adaptador ahora declara los campos que realmente lee. Un chequeo profundo opcional muestrea las conversaciones reales de un export y avisa de campos nunca vistos — el mismo tipo de cambio que una vez hizo desaparecer en silencio un lote entero de proyectos de ChatGPT. Desactivado por defecto (tiene que leer el export completo, que no es gratis en uno grande); un clic en Verificación lo activa.
+  - **Un autocompletado de rutas que no trunca.** Las sugerencias nativas de ruta del navegador cortaban las rutas largas de Windows sin forma de ver el resto. Reemplazado por un desplegable pequeño que envuelve en vez de recortar.
+  - **Verificaciones previas colapsables.** El chequeo de la carpeta de exports solía volcar el estado de cada fichero en pantalla de golpe. Ahora es una sola línea — semáforo más resumen de una frase — que se despliega a la lista por fichero solo cuando quieres mirar, y cada fichero se despliega otra vez a su detalle completo.
+- **v2.6 reconstruyó cómo se guardan las imágenes y el contenido generado**, tras un chequeo rutinario que destapó un bug real de clasificación:
+  - **El bug**: la generación nativa de imágenes *más nueva* de ChatGPT (el flujo "genera una imagen" in-context, a diferencia de la llamada clásica a la herramienta DALL·E) no rellena el campo que el pipeline comprobaba para el prompt. Resultado: **5117 imágenes generadas por IA en un historial real de 47 exports se estaban archivando como subidas del usuario.** Confirmado y arreglado comprobando el ID de generación en vez del texto del prompt.
+  - **Taxonomía nueva.** Los assets ya no se vuelcan en un único `IMAGE_BANK` compartido. Cada proveedor tiene bancos divididos por *qué es realmente el contenido*: `CHATGPT/GENERADAS` vs `CHATGPT/ADJUNTOS`, `GROK/GENERADAS_IMAGEN` / `GROK/GENERADAS_VIDEO` / `GROK/ADJUNTOS`, `CLAUDE/ARTEFACTOS/<tipo>` (markdown, html, código por lenguaje, etc.). Cada banco tiene su propio índice navegable.
+  - **Los adjuntos de Grok y las generaciones de Imagine ahora se extraen de verdad** (antes solo una referencia de texto — ver la tabla de proveedores más arriba). Las generaciones de Imagine sin binario en el export (la mayoría en la práctica: solo ~18% de las generaciones de un export real viajan en el zip) se registran con su prompt y enlace original para descargar a mano más tarde, a propósito — esta herramienta nunca contacta con la red en tu nombre.
+  - **Los Artefactos de Claude ahora se extraen**, resueltos a su estado *final*: un artefacto revisado una docena de veces en una sola conversación antes era invisible; ahora es un fichero limpio, no un montón de revisiones casi-duplicadas.
+  - **Una herramienta reutilizable de re-enlazado** (`relink_assets.py`) reescribe los enlaces de assets por todo el vault cuando un banco se mueve o se renombra — es la segunda vez que pasa esto, y no será la última, así que ahora es una herramienta de verdad en vez de un script de usar y tirar.
+  - **Un bug latente en seis scripts distintos**, encontrado al lanzar esta misma migración: un atajo de compatibilidad heredado de una reorganización anterior podía apuntar a la nada (p.ej. tras vaciar la vieja carpeta compartida de imágenes), y el código de escaneo de ficheros usado en todas partes no tenía forma elegante de manejarlo — simplemente dejaba de escanear en mitad del vault, sin explicación. Arreglado una vez, centralizadamente, y ahora cubierto por un test que reproduce el escenario exacto del atajo roto en vez de confiar en que no vuelva a pasar.
+- **v2.7 reemplazó los viejos índices de imágenes por banco con un índice de contenido por proveedor**:
+  - **Un archivo por proveedor** (`_index_chatgpt.md`, `_index_claude.md`, `_index_grok.md`) en vez de uno por banco. Cada banco dentro es su propia rama colapsada, y cada conversación dentro de esa rama también colapsa — `<details>` nativo de Obsidian, sin plugins.
+  - **La lista de pendientes de descarga de Grok vive en su propia nota** (`_grok_pendientes.md`), ordenada por más reciente primero, separada del índice principal para no ensuciar lo que ya está descargado.
+  - **El índice de Claude muestra solo un enlace y un resumen corto** — nunca el contenido completo del artefacto inline, ya que eso ya vive en el propio fichero del artefacto y en la nota de conversación.
+  - **Un bug cazado en su propia verificación**: las carpetas de banco viven junto a `MERGED_VAULT`/`PRJ_VAULT` bajo el vault base, no dentro de ellos — un valor por defecto que asumía lo contrario producía en silencio captions vacíos y, para bancos sin notas que rastrear (las generaciones de Imagine de Grok), un catálogo vacío pese a haber ficheros reales en disco. Arreglado con una ruta de vault base explícita, con un test que separa a propósito ambas rutas para que el hueco no vuelva a abrirse sin que se note.
+  - **Los tres archivos de índice viejos por banco se retiran automáticamente** en cada corrida, ya que el nuevo índice por proveedor los sustituye por completo.
+- **v2.8 retiró `IMAGE_BANK` para siempre y le dio a la interfaz web una identidad de verdad**:
+  - **La tarjeta de assets del dashboard estaba midiendo en silencio una carpeta vacía.** `IMAGE_BANK` se había migrado por completo en v2.6, pero el código de estadísticas nunca dejó de apuntar ahí — la tarjeta simplemente leía 0/0 B para siempre. Reconstruida para contar los bancos reales (incluyendo artefactos de Claude y vídeo de Grok, no solo imágenes), con un total más un desglose por proveedor y tipo.
+  - **`IMAGE_BANK` en sí ha desaparecido**, no solo ha quedado sin uso: el mecanismo de junction que lo enlazaba antes a cada vault (`ensure_image_bank_junction`) se ha retirado del pipeline, y los tres junctions sobrantes más la carpeta vacía se limpiaron del vault real tras confirmar que cero notas reales dependían aún de ellos. La vieja herramienta standalone `image_index.py` para la que existía también ha desaparecido, superada por `content_index.py`.
+  - **La interfaz ganó un nombre, no solo una UI.** "Pipeline" y "Dashboard" eran genéricos — el resto de la app habla de reconstruir memoria a partir de ficheros de export, y esos dos no lo hacían. Renombrados a **Observatorio**, **Configuración**, **Verificación**, **Construcción**, **Cartografía**, cada una con su propia cabecera: una frase de "qué haces aquí", un eslogan de marca consistente debajo, y una pequeña mascota ilustrada por sección.
+  - **Una pestaña nueva, Reconexión, cierra un hueco real.** Regenerar índices por sí solo nunca iba a hacer aparecer un fichero de Grok descargado a mano — el catálogo lee del *manifest* del asset, no de la carpeta, así que un fichero soltado a mano sin entrada de manifest se quedaba invisible. Reconexión lista los pendientes de descarga de Grok, acepta el fichero por subida (nunca una ruta escrita a mano — el servidor elige el banco y calcula el mismo nombre basado en hash que calcularía el extractor automático), y un botón separado "Regenerar índices" relanza solo el paso de indexado (`--reindex-only`) sin un reproceso completo.
+
+Principios de diseño en todo momento: diagnosticar antes de implementar, validar contra exports reales, nunca destruir datos, y que los fallos sean ruidosos y honestos en vez de silenciosos.
 
 ---
 
 ## Roadmap
 
-- Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
-- Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
-- Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
-- An English translation of the web UI (design scoped: UI-only text is a mechanical pass; backend-generated log/status messages are pricier, since some of that text is pattern-matched by tests and code, not just displayed)
-- A ChatGPT `image_group` tool-call type isn't recognized by the parser yet and leaks raw into note text — needs a real export sample to pin down the exact code path before fixing
+- Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
+- Extracción de assets para los adjuntos `.dat` del export fragmentado de ChatGPT 2026+ (un formato binario distinto al ya soportado)
+- Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
+- Un tipo de tool-call `image_group` de ChatGPT que el parser aún no reconoce y se cuela en crudo en el texto de la nota — hace falta una muestra real de export para fijar la ruta de código exacta antes de arreglarlo
 
 ---
 
-## License
+## Licencia
 
-CC BY-NC-SA 4.0 — see badge above.
+CC BY-NC-SA 4.0 — ver el badge de arriba.
