@@ -13,6 +13,7 @@
   --text-dim: #8B92A5;
   --magenta: #FC4FB1;      /* color de acción — sacado del logo */
   --magenta-soft: rgba(252, 79, 177, 0.10);
+  --bg-purple: #241726;    /* morado oscuro, --bg-panel con un ~12% de --magenta mezclado */
   --cyan: #22D3EE;
   --cyan-dim: #1A7F94;
   --green: #5FD88F;
@@ -126,44 +127,55 @@ main {
 .panel { display: none; }
 .panel.active { display: block; }
 
-/* ─── Banner del dashboard ─── */
+/* ─── Cabecera de sección (una por panel: qué hace, arriba y grande;
+   eslogan de marca, abajo y pequeño -- consistente en las 5 pestañas.
+   Mascota por sección, ver assets/<seccion>.png) ─── */
 
-.hero {
+.panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 10px 6px 26px;
+  gap: 20px;
+  padding: 10px 6px 22px;
 }
 
-.hero-title {
-  margin: 0 0 12px;
-  font-size: 27px;
+.panel-header-text { min-width: 0; }
+
+.panel-header-text h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
   font-weight: 700;
-  line-height: 1.25;
+  color: var(--magenta);
   letter-spacing: -0.01em;
 }
 
-.hero-accent { color: var(--magenta); }
-
-.hero-sub {
-  margin: 0;
+.panel-header-desc {
+  margin: 0 0 8px;
   color: var(--text-dim);
   font-size: 13.5px;
-  line-height: 1.55;
+  line-height: 1.45;
   max-width: 480px;
 }
 
-.hero-logo {
-  width: 160px;
-  height: 160px;
+.panel-header-desc .brand-ia { color: var(--magenta); }
+
+.panel-header-brand {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.panel-header-icon {
+  width: 130px;
+  height: 130px;
   flex-shrink: 0;
   image-rendering: pixelated;
 }
 
 @media (max-width: 860px) {
-  .hero-logo { width: 110px; height: 110px; }
-  .hero-title { font-size: 22px; }
+  .panel-header-icon { width: 90px; height: 90px; }
+  .panel-header-main { font-size: 16px; }
 }
 
 .card {
@@ -213,7 +225,7 @@ main {
   right: 0;
   top: 100%;
   margin-top: 3px;
-  background: var(--bg-panel);
+  background: var(--bg-purple);
   border: 1px solid var(--border);
   border-radius: 6px;
   max-height: 240px;
@@ -237,7 +249,7 @@ main {
 
 .path-suggest .opt:hover,
 .path-suggest .opt.active {
-  background: var(--magenta-soft);
+  background: rgba(34, 211, 238, 0.16);
   color: var(--text);
 }
 
@@ -526,6 +538,21 @@ button.btn.secondary:hover {
   border-color: var(--cyan-dim);
 }
 
+.gizmo-info .msg { margin-top: 4px; }
+
+.pendiente-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pendiente-actions input[type="file"] {
+  font-size: 12px;
+  color: var(--text-dim);
+  max-width: 180px;
+}
+
 .gizmo-convs {
   margin-top: 6px;
 }
@@ -778,3 +805,32 @@ button.btn.secondary:hover {
 .msg { font-size: 13px; margin-top: 10px; }
 .msg.ok { color: var(--green); }
 .msg.error { color: var(--red); }
+
+/* ─── Footer (enlaces a GitHub/Substack, ver .claude/footer.TXT) ─── */
+
+footer {
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+  padding: 1.2rem 0 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.footer-left,
+.footer-right {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+}
+
+.footer-right a {
+  color: var(--magenta);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.footer-right a:hover { opacity: 0.75; }

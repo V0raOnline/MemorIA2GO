@@ -103,28 +103,69 @@ def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict
     return result
 
 
-def compute_image_bank_stats(image_bank: Path) -> dict:
-    if not image_bank.exists():
-        return {"existe": False, "num_imagenes": 0, "num_con_metadatos": 0, "tamano_bytes": 0, "tamano_legible": "0 B"}
+def _count_dir(path: Path) -> "tuple[int, int]":
+    """(num_archivos, bytes) de un directorio plano, sin bajar a
+    subcarpetas, excluyendo manifest/ficheros ocultos (prefijo _)."""
+    if not path.exists():
+        return 0, 0
+    files = [f for f in path.iterdir() if f.is_file() and not f.name.startswith("_")]
+    return len(files), sum(f.stat().st_size for f in files)
 
-    img_files = [f for f in image_bank.iterdir() if f.is_file() and not f.name.startswith("_")]
-    total_size = sum(f.stat().st_size for f in img_files)
 
-    manifest = {}
-    manifest_path = image_bank / "_image_manifest.json"
-    if manifest_path.exists():
-        try:
-            with open(manifest_path, "r", encoding="utf-8-sig") as f:
-                manifest = json.load(f)
-        except Exception:
-            manifest = {}
+# Bancos fijos por proveedor (taxonomia 2026-07-22, ver CONTEXT.md seccion 3):
+# (ruta relativa a base_vault, etiqueta legible). Claude no esta aqui porque
+# sus subcarpetas (markdown/html/codigo/...) son dinamicas por tipo -- se
+# recorren directamente en compute_asset_stats.
+ASSET_BANKS = {
+    "chatgpt": [("CHATGPT/GENERADAS", "generadas"), ("CHATGPT/ADJUNTOS", "adjuntos")],
+    "grok": [("GROK/ADJUNTOS", "adjuntos"), ("GROK/GENERADAS_IMAGEN", "generadas (imagen)"),
+             ("GROK/GENERADAS_VIDEO", "generadas (video)")],
+}
+
+
+def compute_asset_stats(base_vault: Path) -> dict:
+    """Reemplaza al viejo compute_image_bank_stats (media IMAGE_BANK, vacio
+    a proposito desde la migracion de taxonomia). Cuenta los 6 bancos reales
+    -- generadas/adjuntos por proveedor, mas los artefactos de Claude por
+    tipo -- con total agregado y desglose por proveedor."""
+    base_vault = Path(base_vault)
+    por_proveedor: dict = {}
+    total_items = 0
+    total_bytes = 0
+
+    for proveedor, bancos in ASSET_BANKS.items():
+        detalle = []
+        items = 0
+        size = 0
+        for rel, etiqueta in bancos:
+            n, b = _count_dir(base_vault / rel)
+            detalle.append({"etiqueta": etiqueta, "items": n})
+            items += n
+            size += b
+        por_proveedor[proveedor] = {"items": items, "bytes": size, "detalle": detalle}
+        total_items += items
+        total_bytes += size
+
+    claude_dir = base_vault / "CLAUDE" / "ARTEFACTOS"
+    detalle = []
+    items = 0
+    size = 0
+    if claude_dir.exists():
+        for sub in sorted(p for p in claude_dir.iterdir() if p.is_dir()):
+            n, b = _count_dir(sub)
+            if n:
+                detalle.append({"etiqueta": sub.name, "items": n})
+            items += n
+            size += b
+    por_proveedor["claude"] = {"items": items, "bytes": size, "detalle": detalle}
+    total_items += items
+    total_bytes += size
 
     return {
-        "existe": True,
-        "num_imagenes": len(img_files),
-        "num_con_metadatos": len(manifest),
-        "tamano_bytes": total_size,
-        "tamano_legible": human_size(total_size),
+        "total_items": total_items,
+        "total_bytes": total_bytes,
+        "tamano_legible": human_size(total_bytes),
+        "por_proveedor": por_proveedor,
     }
 
 
@@ -163,7 +204,6 @@ def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
     raw_vault = base_vault / "RAW_VAULT"
     merged_vault = base_vault / "MERGED_VAULT"
     project_vault = base_vault / prj_vault_name
-    image_bank = base_vault / "IMAGE_BANK"
 
     # Resumen de temas escrito por orphan_cloud al generar el indice
     # (tolerante: sin indice generado, sin seccion de temas)
@@ -181,7 +221,7 @@ def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
             "MERGED_VAULT": compute_single_vault_stats(merged_vault, "Conversaciones"),
             prj_vault_name: compute_single_vault_stats(project_vault, "."),
         },
-        "image_bank": compute_image_bank_stats(image_bank),
+        "assets": compute_asset_stats(base_vault),
         "ultima_importacion": compute_last_import(raw_vault),
         "gizmos_pendientes": compute_gizmos_pendientes(raw_vault),
         "temas": temas_stats,
@@ -238,8 +278,11 @@ def print_report(stats: dict):
         rango = f"{v['fecha_mas_antigua']} -> {v['fecha_mas_moderna']}" if v["fecha_mas_antigua"] else "sin fechas"
         print(f"{name}: {v['notas']} notas | {rango} | {v['tamano_legible']}")
 
-    ib = stats["image_bank"]
-    print(f"\nIMAGE_BANK: {ib['num_imagenes']} imagenes ({ib['num_con_metadatos']} con metadatos) | {ib['tamano_legible']}")
+    a = stats["assets"]
+    print(f"\nAssets: {a['total_items']} totales | {a['tamano_legible']}")
+    for proveedor, v in a["por_proveedor"].items():
+        detalle = " · ".join(f"{d['items']} {d['etiqueta']}" for d in v["detalle"] if d["items"])
+        print(f"  {proveedor}: {v['items']} ({detalle or 'sin contenido'})")
 
 
 def main():

@@ -20,6 +20,9 @@ Endpoints:
   POST /api/gizmos            -> guarda nombres, parchea RAW_VAULT in-place
   GET  /api/run                -> SSE, lanza el pipeline completo con log en vivo
   GET  /api/run?from_merge=1  -> SSE, salta el paso 1 (usado tras /api/gizmos)
+  GET  /api/pendientes         -> pendientes de descarga de Grok (Reconexión)
+  POST /api/pendientes/registrar -> da de alta un pendiente descargado a mano (upload)
+  POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
 """
 import argparse
 import json
@@ -372,6 +375,120 @@ def post_gizmos():
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         return jsonify({"ok": True, "patched": len(filled), "patch_output": result.stdout})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
+# API: Reconexión — pendientes de descarga de Grok + regenerar índices
+# ─────────────────────────────────────────
+
+@app.route("/api/pendientes")
+def get_pendientes():
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify([])
+        path = base_vault / "GROK" / "_pendientes_descarga.json"
+        if not path.exists():
+            return jsonify([])
+        with open(path, "r", encoding="utf-8-sig") as f:
+            return jsonify(json.load(f))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/pendientes/registrar", methods=["POST"])
+def registrar_pendiente():
+    """Da de alta a mano un pendiente de Grok que V0ra descargó fuera de la
+    app (el pipeline nunca descarga solo). Recibe el fichero por upload en
+    vez de una ruta a mano: evita mal-archivar en el banco equivocado.
+    Mismo esquema hash+extension que usa la extraccion automatica
+    (split_chatgpt_export.py) para que el resultado sea indistinguible."""
+    try:
+        pendiente_id = request.form.get("id")
+        archivo = request.files.get("file")
+        if not pendiente_id or not archivo:
+            return jsonify({"error": "faltan id o file"}), 400
+
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"error": "base_vault no configurado"}), 400
+
+        pend_path = base_vault / "GROK" / "_pendientes_descarga.json"
+        if not pend_path.exists():
+            return jsonify({"error": "no hay pendientes registrados"}), 404
+        with open(pend_path, "r", encoding="utf-8-sig") as f:
+            pendientes = json.load(f)
+
+        pendiente = next((p for p in pendientes if p.get("id") == pendiente_id), None)
+        if pendiente is None:
+            return jsonify({"error": "ese pendiente ya no existe (¿ya se registró?)"}), 404
+
+        data = archivo.read()
+        if not data:
+            return jsonify({"error": "el fichero subido está vacío"}), 400
+
+        import hashlib
+        from split_chatgpt_export import sniff_ext
+
+        media_type = pendiente.get("media_type")
+        bank_name = "GENERADAS_VIDEO" if media_type == "video" else "GENERADAS_IMAGEN"
+        bank_dir = base_vault / "GROK" / bank_name
+        bank_dir.mkdir(parents=True, exist_ok=True)
+
+        fname = f"{hashlib.sha1(data).hexdigest()[:16]}{sniff_ext(data)}"
+        dest = bank_dir / fname
+        if not dest.exists():
+            dest.write_bytes(data)
+
+        manifest_path = bank_dir / "_image_manifest.json"
+        manifest = {}
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception:
+                manifest = {}
+        manifest[fname] = {
+            "origen": "generada",
+            "prompt": pendiente.get("prompt"),
+            "media_type": media_type,
+            "create_time": pendiente.get("create_time"),
+        }
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        pendientes = [p for p in pendientes if p.get("id") != pendiente_id]
+        tmp = pend_path.with_name(pend_path.name + ".tmp")
+        tmp.write_text(json.dumps(pendientes, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+        tmp.replace(pend_path)
+
+        return jsonify({"ok": True, "fname": fname, "restantes": len(pendientes)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/reindex", methods=["POST"])
+def reindex():
+    """Relanza paso4_indices via subprocess (no import: el codigo se relee
+    del disco en cada pulsacion, mismo criterio que /api/topics/generate).
+    Barato frente a un reproceso completo -- solo toca MERGED_VAULT/PRJ_VAULT
+    ya existentes, no re-importa desde los exports."""
+    try:
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(HERE / "MemorIA2GO.py"),
+             "--config", str(CONFIG_PATH), "--yes", "--reindex-only"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=600, env=env,
+        )
+        if result.returncode != 0:
+            detalle = (result.stderr or result.stdout or "").strip()[-500:] or "fallo la regeneracion (sin salida)"
+            return jsonify({"error": detalle}), 500
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

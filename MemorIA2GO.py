@@ -19,11 +19,10 @@ futuros). Se lleva un registro de qué archivos ya se importaron
 --reprocess-all fuerza a reprocesar todos los exports válidos igualmente
 (seguro: --keep-versions + merge por huella no duplican nada).
 
-El banco de imágenes (IMAGE_BANK) vive siempre al mismo nivel que los vaults
-(RAW_VAULT, MERGED_VAULT, PRJ_VAULT), como carpeta hermana dentro de la carpeta
-base. Cada vault referencia las mismas imágenes vía un junction "_assets" — cero
-duplicación de binarios, y los enlaces relativos nunca salen del vault (Obsidian
-los renderiza sin problema).
+Los bancos de assets (CHATGPT/, GROK/, CLAUDE/) viven siempre al mismo nivel
+que los vaults (RAW_VAULT, MERGED_VAULT, PRJ_VAULT), como carpetas hermanas
+dentro de la carpeta base, separados por proveedor y tipo de contenido —
+ver CONTEXT.md sección 3 para la taxonomía completa.
 
 Uso rápido:
   python MemorIA2GO.py
@@ -194,41 +193,6 @@ def run_script(script: Path, args: list, log_path: Path) -> bool:
         return False
 
 # ─────────────────────────────────────────
-# Banco de imágenes: junction al mismo nivel que los vaults
-# ─────────────────────────────────────────
-
-def ensure_image_bank_junction(vault_root: Path, image_bank: Path, log_path: Path) -> Path:
-    """Crea (si no existe) {vault_root}/_assets como junction hacia image_bank.
-    image_bank vive como carpeta hermana de los vaults (RAW_VAULT, MERGED_VAULT,
-    PRJ_VAULT), nunca dentro de uno de ellos. Idempotente y no destructivo."""
-    image_bank.mkdir(parents=True, exist_ok=True)
-    vault_root.mkdir(parents=True, exist_ok=True)
-    junction = vault_root / "_assets"
-
-    if junction.exists():
-        return junction
-
-    if sys.platform == "win32":
-        result = subprocess.run(
-            ["cmd", "/c", "mklink", "/J", str(junction), str(image_bank)],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            warn(f"No pude crear el junction de imágenes en {junction}: {result.stderr.strip()}")
-            log(log_path, f"WARN junction fallido: {result.stderr.strip()}")
-        else:
-            log(log_path, f"Junction creado: {junction} -> {image_bank}")
-    else:
-        try:
-            junction.symlink_to(image_bank, target_is_directory=True)
-            log(log_path, f"Symlink creado: {junction} -> {image_bank}")
-        except OSError as e:
-            warn(f"No pude crear el symlink de imágenes en {junction}: {e}")
-            log(log_path, f"WARN symlink fallido: {e}")
-
-    return junction
-
-# ─────────────────────────────────────────
 # Helpers de resolución de rutas
 # ─────────────────────────────────────────
 
@@ -258,7 +222,7 @@ def wizard() -> dict:
         exports_dir = ask("📦 Carpeta con tus exports de ChatGPT")
 
     default_vault = str(HERE / "output_vault")
-    vault_path = ask("📁 Carpeta base donde viven todos los vaults (RAW/MERGED/PRJ/IMAGE_BANK)", default=default_vault)
+    vault_path = ask("📁 Carpeta base donde viven todos los vaults (RAW/MERGED/PRJ)", default=default_vault)
 
     gizmo_map_path = ask(
         "🗺  Ruta al gizmo_map.json (mapa de proyectos) — deja vacío para omitir",
@@ -398,7 +362,7 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
 
     return raw_vault
 
-def paso2_merge(params: dict, raw_vault: Path, image_bank: Path, log_path: Path) -> Path:
+def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
     """RAW_VAULT → MERGED_VAULT: fusiona variantes por huella de mensaje,
     sin perder contenido divergente entre reimportaciones."""
     rule("Paso 2 — Fusionar sin pérdidas (MERGED_VAULT)")
@@ -409,7 +373,6 @@ def paso2_merge(params: dict, raw_vault: Path, image_bank: Path, log_path: Path)
         sys.exit(1)
 
     merged_vault = params["vault_path"] / "MERGED_VAULT"
-    ensure_image_bank_junction(merged_vault, image_bank, log_path)
 
     args = [raw_vault, merged_vault, "--merge", "--by-year", "--by-month", "--verbose"]
 
@@ -420,7 +383,7 @@ def paso2_merge(params: dict, raw_vault: Path, image_bank: Path, log_path: Path)
 
     return merged_vault
 
-def paso3_organizar(params: dict, merged_vault: Path, image_bank: Path, log_path: Path):
+def paso3_organizar(params: dict, merged_vault: Path, log_path: Path):
     """Reorganiza MERGED_VAULT por Project_name en PRJ_VAULT."""
     rule("Paso 3 — Organizar por proyectos (PRJ_VAULT)")
 
@@ -432,12 +395,7 @@ def paso3_organizar(params: dict, merged_vault: Path, image_bank: Path, log_path
     project_vault = params["vault_path"] / params.get("prj_vault_name", "PRJ_VAULT")
     project_vault.mkdir(parents=True, exist_ok=True)
 
-    if params.get("by_date"):
-        # Con by_date, la profundidad de PRJ_VAULT (proyecto/año/mes) coincide con
-        # la de MERGED_VAULT (Conversaciones/año/mes) — los enlaces de imagen
-        # relativos siguen resolviendo bien tras symlink/copia.
-        ensure_image_bank_junction(project_vault, image_bank, log_path)
-    else:
+    if not params.get("by_date"):
         warn("Sin organización por año/mes, los enlaces de imagen en PRJ_VAULT "
              "pueden no resolver correctamente (profundidad distinta a MERGED_VAULT).")
 
@@ -571,6 +529,11 @@ def main():
                     help="Ignora el registro de exports ya procesados y reprocesa todos los "
                          "exports validos de exports_dir. Seguro (--keep-versions + merge por "
                          "huella no duplican nada), solo mas lento.")
+    ap.add_argument("--reindex-only", action="store_true",
+                    help="Salta los pasos 1-3 por completo y solo relanza paso4_indices sobre "
+                         "MERGED_VAULT/PRJ_VAULT ya existentes. Pensado para refrescar indices "
+                         "tras mover assets a mano o registrar una descarga manual de Grok, sin "
+                         "pagar el coste de un reproceso completo (pestaña Reconexion).")
     ap.add_argument("--yes", action="store_true",
                     help="No pide confirmacion de la config cargada -- la acepta directamente. "
                          "Necesario para lanzar el pipeline sin terminal interactiva (p.ej. desde launcher.py).")
@@ -621,12 +584,21 @@ def main():
     log(log_path, f"Exports: {params['exports_dir']}")
     log(log_path, f"Vault:  {params['vault_path']}")
 
-    image_bank = params["vault_path"] / "IMAGE_BANK"
+    if args.reindex_only:
+        merged_vault = params["vault_path"] / "MERGED_VAULT"
+        project_vault = params["vault_path"] / params.get("prj_vault_name", "PRJ_VAULT")
+        if not project_vault.exists():
+            project_vault = None
+        paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
+        ok("Índices regenerados.")
+        log(log_path, "Sesión finalizada correctamente (--reindex-only).")
+        return
+
     # Taxonomia por proveedor y tipo (decision V0ra 2026-07-22): las
     # generaciones de IA y las subidas del usuario van a bancos separados
-    # bajo CHATGPT/, hermanos de RAW_VAULT/MERGED_VAULT/PRJ_VAULT/IMAGE_BANK.
-    # IMAGE_BANK se mantiene mientras V0ra no haya movido el contenido
-    # antiguo mal clasificado (ver CONTEXT.md seccion 3).
+    # bajo CHATGPT/, hermanos de RAW_VAULT/MERGED_VAULT/PRJ_VAULT. IMAGE_BANK
+    # es legado, migrado por completo y retirado de todo el pipeline
+    # (ver CONTEXT.md seccion 3).
     chatgpt_generadas = params["vault_path"] / "CHATGPT" / "GENERADAS"
     chatgpt_adjuntos = params["vault_path"] / "CHATGPT" / "ADJUNTOS"
     grok_adjuntos = params["vault_path"] / "GROK" / "ADJUNTOS"
@@ -634,7 +606,6 @@ def main():
     grok_generadas_video = params["vault_path"] / "GROK" / "GENERADAS_VIDEO"
     grok_pendientes = params["vault_path"] / "GROK" / "_pendientes_descarga.json"
     claude_artefactos = params["vault_path"] / "CLAUDE" / "ARTEFACTOS"
-    info(f"🖼  Banco de imágenes (legado): {image_bank}")
     info(f"🖼  Generadas: {chatgpt_generadas}")
     info(f"🖼  Adjuntos:  {chatgpt_adjuntos}")
 
@@ -652,8 +623,8 @@ def main():
                                  grok_pendientes, claude_artefactos, log_path,
                                  reprocess_all=args.reprocess_all)
 
-    merged_vault = paso2_merge(params, raw_vault, image_bank, log_path)
-    project_vault = paso3_organizar(params, merged_vault, image_bank, log_path)
+    merged_vault = paso2_merge(params, raw_vault, log_path)
+    project_vault = paso3_organizar(params, merged_vault, log_path)
     paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
 
     rule("Proceso completado")
@@ -661,7 +632,6 @@ def main():
     ok(f"MERGED_VAULT  → {merged_vault}")
     if project_vault is not None:
         ok(f"PRJ_VAULT     → {project_vault}")
-    ok(f"IMAGE_BANK    → {image_bank}")
 
     try:
         from vault_stats import compute_stats, print_report

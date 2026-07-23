@@ -10,6 +10,7 @@ function showTab(name) {
   if (name === "dashboard") loadDashboard();
   if (name === "gizmos") loadGizmos();
   if (name === "verificar") loadVerificarBadge();
+  if (name === "reconexion") loadReconexion();
 }
 
 tabButtons.forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
@@ -147,7 +148,7 @@ async function runVerificar() {
     }
     el.innerHTML = report.checks.map(checkRow).join("") +
       `<div class="msg ${report.ok ? "ok" : "error"}" style="margin-top:10px;">${
-        report.ok ? "Todo en orden, puedes pasar a Pipeline." : "Hay problemas que conviene resolver antes de ejecutar."
+        report.ok ? "Todo en orden, puedes pasar a Construcción." : "Hay problemas que conviene resolver antes de ejecutar."
       }</div>`;
     updateVerificarBadge(report.ok);
   } catch (e) {
@@ -234,11 +235,7 @@ async function loadDashboard(refresh = false) {
       return statBox(name, `${v.notas} notas`, `${rango}<br>${v.tamano_legible}`);
     }).join("");
 
-    const ib = stats.image_bank;
-    imagesEl.innerHTML = [
-      statBox("Imágenes", ib.num_imagenes, `${ib.num_con_metadatos} con metadatos`),
-      statBox("Tamaño", ib.tamano_legible),
-    ].join("");
+    renderAssets(stats);
 
     renderEvolution(stats);
     renderTopTemas(stats);
@@ -399,6 +396,25 @@ function renderProviders(stats) {
   el.innerHTML = cajas.join("");
 }
 
+function renderAssets(stats) {
+  const el = document.getElementById("dashboard-images");
+  const a = stats.assets;
+  if (!a || !a.total_items) {
+    el.innerHTML = `<div class="empty-note">Sin assets todavía.</div>`;
+    return;
+  }
+  const NOMBRES = { chatgpt: "ChatGPT", claude: "Claude", grok: "Grok" };
+  const cajas = [
+    statBox("Assets", a.total_items),
+    statBox("Tamaño", a.tamano_legible),
+  ];
+  for (const [proveedor, v] of Object.entries(a.por_proveedor)) {
+    const detalle = v.detalle.filter(d => d.items).map(d => `${d.items} ${d.etiqueta}`).join(" · ");
+    cajas.push(statBox(NOMBRES[proveedor] || proveedor, v.items, detalle || "sin contenido"));
+  }
+  el.innerHTML = cajas.join("");
+}
+
 function renderTopTemas(stats) {
   const el = document.getElementById("topics-top");
   const cov = document.getElementById("topics-coverage");
@@ -546,6 +562,106 @@ async function saveGizmos() {
 }
 
 document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos);
+
+// ─────────────────────────────────────────
+// Reconexión: pendientes de descarga de Grok + regenerar índices
+// ─────────────────────────────────────────
+async function loadReconexion() {
+  const listEl = document.getElementById("pendientes-list");
+  listEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
+
+  const res = await fetch("/api/pendientes");
+  const data = await res.json();
+  const pendientes = Array.isArray(data) ? data : [];
+
+  const badge = document.getElementById("pendientes-count-badge");
+  badge.textContent = pendientes.length > 0 ? `(${pendientes.length})` : "";
+
+  if (pendientes.length === 0) {
+    listEl.innerHTML = `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
+    return;
+  }
+
+  const ordenados = pendientes.slice().sort((a, b) => (a.create_time || "") < (b.create_time || "") ? 1 : -1);
+
+  listEl.innerHTML = ordenados.map(p => {
+    const fecha = (p.create_time || "").slice(0, 10) || "fecha desconocida";
+    const prompt = (p.prompt || "").trim() || "(sin prompt)";
+    const resumen = prompt.length > 90 ? prompt.slice(0, 90) + "..." : prompt;
+    return `
+    <div class="gizmo-row" data-pendiente-id="${escapeHtml(p.id || "")}">
+      <div class="gizmo-info">
+        <div class="ejemplo">${fecha} — ${escapeHtml(p.media_type || "?")} — ${escapeHtml(resumen)}</div>
+        <div class="meta"><a href="${escapeHtml(p.link || "#")}" target="_blank" rel="noopener">Ver en grok.com</a></div>
+        <div class="msg" data-pendiente-msg></div>
+      </div>
+      <div class="pendiente-actions">
+        <input type="file" accept="image/*,video/*" data-pendiente-file>
+        <button class="btn secondary" data-pendiente-registrar>Registrar</button>
+      </div>
+    </div>
+  `;
+  }).join("");
+
+  listEl.querySelectorAll("[data-pendiente-registrar]").forEach(btn => {
+    btn.addEventListener("click", () => registrarPendiente(btn));
+  });
+}
+
+async function registrarPendiente(btn) {
+  const row = btn.closest(".gizmo-row");
+  const id = row.dataset.pendienteId;
+  const fileInput = row.querySelector("[data-pendiente-file]");
+  const msg = row.querySelector("[data-pendiente-msg]");
+  const file = fileInput.files[0];
+  if (!file) {
+    msg.textContent = "Elige primero el fichero descargado.";
+    msg.className = "msg error";
+    return;
+  }
+  btn.disabled = true;
+  msg.textContent = "Registrando...";
+  msg.className = "msg";
+  try {
+    const fd = new FormData();
+    fd.append("id", id);
+    fd.append("file", file);
+    const res = await fetch("/api/pendientes/registrar", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    row.remove();
+    const badge = document.getElementById("pendientes-count-badge");
+    badge.textContent = data.restantes > 0 ? `(${data.restantes})` : "";
+    if (data.restantes === 0) {
+      document.getElementById("pendientes-list").innerHTML =
+        `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
+    }
+  } catch (e) {
+    btn.disabled = false;
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  }
+}
+
+document.getElementById("btn-reindex").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-reindex");
+  const msg = document.getElementById("reindex-msg");
+  btn.disabled = true;
+  msg.textContent = "Regenerando índices (puede tardar unos segundos)...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/reindex", { method: "POST" });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    msg.textContent = "Índices regenerados.";
+    msg.className = "msg ok";
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ─────────────────────────────────────────
 // Ejecutar pipeline (SSE)

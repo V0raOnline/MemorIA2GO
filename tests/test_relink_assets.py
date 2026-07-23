@@ -81,8 +81,9 @@ def test_relink_vault_no_revienta_con_junction_colgando(tmp_path):
     contenido a la taxonomia nueva -- Path.rglob('*.md') reventaba con
     FileNotFoundError en cuanto lo pisaba, matando el escaneo entero antes
     de llegar a las notas reales. Reproduce el junction roto de verdad
-    (mklink /J, igual que MemorIA2GO.py::ensure_image_bank_junction) en vez
-    de mockear -- si el entorno no permite crear junctions, se salta."""
+    (mklink /J, la tecnica que en su dia usaba MemorIA2GO.py para el
+    junction _assets, ya retirado del pipeline) en vez de mockear -- si el
+    entorno no permite crear junctions, se salta."""
     if sys.platform != "win32":
         pytest.skip("junctions son un concepto especifico de Windows")
 

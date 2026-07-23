@@ -157,7 +157,7 @@ In the console:
 python launcher.py
 ```
 
-Your browser opens with the interface. From here on, everything is clicks: **Configuración** tab to review paths, **Verificación** to check your ZIPs are recognized, and **Pipeline** → "Importar pendientes" to run the conversion. The live log tells you what it's doing. When it finishes, open your vault folder with Obsidian and enjoy.
+Your browser opens with the interface. From here on, everything is clicks: **Configuración** tab to review paths, **Verificación** to check your ZIPs are recognized, and **Construcción** → "Importar pendientes" to run the conversion. The live log tells you what it's doing. When it finishes, open your vault folder with Obsidian and enjoy.
 
 **If something fails:**
 - *"python is not recognized as a command..."* → the PATH checkbox from step 1 wasn't ticked. Reinstall Python with it checked, close the console and open a new one.
@@ -205,6 +205,12 @@ Claude and Grok exports do not link conversations to projects: those notes are o
   - **A bug caught in its own verification**: bank folders live next to `MERGED_VAULT`/`PRJ_VAULT` under the base vault, not inside them — a default that assumed otherwise silently produced empty captions and, for banks with no matching notes to scan (Grok's Imagine generations), an empty catalog despite real files on disk. Fixed with an explicit base-vault path, with a test that puts the two apart on purpose so the gap can't reopen unnoticed.
   - **The three old per-bank index files are now retired automatically** on every run, since the new provider index replaces them outright.
 
+- **v2.8 retired `IMAGE_BANK` for good and gave the web UI a real identity**:
+  - **The dashboard's asset card was quietly measuring an empty folder.** `IMAGE_BANK` had been fully migrated away in v2.6, but the stats code never stopped pointing at it — the card just read 0/0 B forever. Rebuilt to count the real banks (including Claude artifacts and Grok video, not just images), with a total plus a per-provider, per-type breakdown.
+  - **`IMAGE_BANK` itself is gone**, not just unused: the junction mechanism that once linked it into every vault (`ensure_image_bank_junction`) is removed from the pipeline, and the three leftover junctions plus the empty folder were cleared from the live vault after confirming zero real notes still depended on them. The old standalone `image_index.py` tool it existed for is gone too, superseded by `content_index.py`.
+  - **The interface got a name, not just a UI.** "Pipeline" and "Dashboard" were generic — the rest of the app talks about reconstructing memory from export files, and those two didn't. Renamed to **Observatorio**, **Configuración**, **Verificación**, **Construcción**, **Cartografía**, each with its own header: a one-line "what you do here," a consistent brand line underneath, and a small illustrated mascot per section.
+  - **A new tab, Reconexión, closes a real gap.** Regenerating indexes alone was never going to surface a manually downloaded Grok file — the catalog reads off the asset *manifest*, not the folder, so a file dropped in by hand with no manifest entry stayed invisible. Reconexión lists Grok's pending downloads, accepts the file by upload (never a hand-typed path — the server picks the bank and computes the same hash-based filename the automated extractor would), and a separate "Regenerar índices" button reruns just the indexing step (`--reindex-only`) without a full reprocess.
+
 Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
 
 ---
@@ -212,9 +218,10 @@ Design principles throughout: diagnose before implementing, validate against rea
 ## Roadmap
 
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
-- A "reindex" button in the Cartografía tab, so any asset bank's index can be refreshed on demand without a full pipeline run
 - Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
+- An English translation of the web UI (design scoped: UI-only text is a mechanical pass; backend-generated log/status messages are pricier, since some of that text is pattern-matched by tests and code, not just displayed)
+- A ChatGPT `image_group` tool-call type isn't recognized by the parser yet and leaks raw into note text — needs a real export sample to pin down the exact code path before fixing
 
 ---
 
