@@ -11,6 +11,16 @@
 
 ---
 
+## Language editions
+
+M3M0R·IA is maintained as two parallel product lines while the English localization is completed:
+
+- **`release/es` (this branch) — Spanish edition.** The original, fully functional application: web UI, runtime messages and generated vault content in Spanish. Receives bug fixes during the localization effort.
+- **`release/en` — English edition.** The web UI is fully translated (milestone tag `i18n-web`); runtime messages and generated vault content are still in Spanish until localization phases 2 (`i18n-runtime`) and 3 (`i18n-content`) land.
+- **`main`** is frozen at the last common state (v2.8.0) as an immutable reference until both editions reach feature parity.
+
+---
+
 ## What is M3M0R·IA?
 
 M3M0R·IA converts the native exports of your AI chat providers into a clean, project-organized vault of Markdown notes, ready to be browsed in Obsidian and consumed as live context by Claude Desktop via MCP (Model Context Protocol).
