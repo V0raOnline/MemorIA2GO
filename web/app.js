@@ -49,7 +49,7 @@ async function saveConfig() {
     },
   };
   const msg = document.getElementById("config-msg");
-  msg.textContent = "Guardando...";
+  msg.textContent = "Saving...";
   msg.className = "msg";
   try {
     const res = await fetch("/api/config", {
@@ -59,7 +59,7 @@ async function saveConfig() {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    msg.textContent = "Guardado.";
+    msg.textContent = "Saved.";
     msg.className = "msg ok";
     updateConfigBadge(Boolean(payload.paths.base_vault && payload.paths.exports_dir));
   } catch (e) {
@@ -79,11 +79,11 @@ function candidatoEstado(cand) {
   return "ok";
 }
 
-const ESTADO_BADGE_LABEL = { ok: "OK", warn: "revisar", err: "inválido" };
+const ESTADO_BADGE_LABEL = { ok: "OK", warn: "review", err: "invalid" };
 
 function candidatoRow(cand) {
   const estado = candidatoEstado(cand);
-  const subtitulo = [cand.tipo || (cand.valido ? "" : "sin reconocer"), cand.aviso ? "deriva de formato" : ""]
+  const subtitulo = [cand.tipo || (cand.valido ? "" : "unrecognized"), cand.aviso ? "format drift" : ""]
     .filter(Boolean).join(" · ");
   return `<details class="check-fold check-fold-${estado}">
     <summary>
@@ -104,7 +104,7 @@ function candidatoRow(cand) {
 function exportsDirFold(c) {
   const estado = c.estado || "err";
   const resumen = (c.candidatos && c.candidatos.length)
-    ? `${c.validos} válido(s) · ${c.ya_procesados} ya importado(s) · ${c.pendientes} pendiente(s)`
+    ? `${c.validos} valid · ${c.ya_procesados} already imported · ${c.pendientes} pending`
     : c.mensaje;
   const body = (c.candidatos && c.candidatos.length)
     ? c.candidatos.map(candidatoRow).join("")
@@ -122,18 +122,18 @@ function exportsDirFold(c) {
 function checkRow(c) {
   if (c.campo === "exports_dir") return exportsDirFold(c);
 
-  const badge = c.ok ? `<span class="badge ok">OK</span>` : `<span class="badge warn">revisar</span>`;
+  const badge = c.ok ? `<span class="badge ok">OK</span>` : `<span class="badge warn">review</span>`;
   const detalle = (c.detalle && c.detalle.contenido_encontrado) || c.contenido_encontrado;
   return `<div class="stat-box" style="margin-bottom:8px;">
     <div class="label">${c.campo} ${badge}</div>
     <div style="font-size:13px; margin-top:4px;">${c.mensaje}</div>
-    ${detalle ? `<div class="sub">Contenido encontrado: ${detalle.join(", ")}</div>` : ""}
+    ${detalle ? `<div class="sub">Content found: ${detalle.join(", ")}</div>` : ""}
   </div>`;
 }
 
 async function runVerificar() {
   const el = document.getElementById("verificar-results");
-  el.innerHTML = `<div class="empty-note">Verificando...</div>`;
+  el.innerHTML = `<div class="empty-note">Verifying...</div>`;
   try {
     // deep=1: ademas de la validacion estructural barata, muestrea el
     // contenido de cada export para avisar de claves nuevas (deriva de
@@ -148,7 +148,7 @@ async function runVerificar() {
     }
     el.innerHTML = report.checks.map(checkRow).join("") +
       `<div class="msg ${report.ok ? "ok" : "error"}" style="margin-top:10px;">${
-        report.ok ? "Todo en orden, puedes pasar a Construcción." : "Hay problemas que conviene resolver antes de ejecutar."
+        report.ok ? "All clear — you can move on to Construction." : "There are problems worth fixing before running."
       }</div>`;
     updateVerificarBadge(report.ok);
   } catch (e) {
@@ -205,7 +205,7 @@ async function loadDashboard(refresh = false) {
   const vaultsEl = document.getElementById("dashboard-vaults");
   const imagesEl = document.getElementById("dashboard-images");
 
-  summaryEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
+  summaryEl.innerHTML = `<div class="empty-note">Loading...</div>`;
   vaultsEl.innerHTML = "";
   imagesEl.innerHTML = "";
 
@@ -213,9 +213,9 @@ async function loadDashboard(refresh = false) {
     const res = await fetch("/api/stats" + (refresh ? "?refresh=1" : ""));
     const stats = await res.json();
     if (stats.error) {
-      summaryEl.innerHTML = `<div class="empty-note">${stats.error} — configura la carpeta base en la pestaña Configuración.</div>`;
-      document.getElementById("evolution-chart").innerHTML = `<div class="empty-note">Sin datos.</div>`;
-      document.getElementById("projects-top").innerHTML = `<div class="empty-note">Sin datos.</div>`;
+      summaryEl.innerHTML = `<div class="empty-note">${stats.error} — set the base folder in the Configuration tab.</div>`;
+      document.getElementById("evolution-chart").innerHTML = `<div class="empty-note">No data.</div>`;
+      document.getElementById("projects-top").innerHTML = `<div class="empty-note">No data.</div>`;
       return;
     }
 
@@ -223,16 +223,16 @@ async function loadDashboard(refresh = false) {
     const gizmosPend = stats.gizmos_pendientes || 0;
 
     summaryEl.innerHTML = [
-      statBox("Última importación", ui ? `hace ${ui.dias_transcurridos} día(s)` : "sin registro",
+      statBox("Last import", ui ? `${ui.dias_transcurridos} day(s) ago` : "no record",
               ui ? ui.timestamp.slice(0, 16).replace("T", " ") : ""),
-      statBox("Gizmos sin nombrar", gizmosPend,
-              gizmosPend > 0 ? `<span class="badge warn">revisar</span>` : `<span class="badge ok">al día</span>`),
+      statBox("Unnamed gizmos", gizmosPend,
+              gizmosPend > 0 ? `<span class="badge warn">review</span>` : `<span class="badge ok">up to date</span>`),
     ].join("");
 
     vaultsEl.innerHTML = Object.entries(stats.vaults).map(([name, v]) => {
-      if (!v.existe) return statBox(name, "no existe todavía");
-      const rango = v.fecha_mas_antigua ? `${v.fecha_mas_antigua} → ${v.fecha_mas_moderna}` : "sin fechas";
-      return statBox(name, `${v.notas} notas`, `${rango}<br>${v.tamano_legible}`);
+      if (!v.existe) return statBox(name, "doesn't exist yet");
+      const rango = v.fecha_mas_antigua ? `${v.fecha_mas_antigua} → ${v.fecha_mas_moderna}` : "no dates";
+      return statBox(name, `${v.notas} notes`, `${rango}<br>${v.tamano_legible}`);
     }).join("");
 
     renderAssets(stats);
@@ -243,14 +243,14 @@ async function loadDashboard(refresh = false) {
     renderFreshness(stats);
 
   } catch (e) {
-    summaryEl.innerHTML = `<div class="empty-note">Error cargando estadísticas: ${e.message}</div>`;
+    summaryEl.innerHTML = `<div class="empty-note">Error loading stats: ${e.message}</div>`;
   }
 }
 
 // ─────────────────────────────────────────
 // Evolución y top proyectos (dashboard)
 // ─────────────────────────────────────────
-const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const MESES_CORTOS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 let evoMode = "acum";      // "acum" | "mensual"
 let evoSerie = [];          // [["AAAA-MM", n], ...] con huecos rellenados a 0
 let evoSinFecha = 0;
@@ -303,7 +303,7 @@ function drawEvolution() {
   const el = document.getElementById("evolution-chart");
   const note = document.getElementById("evolution-note");
   if (evoSerie.length === 0) {
-    el.innerHTML = `<div class="empty-note">No hay notas con fecha en MERGED_VAULT todavía.</div>`;
+    el.innerHTML = `<div class="empty-note">No dated notes in MERGED_VAULT yet.</div>`;
     note.textContent = "";
     return;
   }
@@ -339,7 +339,7 @@ function drawEvolution() {
   }).join("");
 
   const dots = evoSerie.map((par, i) => {
-    const detalle = evoMode === "acum" ? `${vals[i]} acumuladas (${par[1]} ese mes)` : `${vals[i]} nota(s)`;
+    const detalle = evoMode === "acum" ? `${vals[i]} cumulative (${par[1]} that month)` : `${vals[i]} note(s)`;
     return `<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3" class="ch-dot"><title>${par[0]}: ${detalle}</title></circle>`;
   }).join("");
 
@@ -351,7 +351,7 @@ function drawEvolution() {
     dots + xLabels +
     `</svg>`;
 
-  note.textContent = evoSinFecha > 0 ? `${evoSinFecha} nota(s) sin fecha no aparecen en la gráfica.` : "";
+  note.textContent = evoSinFecha > 0 ? `${evoSinFecha} undated note(s) not shown in the chart.` : "";
 }
 
 function renderEvolution(stats) {
@@ -372,7 +372,7 @@ document.getElementById("evo-btn-mensual").addEventListener("click", () => setEv
 function renderFreshness(stats) {
   const el = document.getElementById("stats-freshness");
   if (!stats.calculado) { el.innerHTML = ""; return; }
-  el.innerHTML = `Estadísticas calculadas: ${stats.calculado.replace("T", " ")} · <a href="#" id="stats-refresh">recalcular</a>`;
+  el.innerHTML = `Stats computed: ${stats.calculado.replace("T", " ")} · <a href="#" id="stats-refresh">recompute</a>`;
   document.getElementById("stats-refresh").addEventListener("click", (e) => {
     e.preventDefault();
     loadDashboard(true);
@@ -386,12 +386,12 @@ function renderProviders(stats) {
   const NOMBRES = { chatgpt: "ChatGPT", claude: "Claude", grok: "Grok" };
   const entries = Object.entries(pp);
   if (entries.length === 0) {
-    el.innerHTML = `<div class="empty-note">Sin datos de proveedor todavía.</div>`;
+    el.innerHTML = `<div class="empty-note">No provider data yet.</div>`;
     return;
   }
-  const cajas = [statBox("Proveedores", entries.length)];
+  const cajas = [statBox("Providers", entries.length)];
   for (const par of entries) {
-    cajas.push(statBox(NOMBRES[par[0]] || par[0], par[1], "notas"));
+    cajas.push(statBox(NOMBRES[par[0]] || par[0], par[1], "notes"));
   }
   el.innerHTML = cajas.join("");
 }
@@ -400,17 +400,17 @@ function renderAssets(stats) {
   const el = document.getElementById("dashboard-images");
   const a = stats.assets;
   if (!a || !a.total_items) {
-    el.innerHTML = `<div class="empty-note">Sin assets todavía.</div>`;
+    el.innerHTML = `<div class="empty-note">No assets yet.</div>`;
     return;
   }
   const NOMBRES = { chatgpt: "ChatGPT", claude: "Claude", grok: "Grok" };
   const cajas = [
     statBox("Assets", a.total_items),
-    statBox("Tamaño", a.tamano_legible),
+    statBox("Size", a.tamano_legible),
   ];
   for (const [proveedor, v] of Object.entries(a.por_proveedor)) {
     const detalle = v.detalle.filter(d => d.items).map(d => `${d.items} ${d.etiqueta}`).join(" · ");
-    cajas.push(statBox(NOMBRES[proveedor] || proveedor, v.items, detalle || "sin contenido"));
+    cajas.push(statBox(NOMBRES[proveedor] || proveedor, v.items, detalle || "no content"));
   }
   el.innerHTML = cajas.join("");
 }
@@ -420,7 +420,7 @@ function renderTopTemas(stats) {
   const cov = document.getElementById("topics-coverage");
   const t = stats.temas;
   if (!t || !t.temas) {
-    el.innerHTML = `<div class="empty-note">Sin índice de temas todavía — genéralo desde Cartografía.</div>`;
+    el.innerHTML = `<div class="empty-note">No theme index yet — generate it from Cartography.</div>`;
     cov.textContent = "";
     return;
   }
@@ -431,12 +431,12 @@ function renderTopTemas(stats) {
     .map(([nombre, v]) => [nombre, v.enlaces])
     .sort((a, b) => b[1] - a[1]);
   if (!entries.length) {
-    el.innerHTML = `<div class="empty-note">Aún no hay temas de contenido con enlaces.</div>`;
+    el.innerHTML = `<div class="empty-note">No content themes with links yet.</div>`;
   } else {
     const top = entries.slice(0, 5);
     const resto = entries.slice(5);
     if (resto.length > 0) {
-      top.push([`Otros (${resto.length} temas)`, resto.reduce((s, e) => s + e[1], 0)]);
+      top.push([`Others (${resto.length} themes)`, resto.reduce((s, e) => s + e[1], 0)]);
     }
     const maxN = Math.max(...top.map(e => e[1]));
     el.innerHTML = top.map(par => `<div class="prj-row">
@@ -449,9 +449,9 @@ function renderTopTemas(stats) {
   const pend = t.huerfanas_solo_estructural;
   const anom = t.huerfanas_sin_tema;
   let linea = "";
-  if (typeof pct === "number") linea += `Cobertura de contenido: ${pct}% de ${t.total_huerfanas} huérfanas`;
-  if (typeof pend === "number") linea += ` · ${pend} pendientes de cartografiar`;
-  if (anom > 0) linea += ` · ⚠ ${anom} sin ningún tema (anomalías)`;
+  if (typeof pct === "number") linea += `Content coverage: ${pct}% of ${t.total_huerfanas} orphans`;
+  if (typeof pend === "number") linea += ` · ${pend} awaiting cartography`;
+  if (anom > 0) linea += ` · ⚠ ${anom} with no theme at all (anomalies)`;
   cov.textContent = linea;
 }
 
@@ -461,17 +461,17 @@ function renderProjects(stats) {
   const pp = (prjKey && stats.vaults[prjKey].notas_por_proyecto) || {};
   const entries = Object.entries(pp).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
-    el.innerHTML = `<div class="empty-note">No hay proyectos todavía.</div>`;
+    el.innerHTML = `<div class="empty-note">No projects yet.</div>`;
     return;
   }
   const top = entries.slice(0, 5);
   const resto = entries.slice(5);
   if (resto.length > 0) {
-    top.push([`Otros (${resto.length} proyectos)`, resto.reduce((s, e) => s + e[1], 0)]);
+    top.push([`Others (${resto.length} projects)`, resto.reduce((s, e) => s + e[1], 0)]);
   }
   const maxN = Math.max(...top.map(e => e[1]));
   el.innerHTML = top.map(par => {
-    const label = par[0] === "none" ? "Sin proyecto" : par[0];
+    const label = par[0] === "none" ? "No project" : par[0];
     return `<div class="prj-row">
       <div class="prj-name" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
       <div class="prj-bar"><div class="prj-fill" style="width:${((100 * par[1]) / maxN).toFixed(1)}%"></div></div>
@@ -485,7 +485,7 @@ function renderProjects(stats) {
 // ─────────────────────────────────────────
 async function loadGizmos() {
   const listEl = document.getElementById("gizmos-list");
-  listEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
+  listEl.innerHTML = `<div class="empty-note">Loading...</div>`;
 
   const res = await fetch("/api/gizmos-pendientes");
   const gizmos = await res.json();
@@ -495,13 +495,13 @@ async function loadGizmos() {
   badge.textContent = entries.length > 0 ? `(${entries.length})` : "";
 
   if (entries.length === 0) {
-    listEl.innerHTML = `<div class="empty-note">No hay gizmos pendientes de nombrar.</div>`;
+    listEl.innerHTML = `<div class="empty-note">No gizmos waiting to be named.</div>`;
     return;
   }
 
   listEl.innerHTML = entries.map(([gid, info]) => {
     const convs = info.conversaciones || [];
-    const first = convs[0] ? convs[0].titulo : "(sin ejemplo)";
+    const first = convs[0] ? convs[0].titulo : "(no sample)";
     const listHtml = convs
       .slice()
       .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))
@@ -510,14 +510,14 @@ async function loadGizmos() {
     return `
     <div class="gizmo-row">
       <div class="gizmo-info">
-        <div class="ejemplo">${first} <span style="color:var(--text-dim)">— ${info.count} conversación(es)</span></div>
+        <div class="ejemplo">${first} <span style="color:var(--text-dim)">— ${info.count} conversation(s)</span></div>
         <div class="meta">${info.gizmo_id || gid}</div>
         <details class="gizmo-convs">
-          <summary>Ver las ${convs.length} conversaciones de este grupo</summary>
+          <summary>See all ${convs.length} conversations in this group</summary>
           <ul>${listHtml}</ul>
         </details>
       </div>
-      <input type="text" data-gid="${gid}" placeholder="Nombre del proyecto">
+      <input type="text" data-gid="${gid}" placeholder="Project name">
     </div>
   `;
   }).join("");
@@ -532,12 +532,12 @@ async function saveGizmos() {
 
   const msg = document.getElementById("gizmos-msg");
   if (Object.keys(payload).length === 0) {
-    msg.textContent = "No has rellenado ningún nombre.";
+    msg.textContent = "You haven't filled in any name.";
     msg.className = "msg error";
     return;
   }
 
-  msg.textContent = "Guardando y parcheando el vault...";
+  msg.textContent = "Saving and patching the vault...";
   msg.className = "msg";
 
   try {
@@ -548,7 +548,7 @@ async function saveGizmos() {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    msg.textContent = `Guardado (${data.patched} nota(s) parcheada(s)). Relanzando desde el paso 2...`;
+    msg.textContent = `Saved (${data.patched} note(s) patched). Relaunching from step 2...`;
     msg.className = "msg ok";
 
     // Cambia a la pestaña de ejecución y lanza --from-merge automáticamente,
@@ -568,7 +568,7 @@ document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos)
 // ─────────────────────────────────────────
 async function loadReconexion() {
   const listEl = document.getElementById("pendientes-list");
-  listEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
+  listEl.innerHTML = `<div class="empty-note">Loading...</div>`;
 
   const res = await fetch("/api/pendientes");
   const data = await res.json();
@@ -578,26 +578,26 @@ async function loadReconexion() {
   badge.textContent = pendientes.length > 0 ? `(${pendientes.length})` : "";
 
   if (pendientes.length === 0) {
-    listEl.innerHTML = `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
+    listEl.innerHTML = `<div class="empty-note">Nothing pending — everything the export ships is already extracted.</div>`;
     return;
   }
 
   const ordenados = pendientes.slice().sort((a, b) => (a.create_time || "") < (b.create_time || "") ? 1 : -1);
 
   listEl.innerHTML = ordenados.map(p => {
-    const fecha = (p.create_time || "").slice(0, 10) || "fecha desconocida";
-    const prompt = (p.prompt || "").trim() || "(sin prompt)";
+    const fecha = (p.create_time || "").slice(0, 10) || "unknown date";
+    const prompt = (p.prompt || "").trim() || "(no prompt)";
     const resumen = prompt.length > 90 ? prompt.slice(0, 90) + "..." : prompt;
     return `
     <div class="gizmo-row" data-pendiente-id="${escapeHtml(p.id || "")}">
       <div class="gizmo-info">
         <div class="ejemplo">${fecha} — ${escapeHtml(p.media_type || "?")} — ${escapeHtml(resumen)}</div>
-        <div class="meta"><a href="${escapeHtml(p.link || "#")}" target="_blank" rel="noopener">Ver en grok.com</a></div>
+        <div class="meta"><a href="${escapeHtml(p.link || "#")}" target="_blank" rel="noopener">View on grok.com</a></div>
         <div class="msg" data-pendiente-msg></div>
       </div>
       <div class="pendiente-actions">
         <input type="file" accept="image/*,video/*" data-pendiente-file>
-        <button class="btn secondary" data-pendiente-registrar>Registrar</button>
+        <button class="btn secondary" data-pendiente-registrar>Register</button>
       </div>
     </div>
   `;
@@ -615,12 +615,12 @@ async function registrarPendiente(btn) {
   const msg = row.querySelector("[data-pendiente-msg]");
   const file = fileInput.files[0];
   if (!file) {
-    msg.textContent = "Elige primero el fichero descargado.";
+    msg.textContent = "Pick the downloaded file first.";
     msg.className = "msg error";
     return;
   }
   btn.disabled = true;
-  msg.textContent = "Registrando...";
+  msg.textContent = "Registering...";
   msg.className = "msg";
   try {
     const fd = new FormData();
@@ -634,7 +634,7 @@ async function registrarPendiente(btn) {
     badge.textContent = data.restantes > 0 ? `(${data.restantes})` : "";
     if (data.restantes === 0) {
       document.getElementById("pendientes-list").innerHTML =
-        `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
+        `<div class="empty-note">Nothing pending — everything the export ships is already extracted.</div>`;
     }
   } catch (e) {
     btn.disabled = false;
@@ -647,13 +647,13 @@ document.getElementById("btn-reindex").addEventListener("click", async () => {
   const btn = document.getElementById("btn-reindex");
   const msg = document.getElementById("reindex-msg");
   btn.disabled = true;
-  msg.textContent = "Regenerando índices (puede tardar unos segundos)...";
+  msg.textContent = "Rebuilding indexes (this can take a few seconds)...";
   msg.className = "msg";
   try {
     const res = await fetch("/api/reindex", { method: "POST" });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    msg.textContent = "Índices regenerados.";
+    msg.textContent = "Indexes rebuilt.";
     msg.className = "msg ok";
   } catch (e) {
     msg.textContent = `Error: ${e.message}`;
@@ -701,7 +701,7 @@ function runPipeline(mode) {
   currentSource.onmessage = (ev) => appendLog(ev.data);
 
   currentSource.addEventListener("done", (ev) => {
-    appendLog(`\nProceso terminado (código ${ev.data}).`, "done");
+    appendLog(`\nProcess finished (exit code ${ev.data}).`, "done");
     setRunning(false);
     currentSource.close();
     updatePipelineBadge(String(ev.data).trim() === "0");
@@ -723,7 +723,7 @@ function runPipeline(mode) {
 btnRunFull.addEventListener("click", () => runPipeline("full"));
 btnRunFromMerge.addEventListener("click", () => runPipeline("from_merge"));
 btnRunReprocess.addEventListener("click", () => {
-  if (confirm("Esto reprocesa TODOS los exports válidos de la carpeta, no solo los pendientes. Puede tardar mas. ¿Continuar?")) {
+  if (confirm("This reprocesses ALL valid exports in the folder, not just the pending ones. It can take longer. Continue?")) {
     runPipeline("reprocess_all");
   }
 });
@@ -737,7 +737,7 @@ document.getElementById("btn-load-cloud").addEventListener("click", loadOrphanCl
 async function loadOrphanCloud() {
   const el = document.getElementById("orphan-cloud");
   const btn = document.getElementById("btn-load-cloud");
-  el.innerHTML = `<div class="empty-note">Escaneando huérfanas... (puede tardar unos segundos)</div>`;
+  el.innerHTML = `<div class="empty-note">Scanning orphans... (this can take a few seconds)</div>`;
   btn.disabled = true;
   try {
     const res = await fetch("/api/orphan-cloud");
@@ -747,7 +747,7 @@ async function loadOrphanCloud() {
       return;
     }
     if (!data.terminos.length) {
-      el.innerHTML = `<div class="empty-note">No hay huérfanas con vocabulario que mostrar. ¿Vault vacío?</div>`;
+      el.innerHTML = `<div class="empty-note">No orphans with vocabulary to show. Empty vault?</div>`;
       return;
     }
     const maxN = data.terminos[0].n;
@@ -757,10 +757,10 @@ async function loadOrphanCloud() {
       const f = maxN === minN ? 0.5 : Math.sqrt((x.n - minN) / (maxN - minN));
       const px = (12 + f * 18).toFixed(1);
       const cls = x.es_proyecto ? "cloud-term prj" : "cloud-term";
-      const titulo = x.es_proyecto ? `${x.n} notas · proyecto: ${x.proyecto}` : `${x.n} notas`;
+      const titulo = x.es_proyecto ? `${x.n} notes · project: ${x.proyecto}` : `${x.n} notes`;
       return `<span class="${cls}" style="font-size:${px}px" title="${titulo}" data-term="${x.t}">${x.t}</span>`;
     });
-    el.innerHTML = `<div class="chart-note" style="margin-bottom:8px">${data.total_huerfanas} huérfanas · términos presentes en 3–${data.techo_df} notas</div>` +
+    el.innerHTML = `<div class="chart-note" style="margin-bottom:8px">${data.total_huerfanas} orphans · terms present in 3–${data.techo_df} notes</div>` +
                    `<div class="cloud-box">${spans.join(" ")}</div>`;
     el.querySelectorAll(".cloud-term").forEach(s => {
       s.addEventListener("click", () => loadCloudNotes(s.dataset.term));
@@ -769,13 +769,13 @@ async function loadOrphanCloud() {
     el.innerHTML = `<div class="msg error">Error: ${e.message}</div>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = "Regenerar nube";
+    btn.textContent = "Regenerate cloud";
   }
 }
 
 async function loadCloudNotes(term) {
   const el = document.getElementById("cloud-notes");
-  el.innerHTML = `<div class="empty-note">Buscando notas con «${term}»...</div>`;
+  el.innerHTML = `<div class="empty-note">Searching notes containing "${term}"...</div>`;
   try {
     const res = await fetch("/api/orphan-cloud/notes?term=" + encodeURIComponent(term));
     const data = await res.json();
@@ -786,7 +786,7 @@ async function loadCloudNotes(term) {
     const filas = data.notas.map(n =>
       `<li><span class="cloud-note-prov">[${n.provider}]</span> ${n.fecha} — ${n.titulo}</li>`
     ).join("");
-    el.innerHTML = `<div class="cloud-notes-box"><strong>«${data.termino}»</strong> aparece en ${data.total} nota(s):` +
+    el.innerHTML = `<div class="cloud-notes-box"><strong>"${data.termino}"</strong> appears in ${data.total} note(s):` +
                    `<ul>${filas}</ul></div>`;
   } catch (e) {
     el.innerHTML = `<div class="msg error">Error: ${e.message}</div>`;
@@ -801,9 +801,9 @@ function addTopicRow(name, words) {
   const el = document.getElementById("topics-list");
   const row = document.createElement("div");
   row.className = "topic-row";
-  row.innerHTML = `<input type="text" class="topic-name" placeholder="nombre del tema">` +
-    `<input type="text" class="topic-words" placeholder="palabras o frases, separadas por comas">` +
-    `<button class="topic-del" title="Quitar tema">×</button>`;
+  row.innerHTML = `<input type="text" class="topic-name" placeholder="theme name">` +
+    `<input type="text" class="topic-words" placeholder="words or phrases, separated by commas">` +
+    `<button class="topic-del" title="Remove theme">×</button>`;
   // valores por asignacion, no por interpolacion: inmune a comillas en nombres
   row.querySelector(".topic-name").value = name;
   row.querySelector(".topic-words").value = words;
@@ -840,7 +840,7 @@ document.getElementById("btn-save-topics").addEventListener("click", async () =>
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    msg.textContent = `Guardados ${data.temas} tema(s).`;
+    msg.textContent = `Saved ${data.temas} theme(s).`;
     msg.className = "msg ok";
   } catch (e) {
     msg.textContent = "Error: " + e.message;
@@ -850,19 +850,19 @@ document.getElementById("btn-save-topics").addEventListener("click", async () =>
 
 document.getElementById("btn-generate-topics").addEventListener("click", async () => {
   const msg = document.getElementById("topics-msg");
-  msg.textContent = "Generando índice...";
+  msg.textContent = "Generating index...";
   msg.className = "msg";
   try {
     const res = await fetch("/api/topics/generate", { method: "POST" });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    let t = `Índice generado: ${data.temas} tema(s), ${data.enlaces} enlace(s)`;
-    if (data.borradas) t += `, ${data.borradas} retirado(s)`;
+    let t = `Index generated: ${data.temas} theme(s), ${data.enlaces} link(s)`;
+    if (data.borradas) t += `, ${data.borradas} removed`;
     if (typeof data.huerfanas_sin_tema === "number") {
-      t += ` · ${data.huerfanas_sin_tema} huérfana(s) sin tema todavía (lista en _Temas/_sin-tema)`;
+      t += ` · ${data.huerfanas_sin_tema} orphan(s) with no theme yet (list in _Temas/_sin-tema)`;
     }
     if (data.sin_coincidencias && data.sin_coincidencias.length) {
-      t += ` · sin coincidencias: ${data.sin_coincidencias.join(", ")}`;
+      t += ` · no matches: ${data.sin_coincidencias.join(", ")}`;
     }
     msg.textContent = t;
     msg.className = "msg ok";
