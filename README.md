@@ -11,6 +11,18 @@
 
 ---
 
+## Language editions
+
+M3M0R·IA is maintained as two parallel product lines while the English localization is completed:
+
+- **`release/en` (this branch) — English edition.** The web UI is fully translated (milestone tag `i18n-web`). Two known limitations remain, by design, until the next localization phases land:
+  - **Runtime messages are still in Spanish**: the live pipeline log, verification result messages, CLI output and error text come from the backend and haven't been translated yet (phase 2, `i18n-runtime`).
+  - **Generated vault content is in Spanish**: note metadata headers ("Archivo adjunto:", "Artefacto:"…), index note labels and folder names (`GENERADAS`, `ADJUNTOS`, `_Temas`…) are written in Spanish. Translating persisted content is phase 3 (`i18n-content`), deliberately deferred until a compatibility strategy for existing Spanish vaults is decided.
+- **`release/es` — Spanish edition.** The original, fully functional application. Receives bug fixes during the localization effort.
+- **`main`** is frozen at the last common state (v2.8.0) as an immutable reference until both editions reach feature parity.
+
+---
+
 ## What is M3M0R·IA?
 
 M3M0R·IA converts the native exports of your AI chat providers into a clean, project-organized vault of Markdown notes, ready to be browsed in Obsidian and consumed as live context by Claude Desktop via MCP (Model Context Protocol).
@@ -50,7 +62,7 @@ Navigation indexes (project/year/month), attachment usage index, image index, an
 - **Import pending (step 1→4)** — the everyday mode: you dropped new exports in your folder and want them in. Only processes what wasn't imported yet.
 - **Update only (step 2→4)** — no new data, but how things consolidate or organize changed: after naming gizmos, or after an M3M0R·IA update touching the merge, the project view or the indexes.
 - **Reprocess all** — after an M3M0R·IA version that adds or changes frontmatter fields (`provider`, `conv_id`, `model`...) or modifies the parsers: existing notes only gain new fields by re-importing from the exports. Safe (exports are the source of truth, nothing is destroyed) but takes time proportional to your history — coffee recommended.
-- **Generate themes index** (Cartografía tab) — whenever you edit themes; no restart needed. Step 4 also regenerates it automatically on every pipeline run.
+- **Generate themes index** (Cartography tab) — whenever you edit themes; no restart needed. Step 4 also regenerates it automatically on every pipeline run.
 
 ---
 
@@ -157,7 +169,7 @@ In the console:
 python launcher.py
 ```
 
-Your browser opens with the interface. From here on, everything is clicks: **Configuración** tab to review paths, **Verificación** to check your ZIPs are recognized, and **Construcción** → "Importar pendientes" to run the conversion. The live log tells you what it's doing. When it finishes, open your vault folder with Obsidian and enjoy.
+Your browser opens with the interface. From here on, everything is clicks: **Configuration** tab to review paths, **Verification** to check your ZIPs are recognized, and **Construction** → "Import pending" to run the conversion. The live log tells you what it's doing. When it finishes, open your vault folder with Obsidian and enjoy.
 
 **If something fails:**
 - *"python is not recognized as a command..."* → the PATH checkbox from step 1 wasn't ticked. Reinstall Python with it checked, close the console and open a new one.
@@ -169,7 +181,7 @@ Your browser opens with the interface. From here on, everything is clicks: **Con
 ## Configuration
 
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
-- `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartografía tab); never committed.
+- `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
 - `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Temas`. Never committed.
 
 Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
@@ -188,7 +200,7 @@ Claude and Grok exports do not link conversations to projects: those notes are o
   - **Identity via `conv_id`.** Each conversation's native ID travels to the frontmatter and the merge groups by it: thread renames across exports (measured: 21 of 593 real conversations) fuse under the latest title while preserving `titulo_original`, instead of duplicating as ghosts.
 - **v2.5** made the project testable instead of just tested-by-hand:
   - **A real regression suite.** Synthetic fixtures for all three providers (no personal data) cover adapters, pre-flight detection, thread-rename merging, and the themes system — every real bug caught during development now has a test that would have caught it sooner. Run with `pip install -r requirements-dev.txt && python -m pytest tests/`.
-  - **Format-drift detection.** Each adapter now declares the fields it actually reads. An opt-in deep check samples an export's real conversations and flags fields it's never seen before — the same kind of change that once made a whole batch of ChatGPT projects vanish silently. Off by default (it has to read the full export, which isn't free on a large one); one click in Verificación turns it on.
+  - **Format-drift detection.** Each adapter now declares the fields it actually reads. An opt-in deep check samples an export's real conversations and flags fields it's never seen before — the same kind of change that once made a whole batch of ChatGPT projects vanish silently. Off by default (it has to read the full export, which isn't free on a large one); one click in Verification turns it on.
   - **A path autocomplete that doesn't truncate.** The browser's native path suggestions cut off long Windows paths with no way to see the rest. Replaced with a small dropdown that wraps instead of clipping.
   - **Collapsible pre-flight checks.** The exports folder check used to dump every file's status on screen at once. Now it's a single line — status light plus a one-line summary — that expands into the per-file list only when you want to look, and each file expands again into its full detail.
 - **v2.6 rebuilt how images and generated content are stored**, after a routine check turned up a real classification bug:
@@ -208,8 +220,8 @@ Claude and Grok exports do not link conversations to projects: those notes are o
 - **v2.8 retired `IMAGE_BANK` for good and gave the web UI a real identity**:
   - **The dashboard's asset card was quietly measuring an empty folder.** `IMAGE_BANK` had been fully migrated away in v2.6, but the stats code never stopped pointing at it — the card just read 0/0 B forever. Rebuilt to count the real banks (including Claude artifacts and Grok video, not just images), with a total plus a per-provider, per-type breakdown.
   - **`IMAGE_BANK` itself is gone**, not just unused: the junction mechanism that once linked it into every vault (`ensure_image_bank_junction`) is removed from the pipeline, and the three leftover junctions plus the empty folder were cleared from the live vault after confirming zero real notes still depended on them. The old standalone `image_index.py` tool it existed for is gone too, superseded by `content_index.py`.
-  - **The interface got a name, not just a UI.** "Pipeline" and "Dashboard" were generic — the rest of the app talks about reconstructing memory from export files, and those two didn't. Renamed to **Observatorio**, **Configuración**, **Verificación**, **Construcción**, **Cartografía**, each with its own header: a one-line "what you do here," a consistent brand line underneath, and a small illustrated mascot per section.
-  - **A new tab, Reconexión, closes a real gap.** Regenerating indexes alone was never going to surface a manually downloaded Grok file — the catalog reads off the asset *manifest*, not the folder, so a file dropped in by hand with no manifest entry stayed invisible. Reconexión lists Grok's pending downloads, accepts the file by upload (never a hand-typed path — the server picks the bank and computes the same hash-based filename the automated extractor would), and a separate "Regenerar índices" button reruns just the indexing step (`--reindex-only`) without a full reprocess.
+  - **The interface got a name, not just a UI.** "Pipeline" and "Dashboard" were generic — the rest of the app talks about reconstructing memory from export files, and those two didn't. Renamed to **Observatory**, **Configuration**, **Verification**, **Construction**, **Cartography** (Observatorio, Configuración, Verificación, Construcción, Cartografía in the Spanish edition), each with its own header: a one-line "what you do here," a consistent brand line underneath, and a small illustrated mascot per section.
+  - **A new tab, Reconnection, closes a real gap.** Regenerating indexes alone was never going to surface a manually downloaded Grok file — the catalog reads off the asset *manifest*, not the folder, so a file dropped in by hand with no manifest entry stayed invisible. Reconnection lists Grok's pending downloads, accepts the file by upload (never a hand-typed path — the server picks the bank and computes the same hash-based filename the automated extractor would), and a separate "Rebuild indexes" button reruns just the indexing step (`--reindex-only`) without a full reprocess.
 
 Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
 
@@ -220,7 +232,8 @@ Design principles throughout: diagnose before implementing, validate against rea
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
-- An English translation of the web UI (design scoped: UI-only text is a mechanical pass; backend-generated log/status messages are pricier, since some of that text is pattern-matched by tests and code, not just displayed)
+- **Localization phase 2 (`i18n-runtime`)**: translate CLI output, backend messages, live pipeline log, errors and warnings — the Spanish text still visible in this English edition. Extra care required: some backend messages are pattern-matched by tests and code, not just displayed.
+- **Localization phase 3 (`i18n-content`)**: translate generated vault content (note metadata headers, index labels). Deferred until a compatibility strategy for existing Spanish vaults is decided (keep both formats, migrate, or generate per-language).
 - A ChatGPT `image_group` tool-call type isn't recognized by the parser yet and leaks raw into note text — needs a real export sample to pin down the exact code path before fixing
 
 ---
