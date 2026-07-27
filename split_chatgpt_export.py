@@ -556,8 +556,30 @@ def norm_hex_id(s: str):
     return m.group(1) if m else None
 
 
+class MarkerContext:
+    """Estado compartido para resolver los marcadores PUA de ChatGPT
+    (ver chatgpt_markers.py). Viaja por el parseo para no tener que anadir
+    tres parametros sueltos a cada funcion intermedia.
+
+    estado      -- {url: {"estado": "rescatada"|"descartada", ...}} cargado
+                   de CHATGPT/_pendientes_descarga.json. Es la curacion de
+                   V0ra y sobrevive a los reprocesos porque vive fuera de
+                   las notas.
+    pendientes  -- imagenes de busqueda web vistas en este pase, para
+                   volcarlas al fichero de pendientes al terminar.
+    """
+    __slots__ = ("estado", "pendientes", "titulo")
+
+    def __init__(self, estado: Optional[Dict[str, dict]] = None):
+        self.estado = estado or {}
+        self.pendientes: List[dict] = []
+        self.titulo: Optional[str] = None
+
+
 def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
-                   att_ids: Optional[Dict[str, str]] = None) -> str:
+                   att_ids: Optional[Dict[str, str]] = None,
+                   refs: Optional[List[dict]] = None,
+                   markers_ctx: Optional["MarkerContext"] = None) -> str:
     """Convierte el campo 'content' de un mensaje en texto.
     - Imágenes -> marcador \\x00IMG:<pointer>\\x00 (resuelto luego con --assets-dir)
     - tether_quote -> texto legible "📄 Archivo cargado: ..."
@@ -616,16 +638,78 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                     chunks.append(f"*[contenido no textual omitido: {ctype or 'desconocido'}]*")
             else:
                 chunks.append(str(p))
-        return "\n".join(chunks)
+        return _resolver_marcadores("\n".join(chunks), refs, markers_ctx)
     elif isinstance(c, list):
-        return "\n".join(str(p) for p in c)
+        return _resolver_marcadores("\n".join(str(p) for p in c), refs, markers_ctx)
     elif isinstance(c, str):
-        return c
+        return _resolver_marcadores(c, refs, markers_ctx)
     else:
         return json.dumps(c, ensure_ascii=False)
 
 
-def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]] = None) -> List[Dict[str, Any]]:
+def _cargar_estado_pendientes(path: Optional[str]) -> Dict[str, dict]:
+    """Lee el triaje ya hecho por V0ra, indexado por URL. Tolerante: si el
+    fichero no existe todavia o esta corrupto, se empieza de cero (perder
+    el triaje es molesto, pero abortar la importacion es peor)."""
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            datos = json.load(f)
+    except Exception:
+        return {}
+    return {d["url"]: d for d in datos
+            if isinstance(d, dict) and d.get("url")}
+
+
+def _guardar_pendientes(path: str, vistas: List[dict], previos: Dict[str, dict]) -> int:
+    """Funde las imagenes vistas en este pase con las ya conocidas,
+    deduplicando por URL. Acumulativo como el de Grok: nunca pierde el
+    triaje anterior ni las entradas de exports que ya no se reprocesan.
+    Cuenta en cuantas notas distintas aparece cada imagen -- ese numero es
+    lo que ayuda a decidir si una imagen sostenia un argumento o es ruido."""
+    fusionado: Dict[str, dict] = {}
+    for url, entrada in previos.items():
+        fusionado[url] = dict(entrada)
+
+    for v in vistas:
+        url = v.get("url")
+        if not url:
+            continue
+        actual = fusionado.setdefault(url, {
+            "url": url, "estado": "sin_triar", "queries": [], "conversaciones": [],
+        })
+        for q in (v.get("queries") or []):
+            if q and q not in actual.setdefault("queries", []):
+                actual["queries"].append(q)
+        conv = v.get("conversacion")
+        if conv and conv not in actual.setdefault("conversaciones", []):
+            actual["conversaciones"].append(conv)
+
+    salida = sorted(fusionado.values(), key=lambda d: (d.get("estado") or "", d.get("url") or ""))
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(salida, f, ensure_ascii=False, indent=2)
+    return len(salida)
+
+
+def _resolver_marcadores(texto: str, refs: Optional[List[dict]],
+                          ctx: Optional["MarkerContext"]) -> str:
+    """Ultimo paso de todo texto de mensaje: convierte los marcadores
+    internos de ChatGPT (citas de fuentes, entidades, busquedas de
+    imagenes) en markdown legible. Antes de 2026-07-27 se colaban en crudo
+    en las notas -- 613 notas reales afectadas. Ver chatgpt_markers.py."""
+    from chatgpt_markers import resolve_markers
+    return resolve_markers(
+        texto, refs,
+        pendientes_out=(ctx.pendientes if ctx is not None else None),
+        estado_imagenes=(ctx.estado if ctx is not None else None),
+        conv_titulo=(ctx.titulo if ctx is not None else None),
+    )
+
+
+def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]] = None,
+                              markers_ctx: Optional["MarkerContext"] = None) -> List[Dict[str, Any]]:
     conversations: List[Dict[str, Any]] = []
 
     if isinstance(obj, dict) and "conversations" in obj and isinstance(obj["conversations"], list):
@@ -637,6 +721,10 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
 
     for conv in raw:
         title = conv.get("title") or "Conversación"
+        if markers_ctx is not None:
+            # Da contexto a los pendientes de imagen: sin saber de que
+            # conversacion salio, la lista es inutil para decidir.
+            markers_ctx.titulo = title
         ct = conv.get("create_time") or conv.get("createTime")
         ut = conv.get("update_time") or conv.get("updateTime")
         gid = conv.get("gizmo_id") or conv.get("gizmoId")
@@ -685,7 +773,9 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                     modelos_vistos[slug] = modelos_vistos.get(slug, 0) + 1
                 c = msg.get("content")
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
-                content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids)
+                content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids,
+                                        refs=(msg.get("metadata") or {}).get("content_references"),
+                                        markers_ctx=markers_ctx)
                 attachments_txt = render_attachments(msg)
                 if attachments_txt:
                     content = f"{attachments_txt}\n\n{content}".strip() if content.strip() else attachments_txt
@@ -696,7 +786,10 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
             for m in msgs:
                 role = (m.get("author") or {}).get("role") or m.get("role") or "unknown"
                 att_ids = {a.get("id"): a.get("name") for a in (m.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
-                content = _render_parts(m.get("content") or "", image_meta_out=image_meta_out, att_ids=att_ids)
+                content = _render_parts(m.get("content") or "", image_meta_out=image_meta_out,
+                                        att_ids=att_ids,
+                                        refs=(m.get("metadata") or {}).get("content_references"),
+                                        markers_ctx=markers_ctx)
                 attachments_txt = render_attachments(m)
                 if attachments_txt:
                     content = f"{attachments_txt}\n\n{content}".strip() if content.strip() else attachments_txt
@@ -764,7 +857,8 @@ def parse_html_export(html_text: str) -> List[Dict[str, Any]]:
     return []
 
 
-def _dispatch(data: Any, image_meta_out: Optional[Dict[str, dict]] = None) -> List[Dict[str, Any]]:
+def _dispatch(data: Any, image_meta_out: Optional[Dict[str, dict]] = None,
+              markers_ctx: Optional["MarkerContext"] = None) -> List[Dict[str, Any]]:
     """Despacha el JSON cargado al adaptador correcto por ESTRUCTURA interna,
     nunca por nombre de archivo: el zip de Claude tambien contiene un
     conversations.json y sin esta distincion el pipeline lo tragaria en
@@ -776,7 +870,7 @@ def _dispatch(data: Any, image_meta_out: Optional[Dict[str, dict]] = None) -> Li
         # {conversations: [...]} pero los items de Grok son wrappers con
         # 'responses' que ChatGPT interpretaria como conversaciones vacias.
         return grok_adapter.parse(data)
-    return parse_json_conversations(data, image_meta_out=image_meta_out)
+    return parse_json_conversations(data, image_meta_out=image_meta_out, markers_ctx=markers_ctx)
 
 
 def load_grok_media_posts(zf: Optional[zipfile.ZipFile]) -> List[dict]:
@@ -839,7 +933,8 @@ def process_grok_media_posts(media_posts: List[dict], asset_index: "GrokAssetInd
     return extraidas, pendientes
 
 
-def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]] = None) -> Tuple[List[Dict[str, Any]], Optional[zipfile.ZipFile]]:
+def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]] = None,
+                        markers_ctx: Optional["MarkerContext"] = None) -> Tuple[List[Dict[str, Any]], Optional[zipfile.ZipFile]]:
     """Devuelve (conversaciones, zip_abierto_o_None). El zip se deja abierto para
     poder extraer imágenes de él más tarde; el llamador debe cerrarlo al terminar."""
     p = os.path.abspath(input_path)
@@ -864,7 +959,7 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
                     parte = json.load(f)
                 if isinstance(parte, list):
                     combinado.extend(parte)
-            return _dispatch(combinado, image_meta_out=image_meta_out), zf
+            return _dispatch(combinado, image_meta_out=image_meta_out, markers_ctx=markers_ctx), zf
 
         json_name = None
         for name in zf.namelist():
@@ -880,7 +975,7 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
         if json_name:
             with zf.open(json_name) as f:
                 data = json.load(f)
-            return _dispatch(data, image_meta_out=image_meta_out), zf
+            return _dispatch(data, image_meta_out=image_meta_out, markers_ctx=markers_ctx), zf
         for name in zf.namelist():
             if name.lower().endswith(".html"):
                 with zf.open(name) as f:
@@ -894,7 +989,7 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
     if ext == ".json":
         with open(p, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return _dispatch(data, image_meta_out=image_meta_out), None
+        return _dispatch(data, image_meta_out=image_meta_out, markers_ctx=markers_ctx), None
 
     if ext in (".html", ".htm"):
         with open(p, "r", encoding="utf-8") as f:
@@ -968,6 +1063,12 @@ def main():
                     help="[Solo exports de Grok] Ruta a un JSON donde anotar los media_posts (Imagine) SIN "
                          "binario en el zip -- prompt+link+tipo, para descargarlos a mano.")
 
+    ap.add_argument("--chatgpt-pendientes-out", default=None,
+                    help="[Solo exports de ChatGPT] Ruta a un JSON donde anotar las imagenes de busqueda "
+                         "web que ChatGPT mostro en la conversacion pero no vienen en el export "
+                         "(url+query+conversacion), para descargarlas a mano. Guarda tambien el triaje "
+                         "(rescatada/descartada), que sobrevive a los reprocesos.")
+
     ap.add_argument("--claude-artefactos-dir", default=None,
                     help="[Solo exports de Claude] Carpeta donde escribir artefactos (solo version final), "
                          "organizados en subcarpetas por tipo (markdown/html/codigo/...).")
@@ -1002,7 +1103,14 @@ def main():
         except Exception as e:
             print("Advertencia: no pude cargar gizmo_map:", e)
 
-    conversations, zf = load_conversations(args.input, image_meta_out=image_meta)
+    # Triaje previo de imagenes de busqueda web: se lee ANTES de parsear
+    # para que las notas se rendericen ya con la decision tomada (rescatada
+    # -> imagen real, descartada -> marca discreta). Vive fuera de las notas
+    # a proposito: las notas se regeneran en cada reproceso.
+    markers_ctx = MarkerContext(_cargar_estado_pendientes(args.chatgpt_pendientes_out))
+
+    conversations, zf = load_conversations(args.input, image_meta_out=image_meta,
+                                            markers_ctx=markers_ctx)
     if not conversations:
         print("No se encontraron conversaciones.")
         sys.exit(2)
@@ -1058,6 +1166,13 @@ def main():
                 with open(pend_path, "w", encoding="utf-8") as f:
                     json.dump(existentes, f, ensure_ascii=False, indent=2)
                 print(f"Pendientes de descarga: {len(existentes)} en {pend_path}")
+
+    if args.chatgpt_pendientes_out and (markers_ctx.pendientes or markers_ctx.estado):
+        total = _guardar_pendientes(args.chatgpt_pendientes_out,
+                                     markers_ctx.pendientes, markers_ctx.estado)
+        nuevas = len({p.get("url") for p in markers_ctx.pendientes} - set(markers_ctx.estado))
+        print(f"Imagenes de busqueda web: {total} en la lista ({nuevas} nuevas) "
+              f"-> {args.chatgpt_pendientes_out}")
 
     # Manifiesto append-only de trazabilidad (opcional). Silencioso ante
     # fallos de I/O: registrar es opcional, importar no.

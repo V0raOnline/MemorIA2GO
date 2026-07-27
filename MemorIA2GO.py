@@ -285,6 +285,7 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
 def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
                  grok_adjuntos: Path, grok_generadas_imagen: Path, grok_generadas_video: Path,
                  grok_pendientes: Path, claude_artefactos: Path,
+                 chatgpt_pendientes: Path,
                  log_path: Path, reprocess_all: bool = False) -> Path:
     """Procesa TODO export valido y pendiente en exports_dir hacia
     RAW_VAULT/Conversaciones. Incremental por defecto (registro en
@@ -336,6 +337,7 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
             "--grok-generadas-imagen-dir", grok_generadas_imagen,
             "--grok-generadas-video-dir", grok_generadas_video,
             "--grok-pendientes-out", grok_pendientes,
+            "--chatgpt-pendientes-out", chatgpt_pendientes,
             "--claude-artefactos-dir", claude_artefactos,
             "--manifest", HERE / "logs",
             "--export-name", export_path.name,
@@ -605,6 +607,7 @@ def main():
     grok_generadas_imagen = params["vault_path"] / "GROK" / "GENERADAS_IMAGEN"
     grok_generadas_video = params["vault_path"] / "GROK" / "GENERADAS_VIDEO"
     grok_pendientes = params["vault_path"] / "GROK" / "_pendientes_descarga.json"
+    chatgpt_pendientes = params["vault_path"] / "CHATGPT" / "_pendientes_descarga.json"
     claude_artefactos = params["vault_path"] / "CLAUDE" / "ARTEFACTOS"
     info(f"🖼  Generadas: {chatgpt_generadas}")
     info(f"🖼  Adjuntos:  {chatgpt_adjuntos}")
@@ -620,7 +623,7 @@ def main():
     else:
         raw_vault = paso1_split(params, chatgpt_generadas, chatgpt_adjuntos,
                                  grok_adjuntos, grok_generadas_imagen, grok_generadas_video,
-                                 grok_pendientes, claude_artefactos, log_path,
+                                 grok_pendientes, claude_artefactos, chatgpt_pendientes, log_path,
                                  reprocess_all=args.reprocess_all)
 
     merged_vault = paso2_merge(params, raw_vault, log_path)
