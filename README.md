@@ -15,9 +15,8 @@
 
 M3M0R·IA is maintained as two parallel product lines while the English localization is completed:
 
-- **`release/en` (this branch) — English edition.** The web UI is fully translated (milestone tag `i18n-web`). Two known limitations remain, by design, until the next localization phases land:
-  - **Runtime messages are still in Spanish**: the live pipeline log, verification result messages, CLI output and error text come from the backend and haven't been translated yet (phase 2, `i18n-runtime`).
-  - **Generated vault content is in Spanish**: note metadata headers ("Archivo adjunto:", "Artefacto:"…), index note labels and folder names (`GENERADAS`, `ADJUNTOS`, `_Temas`…) are written in Spanish. Translating persisted content is phase 3 (`i18n-content`), deliberately deferred until a compatibility strategy for existing Spanish vaults is decided.
+- **`release/en` (this branch) — English edition.** The web UI (tag `i18n-web`) and everything the app prints while running (tag `i18n-runtime`) are fully translated: live pipeline log, verification results, CLI help, setup wizard and error messages. One known limitation remains, by design:
+  - **Generated vault content is in Spanish**: note metadata headers ("Archivo adjunto:", "Artefacto:"…), index note labels and folder names (`GENERADAS`, `ADJUNTOS`, `_Temas`…) are written in Spanish. Translating persisted content is phase 3 (`i18n-content`), deliberately deferred until a compatibility strategy for existing Spanish vaults is decided — a vault built with the Spanish edition must keep working here.
 - **`release/es` — Spanish edition.** The original, fully functional application. Receives bug fixes during the localization effort.
 - **`main`** is frozen at the last common state (v2.8.0) as an immutable reference until both editions reach feature parity.
 
@@ -232,8 +231,7 @@ Design principles throughout: diagnose before implementing, validate against rea
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
-- **Localization phase 2 (`i18n-runtime`)**: translate CLI output, backend messages, live pipeline log, errors and warnings — the Spanish text still visible in this English edition. Extra care required: some backend messages are pattern-matched by tests and code, not just displayed.
-- **Localization phase 3 (`i18n-content`)**: translate generated vault content (note metadata headers, index labels). Deferred until a compatibility strategy for existing Spanish vaults is decided (keep both formats, migrate, or generate per-language).
+- **Localization phase 3 (`i18n-content`)**: translate generated vault content (note metadata headers, index labels, asset folder names). Deferred until a compatibility strategy for existing Spanish vaults is decided (keep both formats, migrate, or generate per-language) — this is the phase that can break an existing vault, so it needs a plan, not just a translation pass.
 - A ChatGPT `image_group` tool-call type isn't recognized by the parser yet and leaks raw into note text — needs a real export sample to pin down the exact code path before fixing
 
 ---
