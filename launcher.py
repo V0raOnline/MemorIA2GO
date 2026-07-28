@@ -20,8 +20,9 @@ Endpoints:
   POST /api/gizmos            -> guarda nombres, parchea RAW_VAULT in-place
   GET  /api/run                -> SSE, lanza el pipeline completo con log en vivo
   GET  /api/run?from_merge=1  -> SSE, salta el paso 1 (usado tras /api/gizmos)
-  GET  /api/pendientes         -> pendientes de descarga de Grok (Reconexión)
+  GET  /api/pendientes         -> pendientes de descarga por proveedor (Reconexión)
   POST /api/pendientes/registrar -> da de alta un pendiente descargado a mano (upload)
+  POST /api/pendientes/descartar -> marca una imagen web como irrelevante
   POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
 """
 import argparse
@@ -383,19 +384,99 @@ def post_gizmos():
 # API: Reconexión — pendientes de descarga de Grok + regenerar índices
 # ─────────────────────────────────────────
 
+def _ruta_pendientes(base_vault, proveedor: str):
+    """Cada proveedor tiene su propia lista de pendientes, con forma
+    distinta -- ver _leer_pendientes."""
+    carpeta = "GROK" if proveedor == "grok" else "CHATGPT"
+    return base_vault / carpeta / "_pendientes_descarga.json"
+
+
+def _leer_pendientes(base_vault, proveedor: str) -> list:
+    """Tolerante: sin fichero o corrupto, lista vacia. No poder listar
+    pendientes no debe tumbar la pestaña entera."""
+    path = _ruta_pendientes(base_vault, proveedor)
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            datos = json.load(f)
+        return datos if isinstance(datos, list) else []
+    except Exception:
+        return []
+
+
+def _escribir_pendientes(base_vault, proveedor: str, datos: list) -> None:
+    """Escritura atomica via tmp+replace: un corte a mitad no deja el
+    triaje de V0ra en un JSON roto."""
+    path = _ruta_pendientes(base_vault, proveedor)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(datos, ensure_ascii=False, indent=2),
+                   encoding="utf-8", newline="\n")
+    tmp.replace(path)
+
+
 @app.route("/api/pendientes")
 def get_pendientes():
+    """Pendientes de los dos proveedores, agrupados. Ojo: NO tienen la
+    misma forma, porque son cosas distintas:
+
+    - grok    -- generaciones propias de V0ra en Imagine cuyo binario no
+                 viaja en el zip. Clave `id`, se retiran de la lista al
+                 registrarlas.
+    - chatgpt -- imagenes de busqueda web (de terceros) que ChatGPT mostro
+                 en la conversacion. Clave `url`, NUNCA se retiran: llevan
+                 un `estado` de triaje que el paso 1 lee para decidir como
+                 pintar la nota, y que debe sobrevivir a los reprocesos.
+    """
     try:
         from config_loader import load_config, get_path
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify([])
-        path = base_vault / "GROK" / "_pendientes_descarga.json"
-        if not path.exists():
-            return jsonify([])
-        with open(path, "r", encoding="utf-8-sig") as f:
-            return jsonify(json.load(f))
+            return jsonify({"grok": [], "chatgpt": []})
+        chatgpt = [p for p in _leer_pendientes(base_vault, "chatgpt")
+                   if (p.get("estado") or "sin_triar") == "sin_triar"]
+        return jsonify({
+            "grok": _leer_pendientes(base_vault, "grok"),
+            "chatgpt": chatgpt,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/pendientes/descartar", methods=["POST"])
+def descartar_pendiente():
+    """Marca una imagen de busqueda web como irrelevante. El descarte se
+    guarda en el JSON (no en la nota) para que sobreviva a los reprocesos:
+    la nota se regenera y el paso 1 vuelve a leer este estado para dejar
+    la marca discreta en su sitio.
+
+    Solo ChatGPT: los pendientes de Grok son generaciones propias de V0ra,
+    no resultados de busqueda ajenos, y el descarte se diseño para el ruido
+    de estos ultimos."""
+    try:
+        datos_req = request.get_json(force=True) or {}
+        url = (datos_req.get("url") or "").strip()
+        if not url:
+            return jsonify({"error": "falta url"}), 400
+
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"error": "base_vault no configurado"}), 400
+
+        pendientes = _leer_pendientes(base_vault, "chatgpt")
+        entrada = next((p for p in pendientes if p.get("url") == url), None)
+        if entrada is None:
+            return jsonify({"error": "esa imagen ya no esta en la lista"}), 404
+
+        entrada["estado"] = "descartada"
+        _escribir_pendientes(base_vault, "chatgpt", pendientes)
+        restantes = sum(1 for p in pendientes
+                        if (p.get("estado") or "sin_triar") == "sin_triar")
+        return jsonify({"ok": True, "restantes": restantes})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -408,16 +489,23 @@ def registrar_pendiente():
     Mismo esquema hash+extension que usa la extraccion automatica
     (split_chatgpt_export.py) para que el resultado sea indistinguible."""
     try:
-        pendiente_id = request.form.get("id")
+        proveedor = (request.form.get("proveedor") or "grok").strip().lower()
         archivo = request.files.get("file")
-        if not pendiente_id or not archivo:
-            return jsonify({"error": "faltan id o file"}), 400
+        if not archivo:
+            return jsonify({"error": "falta file"}), 400
 
         from config_loader import load_config, get_path
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({"error": "base_vault no configurado"}), 400
+
+        if proveedor == "chatgpt":
+            return _registrar_imagen_web(base_vault, request.form.get("url"), archivo)
+
+        pendiente_id = request.form.get("id")
+        if not pendiente_id:
+            return jsonify({"error": "falta id"}), 400
 
         pend_path = base_vault / "GROK" / "_pendientes_descarga.json"
         if not pend_path.exists():
@@ -469,6 +557,68 @@ def registrar_pendiente():
         return jsonify({"ok": True, "fname": fname, "restantes": len(pendientes)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def _registrar_imagen_web(base_vault, url: str, archivo) -> "Response":
+    """Rescata una imagen de busqueda web de ChatGPT al banco CHATGPT/WEB.
+
+    Banco propio a proposito (decision V0ra 2026-07-27): no encaja en
+    GENERADAS (no la genero la IA) ni en ADJUNTOS (no la subio V0ra) --
+    son referencias web de terceros, categoria distinta.
+
+    A diferencia de Grok, la entrada NO se borra de la lista: se marca
+    `rescatada` con el nombre de fichero, porque el paso 1 lee ese dato en
+    cada reproceso para pintar la imagen real en la nota. Borrarla haria
+    que el siguiente reproceso la volviera a listar como sin triar y se
+    perderia el rescate."""
+    url = (url or "").strip()
+    if not url:
+        return jsonify({"error": "falta url"}), 400
+
+    pendientes = _leer_pendientes(base_vault, "chatgpt")
+    entrada = next((p for p in pendientes if p.get("url") == url), None)
+    if entrada is None:
+        return jsonify({"error": "esa imagen ya no esta en la lista"}), 404
+
+    data = archivo.read()
+    if not data:
+        return jsonify({"error": "el fichero subido está vacío"}), 400
+
+    import hashlib
+    from split_chatgpt_export import sniff_ext
+
+    bank_dir = base_vault / "CHATGPT" / "WEB"
+    bank_dir.mkdir(parents=True, exist_ok=True)
+    # Mismo esquema hash+extension que la extraccion automatica, para que
+    # el resultado sea indistinguible de un asset extraido del export.
+    fname = f"{hashlib.sha1(data).hexdigest()[:16]}{sniff_ext(data)}"
+    dest = bank_dir / fname
+    if not dest.exists():
+        dest.write_bytes(data)
+
+    manifest_path = bank_dir / "_image_manifest.json"
+    manifest = {}
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = {}
+    manifest[fname] = {
+        "origen": "web",
+        "url_original": url,
+        "queries": entrada.get("queries") or [],
+        "conversaciones": entrada.get("conversaciones") or [],
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2),
+                             encoding="utf-8")
+
+    entrada["estado"] = "rescatada"
+    entrada["fichero"] = fname
+    _escribir_pendientes(base_vault, "chatgpt", pendientes)
+
+    restantes = sum(1 for p in pendientes
+                    if (p.get("estado") or "sin_triar") == "sin_triar")
+    return jsonify({"ok": True, "fname": fname, "restantes": restantes})
 
 
 @app.route("/api/reindex", methods=["POST"])
