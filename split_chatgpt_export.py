@@ -1085,7 +1085,7 @@ def main():
             with open(args.tag_map, "r", encoding="utf-8-sig") as f:
                 tag_map = json.load(f)
         except Exception as e:
-            print("Advertencia: no pude cargar tag-map:", e)
+            print("Warning: could not load tag-map:", e)
 
     gizmo_map: Dict[str, str] = {}
     if args.gizmo_map:
@@ -1101,7 +1101,7 @@ def main():
                 gizmo_map["g-" + hx] = v
                 gizmo_map["g-p-" + hx] = v
         except Exception as e:
-            print("Advertencia: no pude cargar gizmo_map:", e)
+            print("Warning: could not load gizmo_map:", e)
 
     # Triaje previo de imagenes de busqueda web: se lee ANTES de parsear
     # para que las notas se rendericen ya con la decision tomada (rescatada
@@ -1112,7 +1112,7 @@ def main():
     conversations, zf = load_conversations(args.input, image_meta_out=image_meta,
                                             markers_ctx=markers_ctx)
     if not conversations:
-        print("No se encontraron conversaciones.")
+        print("No conversations found.")
         sys.exit(2)
 
     tiene_bancos = bool(args.generadas_dir or args.adjuntos_dir)
@@ -1123,7 +1123,7 @@ def main():
     if args.adjuntos_dir:
         asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ADJUNTOS")
     if tiene_bancos:
-        print(f"Assets indexados en el ZIP: {len(asset_index.by_id)}")
+        print(f"Assets indexed in the ZIP: {len(asset_index.by_id)}")
 
     # Assets de Grok: file_attachments (por mensaje, via token GROKFILE) y
     # media_posts/Imagine (raiz del export, se procesan aparte una sola vez).
@@ -1142,8 +1142,8 @@ def main():
                 imagen_writer, "GROK/GENERADAS_IMAGEN",
                 video_writer, "GROK/GENERADAS_VIDEO",
             )
-            print(f"Imagine (media_posts): {len(media_posts)} totales, {n_extraidas} extraidas, "
-                  f"{len(pendientes)} pendientes de descarga")
+            print(f"Imagine (media_posts): {len(media_posts)} total, {n_extraidas} extracted, "
+                  f"{len(pendientes)} pending download")
             if imagen_writer:
                 imagen_writer.flush_manifest()
             if video_writer:
@@ -1165,13 +1165,13 @@ def main():
                 os.makedirs(os.path.dirname(pend_path) or ".", exist_ok=True)
                 with open(pend_path, "w", encoding="utf-8") as f:
                     json.dump(existentes, f, ensure_ascii=False, indent=2)
-                print(f"Pendientes de descarga: {len(existentes)} en {pend_path}")
+                print(f"Pending downloads: {len(existentes)} in {pend_path}")
 
     if args.chatgpt_pendientes_out and (markers_ctx.pendientes or markers_ctx.estado):
         total = _guardar_pendientes(args.chatgpt_pendientes_out,
                                      markers_ctx.pendientes, markers_ctx.estado)
         nuevas = len({p.get("url") for p in markers_ctx.pendientes} - set(markers_ctx.estado))
-        print(f"Imagenes de busqueda web: {total} en la lista ({nuevas} nuevas) "
+        print(f"Web search images: {total} in the list ({nuevas} new) "
               f"-> {args.chatgpt_pendientes_out}")
 
     # Manifiesto append-only de trazabilidad (opcional). Silencioso ante
@@ -1331,8 +1331,8 @@ def main():
         zf.close()
     manifest.close()
     if manifest.path:
-        print(f"Manifiesto: +{manifest.escritas} entradas en {manifest.path}"
-              + (f" ({manifest.errores} con error)" if manifest.errores else ""))
+        print(f"Manifest: +{manifest.escritas} entries in {manifest.path}"
+              + (f" ({manifest.errores} with errors)" if manifest.errores else ""))
 
     if args.make_index:
         path = os.path.join(args.output, "_index.md")
@@ -1356,18 +1356,18 @@ def main():
                 for it in items:
                     f.write(f"- [{it['title']}]({it['relpath']}) — {it['date']}\n")
 
-    print(f"Listo. Exportadas {len(records)} conversaciones a: {args.output}")
+    print(f"Done. Exported {len(records)} conversations to: {args.output}")
     if tiene_bancos:
-        print(f"Referencias de imagen procesadas: {total_images}")
+        print(f"Image references processed: {total_images}")
         for origen, target in asset_writers.items():
             writer = target.writer
-            print(f"  [{origen}] binarios únicos copiados a {writer.assets_dir}: {len(writer.hash_to_filename)}")
+            print(f"  [{origen}] unique binaries copied to {writer.assets_dir}: {len(writer.hash_to_filename)}")
             total = writer.flush_manifest()
             if total:
-                print(f"  [{origen}] manifiesto actualizado: {total} imagenes con metadatos")
+                print(f"  [{origen}] manifest updated: {total} images with metadata")
 
     if grok_adjuntos_writer and grok_adjuntos_writer.hash_to_filename:
-        print(f"[grok adjuntos] binarios únicos copiados a {grok_adjuntos_writer.assets_dir}: "
+        print(f"[grok attachments] unique binaries copied to {grok_adjuntos_writer.assets_dir}: "
               f"{len(grok_adjuntos_writer.hash_to_filename)}")
         grok_adjuntos_writer.flush_manifest()
 
@@ -1402,7 +1402,7 @@ def main():
             existing_pendientes[key]["count"] = len(unicos)
         with open(pendientes_path, "w", encoding="utf-8") as f:
             json.dump(existing_pendientes, f, ensure_ascii=False, indent=2)
-        print(f"Gizmos sin nombrar: {len(existing_pendientes)} -> {pendientes_path}")
+        print(f"Unnamed gizmos: {len(existing_pendientes)} -> {pendientes_path}")
 
 
 if __name__ == "__main__":

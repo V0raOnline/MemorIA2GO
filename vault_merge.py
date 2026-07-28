@@ -272,11 +272,11 @@ def main():
                   f"(campeón tenía {len(champion['messages'])})")
 
     print(f"\nListo. MERGED en: {args.merged_dir}")
-    print(f"Grupos de conversación: {stats['grupos']}")
-    print(f"Variantes de entrada:   {stats['variantes_totales']}")
-    print(f"Notas escritas:         {stats['notas_escritas']}")
-    print(f"Mensajes recuperados por fusión (no estaban en el campeón): {stats['mensajes_recuperados']}")
-    print(f"Conversaciones renombradas fusionadas: {stats['renombradas_fusionadas']}")
+    print(f"Conversation groups: {stats['grupos']}")
+    print(f"Input variants:      {stats['variantes_totales']}")
+    print(f"Notes written:       {stats['notas_escritas']}")
+    print(f"Messages recovered by merging (missing from the champion): {stats['mensajes_recuperados']}")
+    print(f"Renamed conversations merged: {stats['renombradas_fusionadas']}")
 
 
 if __name__ == "__main__":

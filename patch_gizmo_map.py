@@ -135,8 +135,8 @@ def main():
         if patch_note(f, gizmo_map):
             patched += 1
 
-    print(f"Notas revisadas: {len(files)}")
-    print(f"Notas parcheadas: {patched}")
+    print(f"Notes reviewed: {len(files)}")
+    print(f"Notes patched: {patched}")
 
     # Limpia de _gizmos_pendientes.json los gizmos que ya tienen nombre --
     # si no, seguirian apareciendo como pendientes en la web indefinidamente,
@@ -154,7 +154,7 @@ def main():
         if resueltos:
             with open(pendientes_path, "w", encoding="utf-8") as f:
                 json.dump(pendientes, f, ensure_ascii=False, indent=2)
-            print(f"Gizmos resueltos, quitados de pendientes: {len(resueltos)}")
+            print(f"Gizmos resolved, removed from pending: {len(resueltos)}")
 
 
 if __name__ == "__main__":

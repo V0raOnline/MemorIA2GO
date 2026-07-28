@@ -263,26 +263,26 @@ def print_report(stats: dict):
 
     ui = stats.get("ultima_importacion")
     if ui:
-        print(f"Ultima importacion: hace {ui['dias_transcurridos']} dia(s) ({ui['timestamp']})")
+        print(f"Last import: {ui['dias_transcurridos']} day(s) ago ({ui['timestamp']})")
     else:
-        print("Ultima importacion: sin registro (nunca se corrio el paso 1 con esta version)")
+        print("Last import: no record (step 1 never ran with this version)")
 
     if stats.get("gizmos_pendientes"):
-        print(f"Gizmos sin nombrar: {stats['gizmos_pendientes']}")
+        print(f"Unnamed gizmos: {stats['gizmos_pendientes']}")
 
     print()
     for name, v in stats["vaults"].items():
         if not v["existe"]:
-            print(f"{name}: no existe todavia")
+            print(f"{name}: does not exist yet")
             continue
         rango = f"{v['fecha_mas_antigua']} -> {v['fecha_mas_moderna']}" if v["fecha_mas_antigua"] else "sin fechas"
-        print(f"{name}: {v['notas']} notas | {rango} | {v['tamano_legible']}")
+        print(f"{name}: {v['notas']} notes | {rango} | {v['tamano_legible']}")
 
     a = stats["assets"]
-    print(f"\nAssets: {a['total_items']} totales | {a['tamano_legible']}")
+    print(f"\nAssets: {a['total_items']} total | {a['tamano_legible']}")
     for proveedor, v in a["por_proveedor"].items():
         detalle = " · ".join(f"{d['items']} {d['etiqueta']}" for d in v["detalle"] if d["items"])
-        print(f"  {proveedor}: {v['items']} ({detalle or 'sin contenido'})")
+        print(f"  {proveedor}: {v['items']} ({detalle or 'no content'})")
 
 
 def main():
@@ -298,7 +298,7 @@ def main():
 
     if args.write_cache:
         p = save_cache(Path(args.base_vault), stats)
-        print(f"Cache de estadisticas escrito: {p}")
+        print(f"Statistics cache written: {p}")
 
     if args.json:
         print(json.dumps(stats, ensure_ascii=False, indent=2))

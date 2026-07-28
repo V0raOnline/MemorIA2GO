@@ -79,8 +79,8 @@ def main():
             except OSError:
                 pass
 
-    print(f"OK Enlaces creados/copias: {created}")
-    print(f"Vault por proyectos listo en: {dst}")
+    print(f"OK Links created/copied: {created}")
+    print(f"Project vault ready at: {dst}")
 
 if __name__ == "__main__":
     main()

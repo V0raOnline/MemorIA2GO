@@ -40,7 +40,7 @@ def validate_export_file(path) -> dict:
     hace split_chatgpt_export._dispatch por estructura del JSON."""
     p = Path(path)
     if not p.exists():
-        return {"valido": False, "mensaje": f"No existe el archivo: {p}"}
+        return {"valido": False, "mensaje": f"File does not exist: {p}"}
 
     ext = p.suffix.lower()
 
@@ -54,9 +54,9 @@ def validate_export_file(path) -> dict:
             # (incidente real: exports corruptos silenciosamente ignorados y
             # conversaciones "desaparecidas" durante semanas).
             return {"valido": False,
-                    "mensaje": f"ZIP CORRUPTO O ILEGIBLE ({type(e).__name__}: {e}). "
-                               "Las conversaciones que contenga NO se estan importando. "
-                               "Intenta recuperarlo (7-Zip suele poder) o re-descarga el export."}
+                    "mensaje": f"CORRUPT OR UNREADABLE ZIP ({type(e).__name__}: {e}). "
+                               "Any conversations inside are NOT being imported. "
+                               "Try repairing it (7-Zip often can) or re-download the export."}
 
         has_conv = any(n.lower().endswith("conversations.json") for n in names)
         shards = [n for n in names if SHARD_RX.search(n)]
@@ -68,30 +68,30 @@ def validate_export_file(path) -> dict:
 
         if shards:
             return {"valido": True,
-                    "mensaje": f"Export de ChatGPT fragmentado reconocido ({len(shards)} fragmentos conversations-NNN.json).",
+                    "mensaje": f"Fragmented ChatGPT export recognized ({len(shards)} conversations-NNN.json shards).",
                     "tipo": "chatgpt_zip_fragmentado"}
         if has_conv and looks_claude:
-            return {"valido": True, "mensaje": "Export de Claude reconocido (conversations.json + users.json/projects).", "tipo": "claude_zip"}
+            return {"valido": True, "mensaje": "Claude export recognized (conversations.json + users.json/projects).", "tipo": "claude_zip"}
         if has_conv:
-            return {"valido": True, "mensaje": "conversations.json encontrado dentro del ZIP (export de ChatGPT).", "tipo": "chatgpt_zip"}
+            return {"valido": True, "mensaje": "conversations.json found inside the ZIP (ChatGPT export).", "tipo": "chatgpt_zip"}
         if any(n.lower().endswith("prod-grok-backend.json") for n in names):
-            return {"valido": True, "mensaje": "Export de Grok reconocido (prod-grok-backend.json).", "tipo": "grok_zip"}
+            return {"valido": True, "mensaje": "Grok export recognized (prod-grok-backend.json).", "tipo": "grok_zip"}
         if has_html:
             # Valido pero con aviso de deriva: si solo hay HTML, o es un export
             # muy antiguo o el proveedor cambio de formato y no lo reconocemos.
             return {"valido": True,
-                    "mensaje": "AVISO: solo se encontro HTML de conversacion — formato no habitual. "
-                               "Si este export es reciente, el proveedor puede haber cambiado de formato "
-                               "y el parser necesitaria actualizarse; la importacion via HTML es degradada.",
+                    "mensaje": "WARNING: only conversation HTML found — unusual format. "
+                               "If this export is recent, the provider may have changed format "
+                               "and the parser would need updating; HTML import is degraded.",
                     "tipo": "chatgpt_zip_html"}
 
         muestra = names[:8]
         return {
             "valido": False,
-            "mensaje": "ESTRUCTURA DESCONOCIDA: este ZIP no casa con ningun formato soportado "
-                       "(ChatGPT clasico o fragmentado, Claude, Grok). Si es un export reciente, "
-                       "el proveedor probablemente cambio de formato: el parser necesita actualizarse. "
-                       "Muestra del contenido adjunta para diagnostico.",
+            "mensaje": "UNKNOWN STRUCTURE: this ZIP does not match any supported format "
+                       "(ChatGPT classic or fragmented, Claude, Grok). If it is a recent export, "
+                       "the provider probably changed format: the parser needs updating. "
+                       "A sample of the contents is attached for diagnosis.",
             "contenido_encontrado": muestra,
         }
 
@@ -100,9 +100,9 @@ def validate_export_file(path) -> dict:
             with open(p, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
-            return {"valido": False, "mensaje": f"El archivo no es JSON valido: {e}"}
+            return {"valido": False, "mensaje": f"The file is not valid JSON: {e}"}
         except Exception as e:
-            return {"valido": False, "mensaje": f"No pude leer el archivo: {e}"}
+            return {"valido": False, "mensaje": f"Could not read the file: {e}"}
 
         looks_like_export = False
         tipo = "chatgpt_json"
@@ -129,21 +129,21 @@ def validate_export_file(path) -> dict:
             return {"valido": True, "mensaje": mensaje_ok, "tipo": tipo}
         return {
             "valido": False,
-            "mensaje": "El JSON no tiene la forma esperada de un export soportado "
-                       "(ChatGPT: lista con 'mapping'/'title' u objeto con 'conversations'; "
-                       "Claude: lista con 'chat_messages').",
+            "mensaje": "The JSON does not have the expected shape of a supported export "
+                       "(ChatGPT: list with 'mapping'/'title' or object with 'conversations'; "
+                       "Claude: list with 'chat_messages').",
         }
 
     if ext in (".html", ".htm"):
         try:
             txt = p.read_text(encoding="utf-8", errors="ignore")
         except Exception as e:
-            return {"valido": False, "mensaje": f"No pude leer el HTML: {e}"}
+            return {"valido": False, "mensaje": f"Could not read the HTML: {e}"}
         if len(txt) < 100:
-            return {"valido": False, "mensaje": "El HTML parece vacio o demasiado pequeno para ser un export."}
-        return {"valido": True, "mensaje": "Archivo HTML aceptado (validacion superficial, no garantiza contenido valido).", "tipo": "html"}
+            return {"valido": False, "mensaje": "The HTML looks empty or too small to be an export."}
+        return {"valido": True, "mensaje": "HTML file accepted (shallow validation, does not guarantee valid content).", "tipo": "html"}
 
-    return {"valido": False, "mensaje": f"Extension no soportada: {ext or '(sin extension)'}. Usa .zip, .json o .html."}
+    return {"valido": False, "mensaje": f"Unsupported extension: {ext or '(no extension)'}. Use .zip, .json or .html."}
 
 
 def list_export_candidates(exports_dir, deep: bool = False) -> list:
@@ -374,13 +374,13 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None, deep: bool = F
     checks = []
 
     if not base_vault:
-        checks.append({"campo": "base_vault", "ok": False, "mensaje": "No configurado."})
+        checks.append({"campo": "base_vault", "ok": False, "mensaje": "Not configured."})
     else:
         bv = Path(base_vault)
         parent_ok = bv.exists() or bv.parent.exists()
         checks.append({
             "campo": "base_vault", "ok": parent_ok,
-            "mensaje": "OK." if parent_ok else f"Ni la carpeta ni su carpeta padre existen: {bv.parent}",
+            "mensaje": "OK." if parent_ok else f"Neither the folder nor its parent exist: {bv.parent}",
         })
 
     # estado: semaforo agregado para la UI (caja nivel-1 colapsable de
@@ -397,7 +397,7 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None, deep: bool = F
     else:
         ed = Path(exports_dir)
         if not ed.is_dir():
-            export_check["mensaje"] = f"La carpeta no existe: {ed}"
+            export_check["mensaje"] = f"The folder does not exist: {ed}"
         else:
             candidatos = list_export_candidates(ed, deep=deep)
             export_check["candidatos"] = candidatos
@@ -428,14 +428,14 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None, deep: bool = F
         gp = Path(gizmo_map_path)
         if not gp.exists():
             checks.append({"campo": "gizmo_map", "ok": True,
-                            "mensaje": "No existe todavia -- se creara al guardar gizmos. No bloqueante."})
+                            "mensaje": "Does not exist yet -- it will be created when saving gizmos. Not blocking."})
         else:
             try:
                 with open(gp, "r", encoding="utf-8-sig") as f:
                     json.load(f)
-                checks.append({"campo": "gizmo_map", "ok": True, "mensaje": "JSON valido."})
+                checks.append({"campo": "gizmo_map", "ok": True, "mensaje": "Valid JSON."})
             except Exception as e:
-                checks.append({"campo": "gizmo_map", "ok": False, "mensaje": f"JSON invalido: {e}"})
+                checks.append({"campo": "gizmo_map", "ok": False, "mensaje": f"Invalid JSON: {e}"})
 
     todo_ok = all(c["ok"] for c in checks)
     return {"ok": todo_ok, "checks": checks}

@@ -201,8 +201,8 @@ def main():
 
     out_path = vault / args.out
     out_path.write_text(md, encoding="utf-8")
-    print(f"Indice generado: {out_path}")
-    print(f"Proyectos: {len(tree)}  ·  Notas: {sum(counts.values())}")
+    print(f"Index generated: {out_path}")
+    print(f"Projects: {len(tree)}  ·  Notes: {sum(counts.values())}")
 
 
 if __name__ == "__main__":

@@ -316,9 +316,9 @@ def main():
     out_path = vault / args.out
     out_path.write_text(resultado["markdown"], encoding="utf-8")
 
-    print(f"Indice generado: {out_path}")
+    print(f"Index generated: {out_path}")
     for label, s in resultado["stats"].items():
-        print(f"  {label}: {s['conversaciones']} conversaciones, {s['items']} items")
+        print(f"  {label}: {s['conversaciones']} conversations, {s['items']} items")
 
     if args.pendientes_json and args.pendientes_out:
         pend_path = Path(args.pendientes_json)
@@ -332,7 +332,7 @@ def main():
         nota = render_pendientes_note(pendientes, args.pendientes_titulo)
         pend_out = vault / args.pendientes_out
         pend_out.write_text(nota, encoding="utf-8")
-        print(f"Nota de pendientes: {pend_out} ({len(pendientes)})")
+        print(f"Pending-downloads note: {pend_out} ({len(pendientes)})")
 
 
 if __name__ == "__main__":

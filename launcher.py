@@ -204,7 +204,7 @@ def get_stats():
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify({"error": "base_vault no configurado"}), 400
+            return jsonify({"error": "base_vault is not configured"}), 400
         prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
 
         # Cache primero: lo escribe el paso 4 del pipeline. ?refresh=1 fuerza
@@ -234,7 +234,7 @@ def orphan_cloud_api():
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify({"error": "base_vault no configurado"}), 400
+            return jsonify({"error": "base_vault is not configured"}), 400
         prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
         # Las tres fuentes de siembra del vocabulario de proyectos:
         # carpetas de PRJ_VAULT + gizmo_map.json + projects de los exports
@@ -256,11 +256,11 @@ def orphan_cloud_notes_api():
         from orphan_cloud import notes_for_term
         term = (request.args.get("term") or "").strip()
         if not term:
-            return jsonify({"error": "falta el parametro term"}), 400
+            return jsonify({"error": "missing term parameter"}), 400
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify({"error": "base_vault no configurado"}), 400
+            return jsonify({"error": "base_vault is not configured"}), 400
         return jsonify(notes_for_term(Path(base_vault), term))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -302,7 +302,7 @@ def generate_topics():
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify({"error": "base_vault no configurado"}), 400
+            return jsonify({"error": "base_vault is not configured"}), 400
         # Subproceso en vez de import: el generador se relee del disco en
         # cada pulsacion. Mata la clase entera de bugs de "launcher con
         # modulo cacheado tras actualizar el codigo", que ya mordio tres
@@ -315,7 +315,7 @@ def generate_topics():
             timeout=600, env=env,
         )
         if result.returncode != 0:
-            detalle = (result.stderr or "").strip()[-400:] or "fallo el generador (sin stderr)"
+            detalle = (result.stderr or "").strip()[-400:] or "the generator failed (no stderr)"
             return jsonify({"error": detalle}), 500
         return jsonify(json.loads(result.stdout))
     except Exception as e:
@@ -352,7 +352,7 @@ def post_gizmos():
     data = request.get_json(force=True) or {}
     filled = {gid: name.strip() for gid, name in data.items() if name and name.strip()}
     if not filled:
-        return jsonify({"ok": True, "patched": 0, "note": "nada que guardar"})
+        return jsonify({"ok": True, "patched": 0, "note": "nothing to save"})
 
     try:
         from config_loader import load_config, get_path
@@ -460,18 +460,18 @@ def descartar_pendiente():
         datos_req = request.get_json(force=True) or {}
         url = (datos_req.get("url") or "").strip()
         if not url:
-            return jsonify({"error": "falta url"}), 400
+            return jsonify({"error": "missing url"}), 400
 
         from config_loader import load_config, get_path
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify({"error": "base_vault no configurado"}), 400
+            return jsonify({"error": "base_vault is not configured"}), 400
 
         pendientes = _leer_pendientes(base_vault, "chatgpt")
         entrada = next((p for p in pendientes if p.get("url") == url), None)
         if entrada is None:
-            return jsonify({"error": "esa imagen ya no esta en la lista"}), 404
+            return jsonify({"error": "that image is no longer in the list"}), 404
 
         entrada["estado"] = "descartada"
         _escribir_pendientes(base_vault, "chatgpt", pendientes)
@@ -493,34 +493,34 @@ def registrar_pendiente():
         proveedor = (request.form.get("proveedor") or "grok").strip().lower()
         archivo = request.files.get("file")
         if not archivo:
-            return jsonify({"error": "falta file"}), 400
+            return jsonify({"error": "missing file"}), 400
 
         from config_loader import load_config, get_path
         cfg = load_config(str(CONFIG_PATH))
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
-            return jsonify({"error": "base_vault no configurado"}), 400
+            return jsonify({"error": "base_vault is not configured"}), 400
 
         if proveedor == "chatgpt":
             return _registrar_imagen_web(base_vault, request.form.get("url"), archivo)
 
         pendiente_id = request.form.get("id")
         if not pendiente_id:
-            return jsonify({"error": "falta id"}), 400
+            return jsonify({"error": "missing id"}), 400
 
         pend_path = base_vault / "GROK" / "_pendientes_descarga.json"
         if not pend_path.exists():
-            return jsonify({"error": "no hay pendientes registrados"}), 404
+            return jsonify({"error": "no pending downloads recorded"}), 404
         with open(pend_path, "r", encoding="utf-8-sig") as f:
             pendientes = json.load(f)
 
         pendiente = next((p for p in pendientes if p.get("id") == pendiente_id), None)
         if pendiente is None:
-            return jsonify({"error": "ese pendiente ya no existe (¿ya se registró?)"}), 404
+            return jsonify({"error": "that pending item no longer exists (already registered?)"}), 404
 
         data = archivo.read()
         if not data:
-            return jsonify({"error": "el fichero subido está vacío"}), 400
+            return jsonify({"error": "the uploaded file is empty"}), 400
 
         import hashlib
         from split_chatgpt_export import sniff_ext
@@ -584,16 +584,16 @@ def _registrar_imagen_web(base_vault, url: str, archivo) -> "Response":
     perderia el rescate."""
     url = (url or "").strip()
     if not url:
-        return jsonify({"error": "falta url"}), 400
+        return jsonify({"error": "missing url"}), 400
 
     pendientes = _leer_pendientes(base_vault, "chatgpt")
     entrada = next((p for p in pendientes if p.get("url") == url), None)
     if entrada is None:
-        return jsonify({"error": "esa imagen ya no esta en la lista"}), 404
+        return jsonify({"error": "that image is no longer in the list"}), 404
 
     data = archivo.read()
     if not data:
-        return jsonify({"error": "el fichero subido está vacío"}), 400
+        return jsonify({"error": "the uploaded file is empty"}), 400
 
     import hashlib
     from split_chatgpt_export import sniff_ext
@@ -647,7 +647,7 @@ def reindex():
             timeout=600, env=env,
         )
         if result.returncode != 0:
-            detalle = (result.stderr or result.stdout or "").strip()[-500:] or "fallo la regeneracion (sin salida)"
+            detalle = (result.stderr or result.stdout or "").strip()[-500:] or "index rebuild failed (no output)"
             return jsonify({"error": detalle}), 500
         return jsonify({"ok": True})
     except Exception as e:
@@ -694,7 +694,7 @@ def run_pipeline():
     reprocess_all = request.args.get("reprocess_all") == "1"
 
     if not run_lock.acquire(blocking=False):
-        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+        return jsonify({"error": "A run is already in progress"}), 409
 
     def generate():
         try:
@@ -724,11 +724,11 @@ def run_pipeline():
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Servidor local de M3M0R.IA (MemorIA2GO).")
+    ap = argparse.ArgumentParser(description="Local server for M3M0R.IA (MemorIA2GO).")
     ap.add_argument("--port", type=int, default=PORT,
-                    help=f"Puerto de escucha (por defecto {PORT}; usa 80 para URL sin puerto)")
+                    help=f"Listening port (default {PORT}; use 80 for a URL without a port)")
     ap.add_argument("--no-browser", action="store_true",
-                    help="No abrir el navegador al arrancar (uso como servicio o tarea programada)")
+                    help="Do not open the browser on start (for service or scheduled-task use)")
     args = ap.parse_args()
 
     sufijo = "" if args.port == 80 else f":{args.port}"

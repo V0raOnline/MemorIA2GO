@@ -119,7 +119,7 @@ def confirm(prompt: str, default: bool = True) -> bool:
     Aquí usamos input() plano, que acepta s/si/sí ademas de y/yes, y funciona
     igual de bien interactivo que por pipe. También se limpia un posible BOM
     inicial (\ufeff) que algunos pipes de Windows inyectan de forma invisible."""
-    suffix = "[S/n]" if default else "[s/N]"
+    suffix = "[Y/n]" if default else "[y/N]"
     full_prompt = f"{prompt} {suffix}: "
     if USE_RICH:
         console.print(full_prompt, end="")
@@ -184,12 +184,12 @@ def run_script(script: Path, args: list, log_path: Path) -> bool:
         log(log_path, f"STDERR: {result.stderr.strip()}")
 
     if result.returncode == 0:
-        ok(f"Completado en {elapsed}s")
+        ok(f"Done in {elapsed}s")
         log(log_path, f"OK ({elapsed}s)")
         return True
     else:
-        error(f"Falló con código {result.returncode}")
-        log(log_path, f"FAIL código {result.returncode}")
+        error(f"Failed with exit code {result.returncode}")
+        log(log_path, f"FAIL exit code {result.returncode}")
         return False
 
 # ─────────────────────────────────────────
@@ -212,30 +212,30 @@ def resolve_gizmo_map(raw: str) -> Path | None:
 # ─────────────────────────────────────────
 
 def wizard() -> dict:
-    rule("🧙 Configuración inicial")
-    info("Responde estas preguntas para configurar MemorIA2GO.\n")
+    rule("🧙 Initial setup")
+    info("Answer these questions to configure MemorIA2GO.\n")
 
-    exports_dir = ask("📦 Carpeta donde guardas tus exports de ChatGPT (.zip/.json/.html) — "
-                       "puede tener varios, se procesan todos los pendientes")
+    exports_dir = ask("📦 Folder where you keep your ChatGPT exports (.zip/.json/.html) — "
+                       "it can hold several, all pending ones are processed")
     while not Path(exports_dir).is_dir():
-        error(f"No existe esa carpeta: {exports_dir}")
-        exports_dir = ask("📦 Carpeta con tus exports de ChatGPT")
+        error(f"That folder does not exist: {exports_dir}")
+        exports_dir = ask("📦 Folder with your ChatGPT exports")
 
     default_vault = str(HERE / "output_vault")
-    vault_path = ask("📁 Carpeta base donde viven todos los vaults (RAW/MERGED/PRJ)", default=default_vault)
+    vault_path = ask("📁 Base folder where all the vaults live (RAW/MERGED/PRJ)", default=default_vault)
 
     gizmo_map_path = ask(
-        "🗺  Ruta al gizmo_map.json (mapa de proyectos) — deja vacío para omitir",
+        "🗺  Path to gizmo_map.json (project map) — leave empty to skip",
         default=""
     )
     gizmo_map_path = resolve_gizmo_map(gizmo_map_path) if gizmo_map_path else None
 
-    prj_vault_name = ask("📂 Nombre del vault de proyectos", default="PRJ_VAULT")
+    prj_vault_name = ask("📂 Name of the project vault", default="PRJ_VAULT")
     if not prj_vault_name:
         prj_vault_name = "PRJ_VAULT"
 
-    by_date = confirm("📅 ¿Organizar notas por año/mes dentro de cada proyecto?", default=True)
-    make_index = confirm("📋 ¿Generar índice de conversaciones (_index.md)?", default=True)
+    by_date = confirm("📅 Organize notes by year/month inside each project?", default=True)
+    make_index = confirm("📋 Generate conversation index (_index.md)?", default=True)
 
     return {
         "exports_dir": Path(exports_dir),
@@ -275,7 +275,7 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
             "keep_hashes": get_opt(cfg, "keep_hashes", False),
         }
     except Exception as e:
-        warn(f"No pude cargar config YAML: {e}")
+        warn(f"Could not load YAML config: {e}")
         return None
 
 # ─────────────────────────────────────────
@@ -298,26 +298,26 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
     escribe ahi directamente por ruta absoluta, y los enlaces en las notas
     tambien son absolutos desde la raiz del vault de Obsidian (mismo criterio
     que ya se uso para el bug de IMAGE_BANK del 2026-07-20)."""
-    rule("Paso 1 — Importar (RAW_VAULT)")
+    rule("Step 1 — Import (RAW_VAULT)")
 
     script = HERE / "split_chatgpt_export.py"
     if not script.exists():
-        error(f"No encuentro split_chatgpt_export.py en {HERE}")
+        error(f"Cannot find split_chatgpt_export.py in {HERE}")
         sys.exit(1)
 
     raw_vault = params["vault_path"] / "RAW_VAULT"
 
     if not HAS_PREFLIGHT:
-        error("No encuentro preflight.py -- no puedo determinar que exports procesar. Abortando.")
+        error("Cannot find preflight.py -- cannot tell which exports to process. Aborting.")
         sys.exit(1)
 
     pending = list_pending_exports(params["exports_dir"], raw_vault, reprocess_all=reprocess_all)
     if not pending:
-        info("No hay exports nuevos que importar -- todo al día." if not reprocess_all
+        info("No new exports to import -- all up to date." if not reprocess_all
              else "No hay ningún export válido en exports_dir.")
         return raw_vault
 
-    info(f"Exports pendientes de importar: {len(pending)} ({', '.join(p.name for p in pending)})")
+    info(f"Exports pending import: {len(pending)} ({', '.join(p.name for p in pending)})")
 
     conv_dir = raw_vault / "Conversaciones"
     conv_dir.mkdir(parents=True, exist_ok=True)
@@ -347,7 +347,7 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
 
         ok_flag = run_script(script, args, log_path)
         if not ok_flag:
-            error(f"Fallo importando {export_path.name}. Abortando el resto de la cola.")
+            error(f"Failed importing {export_path.name}. Aborting the rest of the queue.")
             sys.exit(1)
         procesados_ok.append(export_path)
 
@@ -367,11 +367,11 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
 def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
     """RAW_VAULT → MERGED_VAULT: fusiona variantes por huella de mensaje,
     sin perder contenido divergente entre reimportaciones."""
-    rule("Paso 2 — Fusionar sin pérdidas (MERGED_VAULT)")
+    rule("Step 2 — Lossless merge (MERGED_VAULT)")
 
     script = HERE / "vault_merge.py"
     if not script.exists():
-        error(f"No encuentro vault_merge.py en {HERE}")
+        error(f"Cannot find vault_merge.py in {HERE}")
         sys.exit(1)
 
     merged_vault = params["vault_path"] / "MERGED_VAULT"
@@ -380,26 +380,26 @@ def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
 
     ok_flag = run_script(script, args, log_path)
     if not ok_flag:
-        error("Paso 2 fallido. Abortando.")
+        error("Step 2 failed. Aborting.")
         sys.exit(1)
 
     return merged_vault
 
 def paso3_organizar(params: dict, merged_vault: Path, log_path: Path):
     """Reorganiza MERGED_VAULT por Project_name en PRJ_VAULT."""
-    rule("Paso 3 — Organizar por proyectos (PRJ_VAULT)")
+    rule("Step 3 — Organize by project (PRJ_VAULT)")
 
     script = HERE / "project_organizer.py"
     if not script.exists():
-        warn("No encuentro project_organizer.py — omitiendo paso 3.")
+        warn("Cannot find project_organizer.py — skipping step 3.")
         return
 
     project_vault = params["vault_path"] / params.get("prj_vault_name", "PRJ_VAULT")
     project_vault.mkdir(parents=True, exist_ok=True)
 
     if not params.get("by_date"):
-        warn("Sin organización por año/mes, los enlaces de imagen en PRJ_VAULT "
-             "pueden no resolver correctamente (profundidad distinta a MERGED_VAULT).")
+        warn("Without year/month organization, image links in PRJ_VAULT "
+             "may not resolve correctly (different depth from MERGED_VAULT).")
 
     args = [merged_vault, project_vault]
     if params.get("by_date"):
@@ -407,9 +407,9 @@ def paso3_organizar(params: dict, merged_vault: Path, log_path: Path):
 
     ok_flag = run_script(script, args, log_path)
     if not ok_flag:
-        warn("Paso 3 fallido — MERGED_VAULT sigue disponible como fuente de verdad.")
+        warn("Step 3 failed — MERGED_VAULT is still available as the source of truth.")
         return None
-    ok(f"Vault por proyectos listo en: {project_vault}")
+    ok(f"Project vault ready at: {project_vault}")
     return project_vault
 
 def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | None, log_path: Path):
@@ -420,7 +420,7 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     por banco, cada rama y cada conversacion colapsada por defecto via
     <details>) en MERGED_VAULT y, si existe, tambien en PRJ_VAULT.
     No fatal si falla: son indices de navegacion, no datos de origen."""
-    rule("Paso 4 — Indices de navegacion")
+    rule("Step 4 — Navigation indexes")
 
     tree_script = HERE / "tree_index.py"
     scaffold_script = HERE / "scaffolding_index.py"
@@ -459,12 +459,12 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
         if tree_script.exists():
             run_script(tree_script, [vault, "--conversations-dir", conv_dir, "--max-per-month", "0"], log_path)
         else:
-            warn("No encuentro tree_index.py — omitiendo indice de proyectos.")
+            warn("Cannot find tree_index.py — skipping project index.")
 
         if scaffold_script.exists():
             run_script(scaffold_script, [vault], log_path)
         else:
-            warn("No encuentro scaffolding_index.py — omitiendo indice de adjuntos.")
+            warn("Cannot find scaffolding_index.py — skipping attachment index.")
 
         if content_script.exists():
             for titulo, out_name, bancos, bancos_catalogo in proveedores:
@@ -486,7 +486,7 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
                     ]
                 run_script(content_script, args, log_path)
         else:
-            warn("No encuentro content_index.py — omitiendo indice de contenido.")
+            warn("Cannot find content_index.py — skipping content index.")
 
     # Cache de estadisticas: se recalcula aqui, en el momento barato (batch,
     # ya hemos tocado todo el vault), para que /api/stats del launcher
@@ -510,7 +510,7 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
             cache_args += ["--prj-vault-name", project_vault.name]
         run_script(stats_script, cache_args, log_path)
     else:
-        warn("No encuentro vault_stats.py — omitiendo cache de estadisticas.")
+        warn("Cannot find vault_stats.py — skipping statistics cache.")
 
 # ─────────────────────────────────────────
 # Main
@@ -519,44 +519,44 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
 def main():
     import argparse
     ap = argparse.ArgumentParser(
-        description="MemorIA2GO — Migra tu historial de ChatGPT a un vault MCP-ready."
+        description="MemorIA2GO — Migrate your ChatGPT history into an MCP-ready vault."
     )
-    ap.add_argument("--config", default=None, help="Ruta a memoria_config.yaml (opcional)")
-    ap.add_argument("--no-wizard", action="store_true", help="Fuerza uso de config YAML sin wizard")
+    ap.add_argument("--config", default=None, help="Path to memoria_config.yaml (optional)")
+    ap.add_argument("--no-wizard", action="store_true", help="Force use of the YAML config, no wizard")
     ap.add_argument("--from-merge", action="store_true",
-                    help="Salta el paso 1 (importar) y arranca en el paso 2, reutilizando el "
-                         "RAW_VAULT ya existente. Pensado para relanzar tras corregir gizmos "
-                         "huerfanos con patch_gizmo_map.py sin repetir la importacion completa.")
+                    help="Skip step 1 (import) and start at step 2, reusing the existing "
+                         "RAW_VAULT. Meant for relaunching after fixing orphan gizmos with "
+                         "patch_gizmo_map.py without repeating the full import.")
     ap.add_argument("--reprocess-all", action="store_true",
-                    help="Ignora el registro de exports ya procesados y reprocesa todos los "
-                         "exports validos de exports_dir. Seguro (--keep-versions + merge por "
-                         "huella no duplican nada), solo mas lento.")
+                    help="Ignore the record of already-processed exports and reprocess every "
+                         "valid export in exports_dir. Safe (--keep-versions + fingerprint merge "
+                         "never duplicate anything), just slower.")
     ap.add_argument("--reindex-only", action="store_true",
-                    help="Salta los pasos 1-3 por completo y solo relanza paso4_indices sobre "
-                         "MERGED_VAULT/PRJ_VAULT ya existentes. Pensado para refrescar indices "
-                         "tras mover assets a mano o registrar una descarga manual de Grok, sin "
-                         "pagar el coste de un reproceso completo (pestaña Reconexion).")
+                    help="Skip steps 1-3 entirely and only relaunch paso4_indices over the "
+                         "existing MERGED_VAULT/PRJ_VAULT. Meant for refreshing indexes after "
+                         "moving assets by hand or registering a manual download, without "
+                         "paying for a full reprocess (Reconnection tab).")
     ap.add_argument("--yes", action="store_true",
-                    help="No pide confirmacion de la config cargada -- la acepta directamente. "
-                         "Necesario para lanzar el pipeline sin terminal interactiva (p.ej. desde launcher.py).")
+                    help="Do not ask for confirmation of the loaded config -- accept it directly. "
+                         "Needed to run the pipeline without an interactive terminal (e.g. from launcher.py).")
     args = ap.parse_args()
 
     if USE_RICH:
         console.print()
         console.print(Panel(
             "[bold cyan]M3M0R·IA[/bold cyan]\n"
-            "[white]Tu contexto listo para MCP / Obsidian[/white]\n"
-            "[bold orange1]TODO tu historial en Claude Desktop[/bold orange1]",
+            "[white]Your context, ready for MCP / Obsidian[/white]\n"
+            "[bold orange1]ALL your history in Claude Desktop[/bold orange1]",
             border_style="bright_magenta",
             expand=False,
             padding=(0, 4),
         ))
         console.print()
     else:
-        print("\n=== MemorIA2GO — Migracion de contexto ChatGPT a MCP ===\n")
+        print("\n=== MemorIA2GO — ChatGPT context migration to MCP ===\n")
 
     log_path = init_logger()
-    log(log_path, "Sesión iniciada")
+    log(log_path, "Session started")
 
     params = None
     if not args.no_wizard:
@@ -564,10 +564,10 @@ def main():
 
     if params:
         if USE_RICH:
-            console.print("[cyan]Config cargada desde YAML.[/cyan]")
-            console.print("[cyan]Acepta la configuración precargada o personaliza la configuración->[/cyan]")
+            console.print("[cyan]Config loaded from YAML.[/cyan]")
+            console.print("[cyan]Accept the preloaded configuration or customize it ->[/cyan]")
         else:
-            info("Config cargada desde YAML.")
+            info("Config loaded from YAML.")
         if USE_RICH:
             from rich.markup import escape
             console.print(f"  [cyan]Exports: [/cyan][bright_cyan]{escape(str(params['exports_dir']))}[/bright_cyan]")
@@ -577,7 +577,7 @@ def main():
             info(f"  Exports: {params['exports_dir']}")
             info(f"  Vault:   {params['vault_path']}")
             info(f"  PRJ vault: {params.get('prj_vault_name', 'PRJ_VAULT')}")
-        if not args.yes and not confirm("[bold]¿Usar esta configuración?[/bold]", default=True):
+        if not args.yes and not confirm("[bold]Use this configuration?[/bold]", default=True):
             params = None
 
     if not params:
@@ -592,8 +592,8 @@ def main():
         if not project_vault.exists():
             project_vault = None
         paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
-        ok("Índices regenerados.")
-        log(log_path, "Sesión finalizada correctamente (--reindex-only).")
+        ok("Indexes rebuilt.")
+        log(log_path, "Session finished successfully (--reindex-only).")
         return
 
     # Taxonomia por proveedor y tipo (decision V0ra 2026-07-22): las
@@ -616,9 +616,9 @@ def main():
     if args.from_merge:
         raw_vault = params["vault_path"] / "RAW_VAULT"
         if not raw_vault.exists():
-            error(f"--from-merge requiere un RAW_VAULT existente y no lo encuentro en: {raw_vault}")
+            error(f"--from-merge needs an existing RAW_VAULT and I cannot find it at: {raw_vault}")
             sys.exit(1)
-        rule("Paso 1 — Omitido (--from-merge, reutilizando RAW_VAULT existente)")
+        rule("Step 1 — Skipped (--from-merge, reusing existing RAW_VAULT)")
         ok(f"RAW_VAULT reutilizado: {raw_vault}")
     else:
         raw_vault = paso1_split(params, chatgpt_generadas, chatgpt_adjuntos,
@@ -630,7 +630,7 @@ def main():
     project_vault = paso3_organizar(params, merged_vault, log_path)
     paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
 
-    rule("Proceso completado")
+    rule("Process complete")
     ok(f"RAW_VAULT     → {raw_vault}")
     ok(f"MERGED_VAULT  → {merged_vault}")
     if project_vault is not None:
@@ -641,12 +641,12 @@ def main():
         rule("Resumen")
         print_report(compute_stats(params["vault_path"], params.get("prj_vault_name", "PRJ_VAULT")))
     except Exception as e:
-        warn(f"No pude generar el resumen de estadisticas: {e}")
+        warn(f"Could not generate the statistics summary: {e}")
 
     info(f"\nLog guardado en: {log_path}")
-    info("\nPróximo paso: añade la ruta del vault (MERGED_VAULT o PRJ_VAULT) al MCP config de Claude Desktop.")
+    info("\nNext step: add the vault path (MERGED_VAULT or PRJ_VAULT) to Claude Desktop's MCP config.")
 
-    log(log_path, "Sesión finalizada correctamente.")
+    log(log_path, "Session finished successfully.")
 
 if __name__ == "__main__":
     main()

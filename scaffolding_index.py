@@ -79,7 +79,7 @@ def main():
 
     scaffolds = scan_vault(vault)
     if not scaffolds:
-        print("No se encontraron archivos adjuntos indexables.")
+        print("No indexable attachments found.")
         return
 
     index_text = build_index_text(scaffolds)
@@ -87,9 +87,9 @@ def main():
     out_path.write_text(index_text, encoding="utf-8")
 
     total_refs = sum(len(v) for v in scaffolds.values())
-    print(f"Indice generado: {out_path}")
-    print(f"Archivos distintos detectados: {len(scaffolds)}")
-    print(f"Referencias (archivo x nota) indexadas: {total_refs}")
+    print(f"Index generated: {out_path}")
+    print(f"Distinct files detected: {len(scaffolds)}")
+    print(f"References (file x note) indexed: {total_refs}")
 
 
 if __name__ == "__main__":

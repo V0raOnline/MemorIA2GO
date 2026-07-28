@@ -55,11 +55,11 @@ def test_zip_corrupto(tmp_path):
     bad.write_bytes(b"esto no es un zip valido, son bytes cualquiera" * 5)
     result = preflight.validate_export_file(bad)
     assert result["valido"] is False
-    assert "CORRUPTO" in result["mensaje"]
+    assert "CORRUPT" in result["mensaje"]
 
 
 def test_zip_estructura_desconocida(tmp_path):
     zpath = _make_zip(tmp_path, "raro.zip", {"readme.txt": "esto no es un export de nada reconocible"})
     result = preflight.validate_export_file(zpath)
     assert result["valido"] is False
-    assert "ESTRUCTURA DESCONOCIDA" in result["mensaje"]
+    assert "UNKNOWN STRUCTURE" in result["mensaje"]

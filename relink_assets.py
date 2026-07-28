@@ -94,10 +94,10 @@ def main():
         mapa = json.load(f)
 
     stats = relink_vault(vault_root, mapa, dry_run=args.dry_run)
-    modo = "DRY-RUN (nada escrito)" if args.dry_run else "Escrito"
-    print(f"{modo}. Archivos escaneados: {stats['archivos_escaneados']}")
-    print(f"Archivos con cambios: {stats['archivos_tocados']}")
-    print(f"Enlaces reescritos: {stats['enlaces_reescritos']}")
+    modo = "DRY-RUN (nothing written)" if args.dry_run else "Written"
+    print(f"{modo}. Files scanned: {stats['archivos_escaneados']}")
+    print(f"Files changed: {stats['archivos_tocados']}")
+    print(f"Links rewritten: {stats['enlaces_reescritos']}")
 
 
 if __name__ == "__main__":
