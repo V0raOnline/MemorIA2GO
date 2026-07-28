@@ -564,53 +564,151 @@ async function saveGizmos() {
 document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos);
 
 // ─────────────────────────────────────────
-// Reconexión: pendientes de descarga de Grok + regenerar índices
+// Reconexión: pendientes de descarga por proveedor + regenerar índices
+//
+// Dos secciones colapsables (.check-fold, el mismo componente que usa
+// Verificación) porque los dos proveedores traen cosas distintas:
+//   Grok    -> generaciones propias de V0ra en Imagine, sin binario en el zip
+//   ChatGPT -> imágenes de búsqueda web de terceros que salieron en la charla
+// La lista de ChatGPT puede tener ~1000 filas: se pinta al desplegar, no al
+// cargar la pestaña (ver pintarFilas), o la pestaña se arrastra.
 // ─────────────────────────────────────────
+let pendientesCache = { grok: [], chatgpt: [] };
+
 async function loadReconexion() {
   const listEl = document.getElementById("pendientes-list");
   listEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
 
   const res = await fetch("/api/pendientes");
   const data = await res.json();
-  const pendientes = Array.isArray(data) ? data : [];
+  pendientesCache = {
+    grok: Array.isArray(data.grok) ? data.grok : [],
+    chatgpt: Array.isArray(data.chatgpt) ? data.chatgpt : [],
+  };
+  const total = pendientesCache.grok.length + pendientesCache.chatgpt.length;
+  actualizarBadgePendientes(total);
 
-  const badge = document.getElementById("pendientes-count-badge");
-  badge.textContent = pendientes.length > 0 ? `(${pendientes.length})` : "";
-
-  if (pendientes.length === 0) {
+  if (total === 0) {
     listEl.innerHTML = `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
     return;
   }
 
-  const ordenados = pendientes.slice().sort((a, b) => (a.create_time || "") < (b.create_time || "") ? 1 : -1);
+  listEl.innerHTML =
+    seccionPendientes("grok", "Grok", "generaciones propias de Imagine", pendientesCache.grok) +
+    seccionPendientes("chatgpt", "ChatGPT", "imágenes de búsqueda web", pendientesCache.chatgpt);
 
-  listEl.innerHTML = ordenados.map(p => {
-    const fecha = (p.create_time || "").slice(0, 10) || "fecha desconocida";
-    const prompt = (p.prompt || "").trim() || "(sin prompt)";
-    const resumen = prompt.length > 90 ? prompt.slice(0, 90) + "..." : prompt;
-    return `
+  listEl.querySelectorAll("details[data-proveedor]").forEach(det => {
+    det.addEventListener("toggle", () => {
+      if (det.open) pintarFilas(det);
+    });
+  });
+}
+
+function actualizarBadgePendientes(n) {
+  document.getElementById("pendientes-count-badge").textContent = n > 0 ? `(${n})` : "";
+}
+
+function seccionPendientes(proveedor, titulo, descripcion, items) {
+  if (!items.length) return "";
+  return `<details class="check-fold check-fold-warn" data-proveedor="${proveedor}" style="margin-bottom:8px; padding:12px 14px;">
+    <summary>
+      <span class="check-fold-campo">${titulo}</span>
+      <span class="badge warn">${items.length}</span>
+      <span class="check-fold-sub" style="margin-left:auto;">${descripcion}</span>
+    </summary>
+    <div class="pendientes-cuerpo" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+      <div class="empty-note">Cargando lista...</div>
+    </div>
+  </details>`;
+}
+
+// Render perezoso: ~1000 filas con su input de fichero son miles de nodos
+// DOM. Construirlas al abrir la sección (y solo una vez) evita que la
+// pestaña entera se arrastre desde el primer clic.
+function pintarFilas(det) {
+  const cuerpo = det.querySelector(".pendientes-cuerpo");
+  if (!cuerpo || cuerpo.dataset.pintado === "1") return;
+  const proveedor = det.dataset.proveedor;
+  const items = pendientesCache[proveedor] || [];
+
+  cuerpo.innerHTML = proveedor === "grok"
+    ? items.slice().sort((a, b) => (a.create_time || "") < (b.create_time || "") ? 1 : -1)
+           .map(filaGrok).join("")
+    : items.map(filaChatgpt).join("");
+  cuerpo.dataset.pintado = "1";
+
+  cuerpo.querySelectorAll("[data-pendiente-registrar]").forEach(btn => {
+    btn.addEventListener("click", () => registrarPendiente(btn, proveedor));
+  });
+  cuerpo.querySelectorAll("[data-pendiente-descartar]").forEach(btn => {
+    btn.addEventListener("click", () => descartarPendiente(btn));
+  });
+}
+
+function acciones(extra) {
+  return `<div class="pendiente-actions">
+      <input type="file" accept="image/*,video/*" data-pendiente-file>
+      <button class="btn secondary" data-pendiente-registrar>Registrar</button>
+      ${extra || ""}
+    </div>`;
+}
+
+function filaGrok(p) {
+  const fecha = (p.create_time || "").slice(0, 10) || "fecha desconocida";
+  const prompt = (p.prompt || "").trim() || "(sin prompt)";
+  const resumen = prompt.length > 90 ? prompt.slice(0, 90) + "..." : prompt;
+  return `
     <div class="gizmo-row" data-pendiente-id="${escapeHtml(p.id || "")}">
       <div class="gizmo-info">
         <div class="ejemplo">${fecha} — ${escapeHtml(p.media_type || "?")} — ${escapeHtml(resumen)}</div>
         <div class="meta"><a href="${escapeHtml(p.link || "#")}" target="_blank" rel="noopener">Ver en grok.com</a></div>
         <div class="msg" data-pendiente-msg></div>
       </div>
-      <div class="pendiente-actions">
-        <input type="file" accept="image/*,video/*" data-pendiente-file>
-        <button class="btn secondary" data-pendiente-registrar>Registrar</button>
-      </div>
-    </div>
-  `;
-  }).join("");
-
-  listEl.querySelectorAll("[data-pendiente-registrar]").forEach(btn => {
-    btn.addEventListener("click", () => registrarPendiente(btn));
-  });
+      ${acciones()}
+    </div>`;
 }
 
-async function registrarPendiente(btn) {
+function filaChatgpt(p) {
+  const query = (p.queries || [])[0] || "(sin búsqueda)";
+  const resumen = query.length > 80 ? query.slice(0, 80) + "..." : query;
+  const convs = p.conversaciones || [];
+  // Cuántas notas la usaron es justo el dato que dice si una imagen
+  // sostenía un argumento o es ruido de una búsqueda cualquiera.
+  const contexto = convs.length > 1
+    ? `${escapeHtml(convs[0])} · vista en ${convs.length} conversaciones`
+    : escapeHtml(convs[0] || "");
+  return `
+    <div class="gizmo-row" data-pendiente-url="${escapeHtml(p.url || "")}">
+      <div class="gizmo-info">
+        <div class="ejemplo">“${escapeHtml(resumen)}”</div>
+        <div class="meta"><a href="${escapeHtml(p.url || "#")}" target="_blank" rel="noopener">${escapeHtml((p.url || "").slice(0, 70))}</a></div>
+        ${contexto ? `<div class="meta">${contexto}</div>` : ""}
+        <div class="msg" data-pendiente-msg></div>
+      </div>
+      ${acciones(`<button class="btn secondary" data-pendiente-descartar>Descartar</button>`)}
+    </div>`;
+}
+
+function quitarFila(row, restantes) {
+  const cuerpo = row.closest(".pendientes-cuerpo");
+  const det = row.closest("details[data-proveedor]");
+  row.remove();
+  if (det) {
+    const badge = det.querySelector(".badge");
+    const quedan = cuerpo ? cuerpo.querySelectorAll(".gizmo-row").length : 0;
+    if (badge) badge.textContent = quedan;
+    if (quedan === 0) det.remove();
+  }
+  const listEl = document.getElementById("pendientes-list");
+  const vivos = listEl.querySelectorAll(".gizmo-row").length;
+  actualizarBadgePendientes(vivos);
+  if (vivos === 0) {
+    listEl.innerHTML = `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
+  }
+}
+
+async function registrarPendiente(btn, proveedor) {
   const row = btn.closest(".gizmo-row");
-  const id = row.dataset.pendienteId;
   const fileInput = row.querySelector("[data-pendiente-file]");
   const msg = row.querySelector("[data-pendiente-msg]");
   const file = fileInput.files[0];
@@ -624,18 +722,36 @@ async function registrarPendiente(btn) {
   msg.className = "msg";
   try {
     const fd = new FormData();
-    fd.append("id", id);
+    fd.append("proveedor", proveedor || "grok");
+    if (proveedor === "chatgpt") fd.append("url", row.dataset.pendienteUrl);
+    else fd.append("id", row.dataset.pendienteId);
     fd.append("file", file);
     const res = await fetch("/api/pendientes/registrar", { method: "POST", body: fd });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    row.remove();
-    const badge = document.getElementById("pendientes-count-badge");
-    badge.textContent = data.restantes > 0 ? `(${data.restantes})` : "";
-    if (data.restantes === 0) {
-      document.getElementById("pendientes-list").innerHTML =
-        `<div class="empty-note">Nada pendiente — todo lo que el export trae ya está extraído.</div>`;
-    }
+    quitarFila(row, data.restantes);
+  } catch (e) {
+    btn.disabled = false;
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  }
+}
+
+async function descartarPendiente(btn) {
+  const row = btn.closest(".gizmo-row");
+  const msg = row.querySelector("[data-pendiente-msg]");
+  btn.disabled = true;
+  msg.textContent = "Descartando...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/pendientes/descartar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: row.dataset.pendienteUrl }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    quitarFila(row, data.restantes);
   } catch (e) {
     btn.disabled = false;
     msg.textContent = `Error: ${e.message}`;

@@ -31,9 +31,9 @@ def client(tmp_path, monkeypatch):
     return launcher.app.test_client()
 
 
-def test_pendientes_sin_fichero_devuelve_lista_vacia(client):
+def test_pendientes_sin_fichero_devuelve_vacio_por_proveedor(client):
     res = client.get("/api/pendientes")
-    assert res.get_json() == []
+    assert res.get_json() == {"grok": [], "chatgpt": []}
 
 
 def test_pendientes_lista_lo_que_hay_en_disco(client, tmp_path):
@@ -44,7 +44,126 @@ def test_pendientes_lista_lo_que_hay_en_disco(client, tmp_path):
     (grok_dir / "_pendientes_descarga.json").write_text(json.dumps(pendientes), encoding="utf-8")
 
     res = client.get("/api/pendientes")
-    assert res.get_json() == pendientes
+    assert res.get_json()["grok"] == pendientes
+
+
+# ---------- imagenes de busqueda web de ChatGPT (triaje) ----------
+
+def _pendientes_chatgpt(tmp_path, entradas):
+    d = tmp_path / "vault" / "CHATGPT"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "_pendientes_descarga.json").write_text(json.dumps(entradas), encoding="utf-8")
+    return d / "_pendientes_descarga.json"
+
+
+def _leer(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+
+
+def test_listado_separa_los_dos_proveedores(client, tmp_path):
+    grok_dir = tmp_path / "vault" / "GROK"
+    grok_dir.mkdir(parents=True)
+    (grok_dir / "_pendientes_descarga.json").write_text(
+        json.dumps([{"id": "g1", "media_type": "image"}]), encoding="utf-8")
+    _pendientes_chatgpt(tmp_path, [{"url": "https://a.es/1.jpg", "estado": "sin_triar"}])
+
+    datos = client.get("/api/pendientes").get_json()
+    assert [p["id"] for p in datos["grok"]] == ["g1"]
+    assert [p["url"] for p in datos["chatgpt"]] == ["https://a.es/1.jpg"]
+
+
+def test_listado_oculta_lo_ya_triado(client, tmp_path):
+    """Lo rescatado y lo descartado no vuelve a la lista de trabajo, pero
+    sigue en el fichero: el paso 1 lo necesita para pintar la nota."""
+    path = _pendientes_chatgpt(tmp_path, [
+        {"url": "https://a.es/1.jpg", "estado": "sin_triar"},
+        {"url": "https://b.es/2.jpg", "estado": "rescatada", "fichero": "x.jpg"},
+        {"url": "https://c.es/3.jpg", "estado": "descartada"},
+    ])
+    datos = client.get("/api/pendientes").get_json()
+    assert [p["url"] for p in datos["chatgpt"]] == ["https://a.es/1.jpg"]
+    assert len(_leer(path)) == 3
+
+
+def test_registrar_imagen_web_va_al_banco_chatgpt_web(client, tmp_path):
+    """Banco propio: no GENERADAS (no la genero la IA) ni ADJUNTOS (no la
+    subio V0ra) -- es una referencia web de terceros."""
+    path = _pendientes_chatgpt(tmp_path, [
+        {"url": "https://a.es/1.jpg", "estado": "sin_triar",
+         "queries": ["iglesia siruela"], "conversaciones": ["Olor"]},
+    ])
+    data = {"proveedor": "chatgpt", "url": "https://a.es/1.jpg",
+            "file": (BytesIO(PNG), "foto.png")}
+    body = client.post("/api/pendientes/registrar", data=data,
+                       content_type="multipart/form-data").get_json()
+
+    assert body["ok"] is True and body["restantes"] == 0
+    fname = body["fname"]
+    assert fname.endswith(".png")
+    assert (tmp_path / "vault" / "CHATGPT" / "WEB" / fname).exists()
+
+    manifest = json.loads((tmp_path / "vault" / "CHATGPT" / "WEB" /
+                           "_image_manifest.json").read_text(encoding="utf-8"))
+    assert manifest[fname]["origen"] == "web"
+    assert manifest[fname]["url_original"] == "https://a.es/1.jpg"
+    assert manifest[fname]["queries"] == ["iglesia siruela"]
+
+
+def test_registrar_imagen_web_conserva_la_entrada_con_estado(client, tmp_path):
+    """Diferencia clave con Grok: la entrada NO se borra. El paso 1 lee
+    `fichero` en cada reproceso para pintar la imagen; si se borrara, el
+    siguiente reproceso la volveria a listar sin triar y se perderia el
+    rescate."""
+    path = _pendientes_chatgpt(tmp_path, [{"url": "https://a.es/1.jpg", "estado": "sin_triar"}])
+    data = {"proveedor": "chatgpt", "url": "https://a.es/1.jpg",
+            "file": (BytesIO(PNG), "foto.png")}
+    body = client.post("/api/pendientes/registrar", data=data,
+                       content_type="multipart/form-data").get_json()
+
+    guardado = _leer(path)
+    assert len(guardado) == 1
+    assert guardado[0]["estado"] == "rescatada"
+    assert guardado[0]["fichero"] == body["fname"]
+
+
+def test_descartar_marca_estado_y_lo_saca_de_la_lista(client, tmp_path):
+    path = _pendientes_chatgpt(tmp_path, [
+        {"url": "https://a.es/1.jpg", "estado": "sin_triar"},
+        {"url": "https://b.es/2.jpg", "estado": "sin_triar"},
+    ])
+    body = client.post("/api/pendientes/descartar",
+                       json={"url": "https://a.es/1.jpg"}).get_json()
+    assert body["ok"] is True and body["restantes"] == 1
+
+    guardado = {e["url"]: e["estado"] for e in _leer(path)}
+    assert guardado["https://a.es/1.jpg"] == "descartada"
+    assert guardado["https://b.es/2.jpg"] == "sin_triar"
+
+    datos = client.get("/api/pendientes").get_json()
+    assert [p["url"] for p in datos["chatgpt"]] == ["https://b.es/2.jpg"]
+
+
+def test_descartar_url_inexistente_da_error(client, tmp_path):
+    _pendientes_chatgpt(tmp_path, [])
+    res = client.post("/api/pendientes/descartar", json={"url": "https://no.es/x.jpg"})
+    assert res.status_code == 404
+
+
+def test_descartar_sin_url_da_error(client, tmp_path):
+    _pendientes_chatgpt(tmp_path, [])
+    assert client.post("/api/pendientes/descartar", json={}).status_code == 400
+
+
+def test_registrar_imagen_web_inexistente_da_error(client, tmp_path):
+    _pendientes_chatgpt(tmp_path, [])
+    data = {"proveedor": "chatgpt", "url": "https://no.es/x.jpg",
+            "file": (BytesIO(PNG), "foto.png")}
+    res = client.post("/api/pendientes/registrar", data=data,
+                      content_type="multipart/form-data")
+    assert res.status_code == 404
 
 
 def test_registrar_pendiente_sube_archiva_y_da_de_alta(client, tmp_path):
