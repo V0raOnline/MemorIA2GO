@@ -422,12 +422,13 @@ def get_pendientes():
     misma forma, porque son cosas distintas:
 
     - grok    -- generaciones propias de V0ra en Imagine cuyo binario no
-                 viaja en el zip. Clave `id`, se retiran de la lista al
-                 registrarlas.
+                 viaja en el zip. Clave `id`.
     - chatgpt -- imagenes de busqueda web (de terceros) que ChatGPT mostro
-                 en la conversacion. Clave `url`, NUNCA se retiran: llevan
-                 un `estado` de triaje que el paso 1 lee para decidir como
-                 pintar la nota, y que debe sobrevivir a los reprocesos.
+                 en la conversacion. Clave `url`.
+
+    Los dos usan el mismo modelo de estados: las entradas ya triadas se
+    quedan en el fichero (el pipeline las necesita) pero no se listan aqui.
+    Sin `estado` = sin triar, para no romper ficheros ya existentes.
     """
     try:
         from config_loader import load_config, get_path
@@ -435,11 +436,11 @@ def get_pendientes():
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({"grok": [], "chatgpt": []})
-        chatgpt = [p for p in _leer_pendientes(base_vault, "chatgpt")
-                   if (p.get("estado") or "sin_triar") == "sin_triar"]
+        sin_triar = lambda ps: [p for p in ps
+                                if (p.get("estado") or "sin_triar") == "sin_triar"]
         return jsonify({
-            "grok": _leer_pendientes(base_vault, "grok"),
-            "chatgpt": chatgpt,
+            "grok": sin_triar(_leer_pendientes(base_vault, "grok")),
+            "chatgpt": sin_triar(_leer_pendientes(base_vault, "chatgpt")),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -549,12 +550,22 @@ def registrar_pendiente():
         }
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        pendientes = [p for p in pendientes if p.get("id") != pendiente_id]
+        # La entrada se CONSERVA marcada como rescatada, no se borra.
+        # Bug real (2026-07-28): borrarla hacia que el siguiente
+        # --reprocess-all la volviera a listar, porque
+        # process_grok_media_posts la re-anade al no encontrar el binario
+        # en el zip (que sigue sin estar: por eso era un pendiente). Con la
+        # entrada presente, la fusion de split_chatgpt_export.py la ve en
+        # `vistos` y no la duplica. Mismo modelo de estados que ChatGPT.
+        pendiente["estado"] = "rescatada"
+        pendiente["fichero"] = fname
         tmp = pend_path.with_name(pend_path.name + ".tmp")
         tmp.write_text(json.dumps(pendientes, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
         tmp.replace(pend_path)
 
-        return jsonify({"ok": True, "fname": fname, "restantes": len(pendientes)})
+        restantes = sum(1 for p in pendientes
+                        if (p.get("estado") or "sin_triar") == "sin_triar")
+        return jsonify({"ok": True, "fname": fname, "restantes": restantes})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

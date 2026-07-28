@@ -47,6 +47,56 @@ def test_pendientes_lista_lo_que_hay_en_disco(client, tmp_path):
     assert res.get_json()["grok"] == pendientes
 
 
+def test_registrar_grok_conserva_la_entrada_para_sobrevivir_al_reproceso(client, tmp_path):
+    """Bug real (2026-07-28): registrar BORRABA la entrada, y el siguiente
+    --reprocess-all la volvia a listar porque process_grok_media_posts la
+    re-anade al no encontrar el binario en el zip (que sigue sin estar: por
+    eso era un pendiente). Con 205 pendientes reales, un reproceso devolvia
+    los 205 a la casilla de salida.
+
+    Se conserva marcada como rescatada: la fusion de
+    split_chatgpt_export.py la ve en `vistos` y no la duplica."""
+    grok_dir = tmp_path / "vault" / "GROK"
+    grok_dir.mkdir(parents=True)
+    path = grok_dir / "_pendientes_descarga.json"
+    path.write_text(json.dumps([
+        {"id": "abc123", "prompt": "un gato", "media_type": "image"},
+        {"id": "def456", "prompt": "un perro", "media_type": "image"},
+    ]), encoding="utf-8")
+
+    data = {"id": "abc123", "file": (BytesIO(PNG), "foto.png")}
+    body = client.post("/api/pendientes/registrar", data=data,
+                       content_type="multipart/form-data").get_json()
+    assert body["ok"] is True
+    assert body["restantes"] == 1
+
+    guardado = json.loads(path.read_text(encoding="utf-8"))
+    assert len(guardado) == 2, "la entrada no debe borrarse: el reproceso la re-anadiria"
+    rescatada = next(p for p in guardado if p["id"] == "abc123")
+    assert rescatada["estado"] == "rescatada"
+    assert rescatada["fichero"] == body["fname"]
+
+    # Simula el merge del pipeline: los ids ya presentes no se re-anaden.
+    vistos = {p.get("id") for p in guardado}
+    assert "abc123" in vistos
+
+    # Y la lista de trabajo ya no la ofrece.
+    datos = client.get("/api/pendientes").get_json()
+    assert [p["id"] for p in datos["grok"]] == ["def456"]
+
+
+def test_pendientes_sin_estado_se_tratan_como_sin_triar(client, tmp_path):
+    """Retrocompatibilidad: los ficheros escritos antes de que existieran
+    los estados no llevan el campo y deben seguir listandose."""
+    grok_dir = tmp_path / "vault" / "GROK"
+    grok_dir.mkdir(parents=True)
+    (grok_dir / "_pendientes_descarga.json").write_text(
+        json.dumps([{"id": "viejo", "media_type": "image"}]), encoding="utf-8")
+
+    datos = client.get("/api/pendientes").get_json()
+    assert [p["id"] for p in datos["grok"]] == ["viejo"]
+
+
 # ---------- imagenes de busqueda web de ChatGPT (triaje) ----------
 
 def _pendientes_chatgpt(tmp_path, entradas):
@@ -190,8 +240,12 @@ def test_registrar_pendiente_sube_archiva_y_da_de_alta(client, tmp_path):
     assert manifest[fname]["create_time"] == "2026-06-01T00:00:00Z"
     assert manifest[fname]["origen"] == "generada"
 
+    # Antes este test afirmaba `== []`, codificando el bug de 2026-07-28
+    # como comportamiento correcto: al borrar la entrada, el siguiente
+    # reproceso la volvia a listar. Ahora se conserva marcada.
     pendientes_restantes = json.loads((grok_dir / "_pendientes_descarga.json").read_text(encoding="utf-8"))
-    assert pendientes_restantes == []
+    assert len(pendientes_restantes) == 1
+    assert pendientes_restantes[0]["estado"] == "rescatada"
 
 
 def test_registrar_video_va_a_generadas_video(client, tmp_path):
