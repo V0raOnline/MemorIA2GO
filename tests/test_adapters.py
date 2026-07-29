@@ -125,9 +125,9 @@ class TestClaudeExport:
     def test_adjuntos_extraidos_y_referenciados_sin_duplicar(self, claude_conversations):
         conv1 = next(c for c in claude_conversations if "arrendamiento" in c["title"].lower())
         contenido = " ".join(m["content"] for m in conv1["messages"])
-        assert "Archivo adjunto: **contrato.pdf**" in contenido
+        assert "Attached file: **contrato.pdf**" in contenido
         assert "Clausula 7" in contenido
-        assert "Archivo referenciado (no incluido en el export de Claude): **anexo.pdf**" in contenido
+        assert "Referenced file (not included in the Claude export): **anexo.pdf**" in contenido
         assert "thinking" not in contenido.lower()
 
 

@@ -111,26 +111,26 @@ def _render_attachments(m: dict) -> List[str]:
     for a in m.get("attachments") or []:
         if not isinstance(a, dict):
             continue
-        name = a.get("file_name") or "archivo sin nombre"
+        name = a.get("file_name") or "unnamed file"
         ya_renderizados.add(name)
-        ftype = a.get("file_type") or "tipo desconocido"
+        ftype = a.get("file_type") or "unknown type"
         size = a.get("file_size")
         size_txt = f", {size:,} bytes" if isinstance(size, int) else ""
-        out.append(f"📎 Archivo adjunto: **{name}** ({ftype}{size_txt})")
+        out.append(f"📎 Attached file: **{name}** ({ftype}{size_txt})")
         content = (a.get("extracted_content") or "").strip()
         if content:
             if len(content) > ATTACH_MAX_CHARS:
                 recorte = len(content) - ATTACH_MAX_CHARS
-                content = content[:ATTACH_MAX_CHARS] + f"\n[... contenido truncado: {recorte:,} caracteres más]"
+                content = content[:ATTACH_MAX_CHARS] + f"\n[... content truncated: {recorte:,} more characters]"
             quoted = "\n".join("> " + ln for ln in content.splitlines())
             out.append(quoted)
     for fl in m.get("files") or []:
         if not isinstance(fl, dict):
             continue
-        name = fl.get("file_name") or "archivo sin nombre"
+        name = fl.get("file_name") or "unnamed file"
         if name in ya_renderizados:
             continue
-        out.append(f"📎 Archivo referenciado (no incluido en el export de Claude): **{name}**")
+        out.append(f"📎 Referenced file (not included in the Claude export): **{name}**")
     return out
 
 

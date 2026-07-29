@@ -128,7 +128,7 @@ def test_render_claude_artifact_tokens_sin_banco_degrada_a_texto():
         "\x00CLAUDEARTIFACT:a\x00", artifacts, None, None,
     )
     assert "Notas" in rendered
-    assert "sin banco de artefactos configurado" in rendered
+    assert "no artifact bank configured" in rendered
 
 
 def test_render_claude_artifact_tokens_mismo_id_distinta_conversacion_no_colisiona(tmp_path):

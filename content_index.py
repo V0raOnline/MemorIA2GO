@@ -38,12 +38,15 @@ from tree_index import read_frontmatter, INDEX_FILENAMES, iter_markdown_files
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
 # Linea completa que produce render_claude_artifact_tokens (split_chatgpt_
-# export.py): "🧩 Artefacto: **Titulo** → [fname](CLAUDE/ARTEFACTOS/...)".
+# export.py): "🧩 Artifact: **Titulo** → [fname](CLAUDE/ARTEFACTOS/...)".
+# OJO (i18n fase 3a): este patron y el escritor de split_chatgpt_export.py
+# son un par -- traducir uno sin el otro rompe el indice de Claude EN
+# SILENCIO (los artefactos pierden el titulo y caen al nombre de fichero).
 # El enlace en si solo trae el nombre de fichero (hash) como texto, no un
 # titulo legible -- este patron recupera el titulo real cuando esta linea
 # esta presente. Sin el, se degrada al texto del enlace o al nombre de
 # fichero embellecido.
-ARTIFACT_TITLE_RE = re.compile(r"Artefacto:\s*\*\*(?P<title>[^*]+)\*\*")
+ARTIFACT_TITLE_RE = re.compile(r"Artifact:\s*\*\*(?P<title>[^*]+)\*\*")
 
 
 class BankSpec(NamedTuple):
@@ -88,11 +91,13 @@ def _caption_for(meta: dict) -> str:
     if not meta:
         return ""
     parts = []
+    # Los valores de 'origen' son claves del manifest (datos), no texto de
+    # pantalla: no se traducen. Solo cambia la etiqueta que se pinta.
     origen = meta.get("origen")
     if origen in ("generada", "dalle"):
-        parts.append("Generada")
+        parts.append("Generated")
     elif origen == "subida":
-        parts.append("Subida")
+        parts.append("Uploaded")
     w, h = meta.get("width"), meta.get("height")
     if w and h:
         parts.append(f"{w}×{h}")
@@ -171,7 +176,7 @@ def render_catalog_branch(bank: BankSpec, items: list) -> str:
     lines = ["<details>", f"<summary><strong>{bank.label} ({len(items)})</strong></summary>", ""]
     for it in items:
         rel_path = f"{bank.prefix}/{it['fname']}".replace("\\", "/")
-        fecha = it["create_time"][:10] if it["create_time"] else "fecha desconocida"
+        fecha = it["create_time"][:10] if it["create_time"] else "unknown date"
         lines.append("<details>")
         lines.append(f"<summary>{fecha} — {it['fname']}</summary>")
         lines.append("")
@@ -194,7 +199,7 @@ def render_bank_branch(bank: BankSpec, entries: list) -> str:
     lines = [f"<details>", f"<summary><strong>{bank.label} ({total_items})</strong></summary>", ""]
     for e in entries:
         link = f"[[{e['rel'].as_posix()}|{e['titulo']}]]"
-        date_str = e["date"] or "sin fecha"
+        date_str = e["date"] or "no date"
         lines.append("<details>")
         lines.append(f"<summary>{date_str} — {link}</summary>")
         lines.append("")
@@ -233,7 +238,7 @@ def generate_provider_index(vault: Path, conversations_dir: str, provider_title:
         stats[bank.label] = {"conversaciones": len(entries), "items": total}
         resumen_partes.append(f"{total} {bank.label.lower()}")
         lines.append(render_bank_branch(bank, entries))
-    resumen = " · ".join(resumen_partes) if resumen_partes else "sin contenido"
+    resumen = " · ".join(resumen_partes) if resumen_partes else "no content"
     lines.insert(1, f"_{resumen}_")
     return {"markdown": "\n".join(lines), "stats": stats}
 
@@ -245,17 +250,17 @@ def render_pendientes_note(pendientes: list, titulo: str) -> str:
     indice real. Colapsada igual que el resto."""
     lines = [f"# {titulo}", ""]
     if not pendientes:
-        lines.append("_Nada pendiente -- todo lo que el export trae ya esta extraido._")
+        lines.append("_Nothing pending -- everything the export ships has been extracted._")
         return "\n".join(lines)
-    lines.append(f"_{len(pendientes)} generaciones sin binario en el export. El export solo trae "
-                 "un enlace externo que puede caducar o pedir sesión iniciada -- descárgalas a mano "
-                 "desde el enlace si te interesan; no se descargan solas._\n")
+    lines.append(f"_{len(pendientes)} generations with no binary in the export. The export only ships "
+                 "an external link that may expire or require a signed-in session -- download them by "
+                 "hand from the link if you want them; they do not download themselves._\n")
     pendientes_ordenados = sorted(pendientes, key=lambda p: p.get("create_time") or "", reverse=True)
     for p in pendientes_ordenados:
-        fecha = (p.get("create_time") or "")[:10] or "fecha desconocida"
+        fecha = (p.get("create_time") or "")[:10] or "unknown date"
         tipo = p.get("media_type") or "?"
         prompt = (p.get("prompt") or "").strip().strip('"')
-        resumen = (prompt[:70] + "...") if len(prompt) > 70 else (prompt or "(sin prompt)")
+        resumen = (prompt[:70] + "...") if len(prompt) > 70 else (prompt or "(no prompt)")
         lines.append("<details>")
         lines.append(f"<summary>{fecha} — {tipo} — \"{resumen}\"</summary>")
         lines.append("")
@@ -264,7 +269,7 @@ def render_pendientes_note(pendientes: list, titulo: str) -> str:
             lines.append("")
         link = p.get("link")
         if link:
-            lines.append(f"[Ver en grok.com]({link})")
+            lines.append(f"[View on grok.com]({link})")
         lines.append("")
         lines.append("</details>")
         lines.append("")

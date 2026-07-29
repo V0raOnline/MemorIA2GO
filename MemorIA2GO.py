@@ -429,14 +429,17 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     # (titulo, archivo de salida, ["prefijo:etiqueta", ...] para --banco,
     # ["prefijo:etiqueta", ...] para --banco-catalogo). Un indice por
     # proveedor, cada banco de ese proveedor como su propia rama colapsada.
+    # El lado izquierdo de cada par es la CARPETA real en disco; el derecho es
+    # la etiqueta que se pinta en la nota de indice. Solo la etiqueta se
+    # traduce aqui (i18n fase 3a) -- renombrar las carpetas es la fase 3b.
     proveedores = [
         ("ChatGPT", "_index_chatgpt.md",
-         ["CHATGPT/GENERADAS:Generadas", "CHATGPT/ADJUNTOS:Adjuntos"], []),
+         ["CHATGPT/GENERADAS:Generated", "CHATGPT/ADJUNTOS:Attachments"], []),
         ("Claude", "_index_claude.md",
-         ["CLAUDE/ARTEFACTOS:Artefactos"], []),
+         ["CLAUDE/ARTEFACTOS:Artifacts"], []),
         ("Grok", "_index_grok.md",
-         ["GROK/ADJUNTOS:Adjuntos"],
-         ["GROK/GENERADAS_IMAGEN:Generadas (imagen)", "GROK/GENERADAS_VIDEO:Generadas (video)"]),
+         ["GROK/ADJUNTOS:Attachments"],
+         ["GROK/GENERADAS_IMAGEN:Generated (image)", "GROK/GENERADAS_VIDEO:Generated (video)"]),
     ]
     grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
 
@@ -638,12 +641,12 @@ def main():
 
     try:
         from vault_stats import compute_stats, print_report
-        rule("Resumen")
+        rule("Summary")
         print_report(compute_stats(params["vault_path"], params.get("prj_vault_name", "PRJ_VAULT")))
     except Exception as e:
         warn(f"Could not generate the statistics summary: {e}")
 
-    info(f"\nLog guardado en: {log_path}")
+    info(f"\nLog saved to: {log_path}")
     info("\nNext step: add the vault path (MERGED_VAULT or PRJ_VAULT) to Claude Desktop's MCP config.")
 
     log(log_path, "Session finished successfully.")

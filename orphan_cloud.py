@@ -321,8 +321,15 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
 
     Todo lo generado es DERIVADO y regenerable: las notas de conversacion no
     se tocan, y solo se borran notas de tema que lleven la marca
-    generado_por: m3m0ria (jamas material propio de V0ra que viva en la
-    misma carpeta)."""
+    generated_by: m3m0ria (jamas material propio de V0ra que viva en la
+    misma carpeta).
+
+    OJO (i18n fase 3a): esa marca es un par escritor<->lector con la limpieza
+    del final de esta misma funcion. Si se traduce una y no la otra, la
+    limpieza deja de reconocer sus propias notas y quedan colgando para
+    siempre. Las notas escritas por la edicion espanola llevan la marca
+    vieja (generado_por:) y esta version ya no las reconoce -- documentado
+    en el README: hay que borrar el arbol viejo a mano."""
     base_vault = Path(base_vault)
     merged = base_vault / "MERGED_VAULT"
     out_dir = merged / subdir
@@ -391,17 +398,17 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
         generadas.add(slug)
         lineas = [
             "---",
-            f'title: "Tema: {tema}"',
-            "tipo: tema",
-            "generado_por: m3m0ria",
-            f"generado: {ahora}",
-            f'palabras: "{", ".join(palabras)}"',
+            f'title: "Topic: {tema}"',
+            "type: topic",
+            "generated_by: m3m0ria",
+            f"generated: {ahora}",
+            f'keywords: "{", ".join(palabras)}"',
             "---",
             "",
-            f"# Tema: {tema}",
+            f"# Topic: {tema}",
             "",
-            f"{len(matches)} conversaciones huerfanas relacionadas "
-            f"(palabras: {', '.join(palabras)}).",
+            f"{len(matches)} related orphan conversations "
+            f"(keywords: {', '.join(palabras)}).",
             "",
         ]
         for fecha, prov, titulo, stem in matches:
@@ -435,29 +442,29 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
         100.0 * len(stems_contenido & {h[0] for h in huerfanas}) / total_h, 1) if total_h else 0.0
     lineas = [
         "---",
-        'title: "Sin tema (huerfanas pendientes)"',
-        "tipo: tema",
-        "generado_por: m3m0ria",
-        f"generado: {ahora}",
+        'title: "No topic (pending orphans)"',
+        "type: topic",
+        "generated_by: m3m0ria",
+        f"generated: {ahora}",
         "---",
         "",
-        "# Puntos ciegos de la cartografia",
+        "# Blind spots in the cartography",
         "",
-        f"## Sin ningun tema ({len(sin_nada)})",
+        f"## Caught by nothing at all ({len(sin_nada)})",
         "",
-        "Ni temas de contenido ni redes estructurales las pescan. Con redes por",
-        "proveedor activas, esto deberia rondar cero: si algo aparece aqui, suele",
-        "ser una anomalia de frontmatter digna de mirar.",
+        "Neither content topics nor structural nets catch these. With per-provider",
+        "nets active this should be close to zero: anything showing up here is",
+        "usually a frontmatter anomaly worth a look.",
         "",
     ]
     for fecha, prov, titulo, stem in sin_nada:
         lineas.append(f"- [[{stem}]] — {fecha} · {prov} · {titulo}")
     lineas += [
         "",
-        f"## Solo pescadas por redes estructurales ({len(solo_estructural)})",
+        f"## Caught only by structural nets ({len(solo_estructural)})",
         "",
-        "Se sabe de que proveedor vienen pero ningun tema de contenido las toca:",
-        "la cartografia pendiente de verdad.",
+        "We know which provider they came from, but no content topic touches them:",
+        "the cartography that is genuinely still pending.",
         "",
     ]
     for fecha, prov, titulo, stem in solo_estructural:
@@ -488,7 +495,7 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
         if f.stem in generadas:
             continue
         fm = read_frontmatter(f)
-        if (fm.get("generado_por") or "").strip().strip('"') == "m3m0ria":
+        if (fm.get("generated_by") or "").strip().strip('"') == "m3m0ria":
             try:
                 f.unlink()
                 stats["borradas"] += 1

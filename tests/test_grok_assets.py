@@ -63,12 +63,12 @@ def test_render_grok_file_tokens_sin_banco_degrada_a_texto():
     content = "\x00GROKFILE:algun-uuid\x00"
     rendered = sce.render_grok_file_tokens(content, None, None, None)
     assert "algun-uuid" in rendered
-    assert "binario en el zip original" in rendered
+    assert "binary in the original zip" in rendered
 
 
 def test_render_grok_file_tokens_binario_no_encontrado(tmp_path):
     """asset_index existe pero el uuid no esta en el zip -- degradado
-    distinto del caso 'sin banco configurado' (mensaje mas preciso)."""
+    distinto del caso 'no bank configured' (mensaje mas preciso)."""
     class _IndiceVacio:
         def get_bytes(self, uid):
             return None
@@ -76,7 +76,7 @@ def test_render_grok_file_tokens_binario_no_encontrado(tmp_path):
     rendered = sce.render_grok_file_tokens(
         "\x00GROKFILE:uuid-perdido\x00", _IndiceVacio(), writer, "GROK/ADJUNTOS"
     )
-    assert "no disponible en el export" in rendered
+    assert "not available in the export" in rendered
 
 
 def test_process_grok_media_posts_separa_extraidas_de_pendientes(tmp_path):

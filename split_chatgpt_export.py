@@ -11,7 +11,7 @@ Incluye:
 - --assets-dir: extrae imágenes (subidas y generadas) a una carpeta de assets,
   deduplicadas por hash, con degradado explícito si el binario no está en el export.
 - Bloques tether_quote (archivos cargados como contexto) renderizados legibles
-  como "📄 Archivo cargado: **nombre**" en vez de dict crudo.
+  como "📄 Uploaded file: **nombre**" en vez de dict crudo.
 
 Evita statements en una sola línea con ';' para máxima compatibilidad.
 """
@@ -330,16 +330,16 @@ def render_grok_file_tokens(content: str, asset_index: Optional[GrokAssetIndex],
     def _sub(m: "re.Match[str]") -> str:
         uid = m.group("uid")
         if asset_index is None or asset_writer is None or rel_prefix is None:
-            return f"📎 Archivo adjunto del export de Grok (asset `{uid}`, binario en el zip original)"
+            return f"📎 Attached file from the Grok export (asset `{uid}`, binary in the original zip)"
         data = asset_index.get_bytes(uid)
         if data is None:
-            return f"📎 Archivo adjunto del export de Grok (asset `{uid}`, no disponible en el export)"
+            return f"📎 Attached file from the Grok export (asset `{uid}`, not available in the export)"
         ext = sniff_ext(data)
         fname = asset_writer.write(data, ext)
         rel_path = f"{rel_prefix}/{fname}".replace("\\", "/")
         if ext in (".png", ".jpg", ".gif", ".webp"):
             return f"![]({rel_path})"
-        return f"📎 [Archivo adjunto]({rel_path})"
+        return f"📎 [Attached file]({rel_path})"
 
     return GROK_FILE_TOKEN_RE.sub(_sub, content)
 
@@ -388,9 +388,9 @@ def render_claude_artifact_tokens(content: str, artifacts: Optional[Dict[str, di
         aid = m.group("aid")
         art = (artifacts or {}).get(aid)
         if art is None:
-            return f"*[artefacto no resuelto: {aid}]*"
+            return f"*[unresolved artifact: {aid}]*"
         if writer is None or bank_prefix is None:
-            return f"🧩 Artefacto: **{art.get('title') or aid}** (omitido: sin banco de artefactos configurado)"
+            return f"🧩 Artifact: **{art.get('title') or aid}** (skipped: no artifact bank configured)"
         subdir, ext = _artifact_subdir_ext(art)
         fname = f"{slugify(art.get('title') or aid)[:60]}-{content_hash(f'{conv_id}:{aid}')}{ext}"
         full_dir = os.path.join(writer.assets_dir, subdir)
@@ -400,7 +400,7 @@ def render_claude_artifact_tokens(content: str, artifacts: Optional[Dict[str, di
             with open(path, "w", encoding="utf-8", newline="") as f:
                 f.write(art.get("content") or "")
         rel_path = f"{bank_prefix}/{subdir}/{fname}".replace("\\", "/")
-        return f"🧩 Artefacto: **{art.get('title') or aid}** → [{fname}]({rel_path})"
+        return f"🧩 Artifact: **{art.get('title') or aid}** → [{fname}]({rel_path})"
 
     return CLAUDE_ARTIFACT_TOKEN_RE.sub(_sub, content)
 
@@ -412,10 +412,10 @@ def render_tether_quote(obj: dict) -> Optional[str]:
     Se conserva por compatibilidad con exports antiguos."""
     if str(obj.get("content_type") or "").lower() != "tether_quote":
         return None
-    domain = obj.get("domain") or obj.get("title") or obj.get("file") or obj.get("url") or "archivo desconocido"
+    domain = obj.get("domain") or obj.get("title") or obj.get("file") or obj.get("url") or "unknown file"
     raw = (obj.get("text") or "").strip()
     if not raw:
-        return f"📄 Archivo cargado: **{domain}**\n\n> (sin contenido)\n"
+        return f"📄 Uploaded file: **{domain}**\n\n> (no content)\n"
     raw = raw.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\r\n", "\n").replace("\r", "\n")
     lines = raw.splitlines()
     if len(lines) > 10:
@@ -423,7 +423,7 @@ def render_tether_quote(obj: dict) -> Optional[str]:
         quoted = "\n".join("> " + ln for ln in lines) + "\n> \n> ... (contenido truncado)"
     else:
         quoted = "\n".join("> " + ln for ln in lines)
-    return f"📄 Archivo cargado: **{domain}**\n\n{quoted}\n"
+    return f"📄 Uploaded file: **{domain}**\n\n{quoted}\n"
 
 
 def render_attachments(msg: dict) -> str:
@@ -446,10 +446,10 @@ def render_attachments(msg: dict) -> str:
         mime = a.get("mimeType") or a.get("mime_type") or ""
         if mime.lower().startswith("image/"):
             continue
-        name = a.get("name") or "archivo sin nombre"
+        name = a.get("name") or "unnamed file"
         tokens = a.get("fileSizeTokens") or a.get("file_size_tokens")
         size_txt = f", ~{tokens} tokens" if tokens else ""
-        lines.append(f"📎 Archivo adjunto: **{name}** ({mime or 'tipo desconocido'}{size_txt})")
+        lines.append(f"📎 Attached file: **{name}** ({mime or 'unknown type'}{size_txt})")
     return "\n".join(lines)
 
 
@@ -582,7 +582,7 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                    markers_ctx: Optional["MarkerContext"] = None) -> str:
     """Convierte el campo 'content' de un mensaje en texto.
     - Imágenes -> marcador \\x00IMG:<pointer>\\x00 (resuelto luego con --assets-dir)
-    - tether_quote -> texto legible "📄 Archivo cargado: ..."
+    - tether_quote -> texto legible "📄 Uploaded file: ..."
     - Otros tipos no textuales (audio, video en tiempo real...) -> aviso legible
     - Nunca vuelca el dict crudo (ese era el bug original)
 
@@ -633,9 +633,9 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                         image_meta_out[pointer] = meta
                 elif ctype == "tether_quote":
                     rendered = render_tether_quote(p)
-                    chunks.append(rendered or "*[archivo cargado sin contenido]*")
+                    chunks.append(rendered or "*[uploaded file with no content]*")
                 else:
-                    chunks.append(f"*[contenido no textual omitido: {ctype or 'desconocido'}]*")
+                    chunks.append(f"*[non-textual content skipped: {ctype or 'unknown'}]*")
             else:
                 chunks.append(str(p))
         return _resolver_marcadores("\n".join(chunks), refs, markers_ctx)

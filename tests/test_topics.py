@@ -79,9 +79,9 @@ def test_generate_topic_index_reglas_palabra_frase_y_estructural(tmp_path):
     assert "[[consulta-clima]]" in fuente_claude
 
     sin_tema = (temas_dir / "_sin-tema.md").read_text(encoding="utf-8")
-    assert "## Sin ningun tema" in sin_tema
+    assert "## Caught by nothing at all" in sin_tema
     assert "[[capital-francia]]" in sin_tema
-    assert "## Solo pescadas por redes estructurales" in sin_tema
+    assert "## Caught only by structural nets" in sin_tema
     assert "[[consulta-clima]]" in sin_tema
     # pan-casero y plan-deportivo tienen tema de contenido: no deben aparecer
     # en ninguna de las dos secciones de puntos ciegos.

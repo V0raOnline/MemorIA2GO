@@ -5,11 +5,16 @@ scaffolding_index.py — indice de archivos adjuntos/andamiaje ("que conversacio
 uso el archivo X") encontrados en las notas del vault.
 
 Adaptado de POC/CLI4Humans_v1.0_Release/scaffolding_index.py. El formato real
-detectado en split_chatgpt_export.py es "📎 Archivo adjunto: **nombre** (tipo, ~N tokens)"
+detectado en split_chatgpt_export.py es "📎 Attached file: **nombre** (tipo, ~N tokens)"
 (metadata.attachments) -- se reconoce ese patron como principal. Se mantiene
-tambien el patron legado "📄 Archivo cargado: **nombre**" (tether_quote, formato
-de export antiguo que no se ha observado en datos reales recientes) por si
-algun vault viejo lo usa.
+tambien el patron "📄 Uploaded file: **nombre**" (tether_quote, formato de
+export antiguo que no se ha observado en datos reales recientes) por si algun
+vault viejo lo usa.
+
+OJO (i18n fase 3a): los DOS patrones son pares escritor<->lector con
+split_chatgpt_export.py, que sigue escribiendo tether_quote como
+"📄 Uploaded file:" (render_tether_quote). No es un patron muerto de solo
+lectura: traducir un lado sin el otro deja adjuntos fuera del indice.
 
 Genera scaffolding_index.md con wikilinks a cada nota que uso ese archivo.
 """
@@ -26,8 +31,8 @@ from collections import defaultdict
 
 from tree_index import INDEX_FILENAMES, iter_markdown_files
 
-ATTACHMENT_RE = re.compile(r"^\U0001F4CE\s*Archivo\s+adjunto:\s*\*\*(.+?)\*\*", re.MULTILINE)
-LEGACY_SCAFFOLD_RE = re.compile(r"^\U0001F4C4\s*Archivo\s+cargado:\s*\*\*(.+?)\*\*", re.MULTILINE)
+ATTACHMENT_RE = re.compile(r"^\U0001F4CE\s*Attached\s+file:\s*\*\*(.+?)\*\*", re.MULTILINE)
+LEGACY_SCAFFOLD_RE = re.compile(r"^\U0001F4C4\s*Uploaded\s+file:\s*\*\*(.+?)\*\*", re.MULTILINE)
 
 
 def scan_vault(vault_path: Path):
@@ -56,8 +61,8 @@ def scan_vault(vault_path: Path):
 
 
 def build_index_text(scaffolds: dict) -> str:
-    lines = ["# Índice de Archivos Adjuntos\n"]
-    lines.append(f"_Archivos distintos:_ **{len(scaffolds)}**\n")
+    lines = ["# Attachment Index\n"]
+    lines.append(f"_Distinct files:_ **{len(scaffolds)}**\n")
     for name in sorted(scaffolds.keys(), key=str.lower):
         files = scaffolds[name]
         lines.append(f"## {name}  ({len(files)})\n")

@@ -73,7 +73,7 @@ def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict
                     max_date = d
                 mes = d[:7]
             else:
-                mes = "sin fecha"
+                mes = "no date"
             por_mes[mes] = por_mes.get(mes, 0) + 1
             # Notas anteriores al multi-proveedor no traen provider: son de
             # ChatGPT por definicion (el campo nacio con los adaptadores).
@@ -275,7 +275,7 @@ def print_report(stats: dict):
         if not v["existe"]:
             print(f"{name}: does not exist yet")
             continue
-        rango = f"{v['fecha_mas_antigua']} -> {v['fecha_mas_moderna']}" if v["fecha_mas_antigua"] else "sin fechas"
+        rango = f"{v['fecha_mas_antigua']} -> {v['fecha_mas_moderna']}" if v["fecha_mas_antigua"] else "no dates"
         print(f"{name}: {v['notas']} notes | {rango} | {v['tamano_legible']}")
 
     a = stats["assets"]

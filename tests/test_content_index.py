@@ -36,14 +36,14 @@ def test_banco_de_imagenes_con_manifest(tmp_path):
     assert len(entries) == 1
     item = entries[0]["items"][0]
     assert item["es_imagen"] is True
-    assert item["caption"] == "Generada · 1024×1024"
+    assert item["caption"] == "Generated · 1024×1024"
 
 
 def test_banco_solo_enlaces_recupera_titulo_de_artefacto(tmp_path):
     vault = tmp_path
     conv_dir = vault / "Conversaciones"
     _write_note(conv_dir / "a.md", title="Con artefacto", date="2026-07-01",
-                body="🧩 Artefacto: **Mi Contador** → [contador-a1b2c3d4.py](CLAUDE/ARTEFACTOS/codigo/contador-a1b2c3d4.py)\n")
+                body="🧩 Artifact: **Mi Contador** → [contador-a1b2c3d4.py](CLAUDE/ARTEFACTOS/codigo/contador-a1b2c3d4.py)\n")
 
     bank = ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")
     entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
@@ -59,7 +59,7 @@ def test_banco_mixto_imagen_y_enlace_en_la_misma_nota(tmp_path):
     vault = tmp_path
     conv_dir = vault / "Conversaciones"
     _write_note(conv_dir / "a.md", title="Adjuntos mixtos", date="2026-07-01",
-                body="![](GROK/ADJUNTOS/foto.jpg)\n\n📎 [Archivo adjunto](GROK/ADJUNTOS/informe.pdf)\n")
+                body="![](GROK/ADJUNTOS/foto.jpg)\n\n📎 [Attached file](GROK/ADJUNTOS/informe.pdf)\n")
 
     bank = ci.BankSpec(prefix="GROK/ADJUNTOS", label="Adjuntos")
     entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
@@ -194,7 +194,7 @@ def test_bank_dir_fuera_del_vault_se_respeta(tmp_path):
     entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
 
     assert len(entries) == 1
-    assert entries[0]["items"][0]["caption"] == "Generada · 512×512"
+    assert entries[0]["items"][0]["caption"] == "Generated · 512×512"
 
 
 def test_render_pendientes_note_ordena_por_fecha_y_colapsa():
@@ -212,7 +212,7 @@ def test_render_pendientes_note_ordena_por_fecha_y_colapsa():
 
 def test_render_pendientes_note_vacio():
     md = ci.render_pendientes_note([], "Grok — pendientes de descarga")
-    assert "Nada pendiente" in md
+    assert "Nothing pending" in md
 
 
 def test_generate_provider_index_sin_contenido_no_revienta(tmp_path):
