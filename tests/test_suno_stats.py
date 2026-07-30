@@ -14,6 +14,9 @@ Las dos diferencias que importan y que aqui quedan fijadas:
 import json
 from pathlib import Path
 
+import pytest
+
+import launcher
 import suno_stats
 
 
@@ -184,3 +187,86 @@ def test_duracion_corta_se_muestra_en_minutos(tmp_path):
     backup = _index(tmp_path, [_clip(id="1", duration=900.0)])
 
     assert suno_stats.compute_suno_stats(backup)["duracion_legible"] == "15 min"
+
+
+# ─────────────────────────────────────────
+# Integracion con /api/stats
+# ─────────────────────────────────────────
+
+def _config(tmp_path, suno_backup=""):
+    cfg = tmp_path / "memoria_config.yaml"
+    vault = tmp_path / "vault"
+    (vault / "MERGED_VAULT").mkdir(parents=True, exist_ok=True)
+    cfg.write_text(f"""
+paths:
+  base_vault: '{vault}'
+  exports_dir: '{tmp_path}'
+  gizmo_map: ''
+  suno_backup: '{suno_backup}'
+options:
+  prj_vault_name: 'PRJ_VAULT'
+""", encoding="utf-8")
+    return cfg
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    def _build(suno_backup=""):
+        monkeypatch.setattr(launcher, "CONFIG_PATH", _config(tmp_path, suno_backup))
+        launcher.app.config["TESTING"] = True
+        return launcher.app.test_client()
+    return _build
+
+
+def test_stats_sin_suno_configurado_no_manda_la_clave(client):
+    """Sin ruta configurada, 'suno' no viaja -- la tarjeta no se pinta."""
+    data = client().get("/api/stats?refresh=1").get_json()
+
+    assert "suno" not in data
+
+
+def test_stats_con_backup_incluye_la_biblioteca(client, tmp_path):
+    backup = _index(tmp_path, [
+        _clip(id="1", is_liked=True, duration=1800.0,
+              badges=[{"display_name": "Full Song"}],
+              project={"id": "p", "name": "Koru"}),
+        _clip(id="2", duration=1800.0),
+    ])
+
+    data = client(str(backup)).get("/api/stats?refresh=1").get_json()
+
+    assert data["suno"]["total"] == 2
+    assert data["suno"]["favoritas"] == 1
+    assert data["suno"]["completas"] == 1
+    assert data["suno"]["duracion_legible"] == "1 h"
+
+
+def test_stats_con_ruta_que_no_existe_no_revienta(client, tmp_path):
+    """Ruta configurada pero backup borrado/movido: el dashboard sigue
+    sirviendo el resto."""
+    data = client(str(tmp_path / "no-existe")).get("/api/stats?refresh=1").get_json()
+
+    assert "error" not in data
+    assert "suno" not in data
+
+
+def test_las_stats_de_suno_no_entran_en_el_cache_del_vault(client, tmp_path):
+    """El cache lo escribe el paso 4 del pipeline; la biblioteca de Suno
+    cambia por su cuenta, con otra herramienta y en otro momento. Si se
+    cachearan, quedarian rancias justo despues de un backup -- que es
+    cuando mas quieres mirarlas. Este test lo fija: se anaden DESPUES de
+    leer el cache, asi que un backup nuevo se ve sin --refresh."""
+    backup_dir = tmp_path / "suno_backup"
+    c = client(str(backup_dir))
+
+    backup_dir.mkdir()
+    (backup_dir / "_index.json").write_text(json.dumps([_clip(id="1")]), encoding="utf-8")
+    primera = c.get("/api/stats?refresh=1").get_json()      # escribe cache
+    assert primera["suno"]["total"] == 1
+
+    # Llega un backup nuevo. El cache del vault sigue siendo el de antes.
+    (backup_dir / "_index.json").write_text(
+        json.dumps([_clip(id="1"), _clip(id="2")]), encoding="utf-8")
+    segunda = c.get("/api/stats").get_json()                # SIN refresh
+
+    assert segunda["suno"]["total"] == 2

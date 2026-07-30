@@ -198,6 +198,38 @@ def set_config():
 # API: estadisticas
 # ─────────────────────────────────────────
 
+def _con_suno(stats: dict, cfg: dict) -> dict:
+    """Añade las stats de MUSIC·0LOGY al payload del dashboard.
+
+    Se calculan EN VIVO, deliberadamente fuera del cache de vault_stats.
+    Ese cache lo escribe el paso 4 del pipeline, y la biblioteca de Suno
+    cambia por su cuenta -- se descarga con otra herramienta, en otro
+    momento. Cachearla ahí la dejaría rancia justo cuando más quieres
+    mirarla: recién terminado un backup.
+
+    Medido sobre la biblioteca real de V0ra (2094 pistas, _index.json de
+    12 MB): 120 ms. Barato de sobra frente a montar una segunda capa de
+    cache con su propia invalidación, que es donde se cuelan los errores
+    que no avisan.
+
+    Si no hay ruta configurada o no hay backup, la clave sencillamente no
+    viaja y la tarjeta no se pinta -- no se pinta a cero, que sería mentir
+    sobre una biblioteca que no se ha descargado.
+    """
+    try:
+        from config_loader import get_path
+        from suno_stats import compute_suno_stats
+        backup = get_path(cfg, "suno_backup")
+        if not backup:
+            return stats
+        suno = compute_suno_stats(backup)
+        if suno:
+            stats = {**stats, "suno": suno}
+    except Exception:
+        pass  # el dashboard entero no puede caerse por la tarjeta de música
+    return stats
+
+
 @app.route("/api/stats")
 def get_stats():
     try:
@@ -216,10 +248,10 @@ def get_stats():
         if request.args.get("refresh") != "1":
             cached = load_cache(Path(base_vault))
             if cached is not None:
-                return jsonify(cached)
+                return jsonify(_con_suno(cached, cfg))
         stats = compute_stats(Path(base_vault), prj_name)
         save_cache(Path(base_vault), stats)
-        return jsonify(stats)
+        return jsonify(_con_suno(stats, cfg))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
