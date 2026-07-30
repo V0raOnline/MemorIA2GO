@@ -186,6 +186,11 @@ main {
   margin-bottom: 16px;
 }
 
+/* OJO: esto es un contenedor flex con gap, asi que CADA hijo es un flex item
+   -- tambien los nodos de texto sueltos. Un titulo con un <span> dentro
+   ("MUSIC<span>·0</span>LOGY") se parte en tres items y aparecen 8px entre
+   ellos, como si el texto tuviera espacios. Si un h2 necesita marcado
+   interno, envuelve TODO el texto en un solo <span>. */
 .card h2 {
   display: flex;
   align-items: center;
