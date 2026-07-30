@@ -13,12 +13,13 @@
 
 ## Language editions
 
-M3M0R·IA is maintained as two parallel product lines while the English localization is completed:
+M3M0R·IA is maintained as two parallel product lines, one per language. Both are complete and equivalent — the localization effort finished with the `i18n-content` milestone:
 
-- **`release/en` (this branch) — English edition.** The web UI (tag `i18n-web`) and everything the app prints while running (tag `i18n-runtime`) are fully translated: live pipeline log, verification results, CLI help, setup wizard and error messages. One known limitation remains, by design:
-  - **Generated vault content is in Spanish**: note metadata headers ("Archivo adjunto:", "Artefacto:"…), index note labels and folder names (`GENERADAS`, `ADJUNTOS`, `_Temas`…) are written in Spanish. Translating persisted content is phase 3 (`i18n-content`), deliberately deferred until a compatibility strategy for existing Spanish vaults is decided — a vault built with the Spanish edition must keep working here.
+- **`release/en` (this branch) — English edition.** Fully localized: the web UI (`i18n-web`), everything the app prints while running (`i18n-runtime`), and the content it writes into your vault — note metadata lines, index labels and the folder names on disk (`Conversations`, `GENERATED`, `ATTACHMENTS`, `ARTIFACTS`, `_Topics`…), tags `i18n-content` phases 3a and 3b.
+
+  **Upgrading a vault built with an earlier English release?** Those vaults have Spanish folder names, and reprocessing alone will not fix them — the pipeline never deletes, so it would write the English tree *beside* the Spanish one and leave every note duplicated in Obsidian's search and graph. Open the **Reconnection** tab: if the old layout is detected, a "Vault layout" card appears with a one-click rename that also reconnects every asset link inside your notes. Nothing is deleted, and your download triage and import history are left untouched. Reprocess afterwards to rewrite the note *content* in English.
 - **`release/es` — Spanish edition.** The original, fully functional application. Receives bug fixes during the localization effort.
-- **`main`** is frozen at the last common state (v2.8.0) as an immutable reference until both editions reach feature parity.
+- **`main`** is frozen at the last common state (v2.8.0) as an immutable reference. Bug fixes land on `release/es` first and are cherry-picked to `release/en`, so both lines stay in step.
 
 ---
 
@@ -32,9 +33,9 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 | Provider | Export format | Branch handling | Attachments |
 |----------|--------------|-----------------|-------------|
-| ChatGPT  | zip / json / html | `current_node` tree walk | AI-generated images and user uploads extracted to separate banks (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
-| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; uploaded binaries not shipped by the export; **generated Artifacts** (documents, code, HTML...) extracted to `CLAUDE/ARTEFACTOS`, one file per artifact, sorted by type — only the final version, revision history is discarded |
-| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | file attachments extracted to `GROK/ADJUNTOS`; Imagine generations (images and video) extracted to `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` when the export ships the binary, otherwise logged as a pending-download list (prompt + link), never auto-downloaded |
+| ChatGPT  | zip / json / html | `current_node` tree walk | AI-generated images and user uploads extracted to separate banks (`CHATGPT/GENERATED`, `CHATGPT/ATTACHMENTS`) |
+| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; uploaded binaries not shipped by the export; **generated Artifacts** (documents, code, HTML...) extracted to `CLAUDE/ARTIFACTS`, one file per artifact, sorted by type — only the final version, revision history is discarded |
+| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | file attachments extracted to `GROK/ATTACHMENTS`; Imagine generations (images and video) extracted to `GROK/GENERATED_IMAGE`/`GROK/GENERATED_VIDEO` when the export ships the binary, otherwise logged as a pending-download list (prompt + link), never auto-downloaded |
 
 All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin. Every asset bank gets its own navigable index, same pattern as the classic image index.
 
@@ -181,7 +182,7 @@ Your browser opens with the interface. From here on, everything is clicks: **Con
 
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
 - `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
-- `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Temas`. Never committed.
+- `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed.
 
 Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
 
@@ -204,7 +205,7 @@ Claude and Grok exports do not link conversations to projects: those notes are o
   - **Collapsible pre-flight checks.** The exports folder check used to dump every file's status on screen at once. Now it's a single line — status light plus a one-line summary — that expands into the per-file list only when you want to look, and each file expands again into its full detail.
 - **v2.6 rebuilt how images and generated content are stored**, after a routine check turned up a real classification bug:
   - **The bug**: ChatGPT's *newer* native image generation (the in-context "generate an image" flow, as opposed to the classic DALL·E tool call) doesn't fill in the field the pipeline was checking for a prompt. Result: **5,117 AI-generated images across a real 47-export history were being filed as user uploads.** Confirmed and fixed by checking for the generation ID instead of the prompt text.
-  - **New taxonomy.** Assets are no longer dumped into one shared `IMAGE_BANK`. Each provider gets banks split by *what the content actually is*: `CHATGPT/GENERADAS` vs `CHATGPT/ADJUNTOS`, `GROK/GENERADAS_IMAGEN` / `GROK/GENERADAS_VIDEO` / `GROK/ADJUNTOS`, `CLAUDE/ARTEFACTOS/<type>` (markdown, html, code by language, and so on). Each bank has its own navigable index.
+  - **New taxonomy.** Assets are no longer dumped into one shared `IMAGE_BANK`. Each provider gets banks split by *what the content actually is*: `CHATGPT/GENERATED` vs `CHATGPT/ATTACHMENTS`, `GROK/GENERATED_IMAGE` / `GROK/GENERATED_VIDEO` / `GROK/ATTACHMENTS`, `CLAUDE/ARTIFACTS/<type>` (markdown, html, code by language, and so on). Each bank has its own navigable index.
   - **Grok attachments and Imagine generations are now actually extracted** (previously just a text reference — see the provider table above). Imagine generations without a shipped binary (most of them, in practice: only ~18% of a real export's generations travel in the zip) are logged with their prompt and original link for manual download later, on purpose — this tool never reaches out to the network on your behalf.
   - **Claude Artifacts are now extracted**, resolved to their *final* state: an artifact revised a dozen times in one conversation used to be invisible; now it's one clean file, not a pile of near-duplicate revisions.
   - **A reusable relink tool** (`relink_assets.py`) rewrites asset links across the whole vault when a bank moves or gets renamed — this is the second time that's happened, and it won't be the last, so it's a proper tool now instead of a one-off script.
@@ -222,6 +223,12 @@ Claude and Grok exports do not link conversations to projects: those notes are o
   - **The interface got a name, not just a UI.** "Pipeline" and "Dashboard" were generic — the rest of the app talks about reconstructing memory from export files, and those two didn't. Renamed to **Observatory**, **Configuration**, **Verification**, **Construction**, **Cartography** (Observatorio, Configuración, Verificación, Construcción, Cartografía in the Spanish edition), each with its own header: a one-line "what you do here," a consistent brand line underneath, and a small illustrated mascot per section.
   - **A new tab, Reconnection, closes a real gap.** Regenerating indexes alone was never going to surface a manually downloaded Grok file — the catalog reads off the asset *manifest*, not the folder, so a file dropped in by hand with no manifest entry stayed invisible. Reconnection lists Grok's pending downloads, accepts the file by upload (never a hand-typed path — the server picks the bank and computes the same hash-based filename the automated extractor would), and a separate "Rebuild indexes" button reruns just the indexing step (`--reindex-only`) without a full reprocess.
 
+- **v2.9 finished the English edition and, in doing so, uncovered two silent bugs**:
+  - **Everything is now English**: the web UI, every message the app prints, and the content it writes into your vault — note metadata lines, index labels, and the folder names on disk. The riskiest part was not the translating: four of those lines are *parsed back* by the app (the attachment index reads "Attached file:", the Claude index reads "Artifact:", the topic-note cleanup reads its own `generated_by:` marker). Translate one side without the other and things break with no error, no exception and no failing test. Each pair moved in a single commit, and a new round-trip test suite now starts from the real renderer output rather than hand-copied literals, so a one-sided change shows up.
+  - **The asset relinker only ever rewrote image links.** Written back when the asset banks held nothing but images, its pattern matched `![](path)` and nothing else. Claude artifacts — which always use `[text](path)` — arrived later and left it quietly insufficient: moving that bank would have left every artifact link pointing at the old folder. Measured against a real 1641-note vault, it rewrote 0 of 32 links. Fixed in both editions.
+  - **Every artifact link in the Claude index was dead.** The index builder stripped the filename from its path and then rebuilt the link without the type subfolder, so all 16 artifacts pointed at files that do not exist — clicking one in Obsidian did nothing. It had been that way since artifacts existed. No test caught it because every test checked the generated markdown, never whether the paths inside it resolve on disk. Fixed in both editions, with a test that walks each link to the filesystem.
+  - **Upgrading an existing vault is one click.** See "Language editions" above: Reconnection detects the old Spanish layout, renames the folders and reconnects every asset link, without deleting anything or disturbing your download triage.
+
 Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
 
 ---
@@ -231,8 +238,6 @@ Design principles throughout: diagnose before implementing, validate against rea
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
-- **Localization phase 3 (`i18n-content`)**: translate generated vault content (note metadata headers, index labels, asset folder names). Deferred until a compatibility strategy for existing Spanish vaults is decided (keep both formats, migrate, or generate per-language) — this is the phase that can break an existing vault, so it needs a plan, not just a translation pass.
-- A ChatGPT `image_group` tool-call type isn't recognized by the parser yet and leaks raw into note text — needs a real export sample to pin down the exact code path before fixing
 
 ---
 
