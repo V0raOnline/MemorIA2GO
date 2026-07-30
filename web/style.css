@@ -783,7 +783,10 @@ button.btn.secondary:hover {
 
 /* ─── Log del pipeline ─── */
 
-#log-box {
+/* Mismo bloque de log para el pipeline y para MUSIC·0LOGY. La altura fija
+   solo la lleva el del pipeline: los de musica crecen con su contenido, que
+   suele ser corto (un resumen de verificacion, no 2000 lineas de proceso). */
+#log-box, .log-box {
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -795,6 +798,12 @@ button.btn.secondary:hover {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.log-box {
+  height: auto;
+  max-height: 320px;
+  margin: 12px 0 0;
 }
 
 .log-line.err { color: var(--red); }

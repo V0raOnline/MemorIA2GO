@@ -8,8 +8,14 @@ Cruza los IDs de _index.json contra los archivos reales en disco
 Colócalo en la misma carpeta que backup_suno.py (importa safe_filename
 de ahí) y corre:
 
-    python verify_backup.py
+    python verify_backup.py --backup-dir ./suno_backup
+
+--backup-dir se añadió al integrar la pestaña MUSIC·0LOGY (2026-07-30):
+antes daba por hecho que el backup era hermano del script, y con la ruta
+ya configurable desde la interfaz eso dejó de ser cierto. Sin el
+argumento se mantiene el comportamiento de siempre.
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -17,8 +23,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from backup_suno import safe_filename
 
-backup_dir = Path(__file__).parent / "suno_backup"
-index = json.loads((backup_dir / "_index.json").read_text(encoding="utf-8"))
+_ap = argparse.ArgumentParser(description="Verifica la integridad de un backup de Suno.")
+_ap.add_argument("--backup-dir", default=str(Path(__file__).parent / "suno_backup"),
+                 help="Carpeta que contiene _index.json y las pistas descargadas.")
+_args = _ap.parse_args()
+
+backup_dir = Path(_args.backup_dir)
+_index_path = backup_dir / "_index.json"
+if not _index_path.is_file():
+    print(f"[error] no hay _index.json en {backup_dir} — ¿has hecho el backup ya?")
+    sys.exit(1)
+index = json.loads(_index_path.read_text(encoding="utf-8"))
 
 print(f"Total en indice: {len(index)}")
 

@@ -42,6 +42,10 @@
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
       <span>Reconexión</span> <span id="pendientes-count-badge"></span>
     </button>
+    <button class="tab-btn" data-tab="musicology">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+      <span>MUSIC<span class="brand-ia">·0</span>LOGY</span>
+    </button>
   </nav>
 
   <div class="sidebar-footer">M3M0R<span class="brand-ia">·IA</span> · v2</div>
@@ -136,6 +140,16 @@
         <label for="cfg-gizmo_map">Ruta a gizmo_map.json (mapa de proyectos)</label>
         <input type="text" id="cfg-gizmo_map" autocomplete="off">
         <div class="path-suggest" id="suggest-gizmo_map"></div>
+      </div>
+      <div class="field">
+        <label for="cfg-suno_backup">MUSIC<span class="brand-ia">·0</span>LOGY — carpeta del backup de Suno</label>
+        <input type="text" id="cfg-suno_backup" autocomplete="off">
+        <div class="path-suggest" id="suggest-suno_backup"></div>
+      </div>
+      <div class="field">
+        <label for="cfg-suno_vault">MUSIC<span class="brand-ia">·0</span>LOGY — vault de música</label>
+        <input type="text" id="cfg-suno_vault" autocomplete="off">
+        <div class="path-suggest" id="suggest-suno_vault"></div>
       </div>
     </div>
 
@@ -281,6 +295,96 @@
   </section>
 
   <!-- RECONEXION -->
+  <!-- MUSIC·0LOGY -->
+  <section id="panel-musicology" class="panel">
+    <div class="panel-header">
+      <div class="panel-header-text">
+        <h1>MUSIC<span class="brand-ia">·0</span>LOGY</h1>
+        <p class="panel-header-desc">Rescata tu biblioteca de Suno y ponla en orden.</p>
+        <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
+      </div>
+      <img src="assets/musicology.png" alt="" class="panel-header-icon"
+           onerror="this.style.display='none'">
+    </div>
+
+    <div class="card">
+      <h2>Captura</h2>
+      <p class="card-help">
+        Suno no tiene export. Su biblioteca se pide a la API con un token que copias
+        del navegador y que caduca en minutos — por eso este paso es manual a propósito.
+        Es lo único de la aplicación que sale a Internet, y solo cuando tú lo lanzas.
+      </p>
+
+      <div class="metro">
+        <div class="metro-stop">
+          <div class="metro-dot">1</div>
+          <div class="metro-label">suno.com</div>
+          <div class="metro-sub">abre tu Library<br>con la sesión iniciada</div>
+        </div>
+        <div class="metro-line"></div>
+        <div class="metro-stop">
+          <div class="metro-dot">2</div>
+          <div class="metro-label">F12 → Network</div>
+          <div class="metro-sub">refresca la página<br>para ver las llamadas</div>
+        </div>
+        <div class="metro-line"></div>
+        <div class="metro-stop">
+          <div class="metro-dot">3</div>
+          <div class="metro-label">studio-api</div>
+          <div class="metro-sub">busca una llamada ahí<br>no las de clerk.suno.com</div>
+        </div>
+        <div class="metro-line"></div>
+        <div class="metro-stop">
+          <div class="metro-dot">4</div>
+          <div class="metro-label">Headers</div>
+          <div class="metro-sub">copia los dos valores<br>de abajo</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="suno-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
+        <input type="password" id="suno-token" autocomplete="off" spellcheck="false"
+               placeholder="eyJhbGciOi...">
+      </div>
+      <div class="field">
+        <label for="suno-browser-token">browser-token</label>
+        <input type="password" id="suno-browser-token" autocomplete="off" spellcheck="false">
+      </div>
+      <p class="card-help" style="margin-top:-4px;">
+        No se guardan en ningún sitio: viven en memoria durante la descarga y se van
+        contigo al cerrar la pestaña. Caducan solos en minutos.
+      </p>
+
+      <button class="btn" id="btn-suno-backup">Descargar biblioteca</button>
+      <div id="suno-backup-msg" class="msg"></div>
+      <pre id="suno-log" class="log-box" style="display:none;"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Verificación</h2>
+      <p class="card-help">
+        Cruza los identificadores del índice contra los ficheros que hay en disco y
+        avisa de huecos, vacíos y corruptos. Merece la pena antes de construir: si el
+        token caducó a mitad de descarga, aquí es donde se ve.
+      </p>
+      <button class="btn" id="btn-suno-verify">Verificar backup</button>
+      <div id="suno-verify-msg" class="msg"></div>
+      <pre id="suno-verify-out" class="log-box" style="display:none;"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Construir el vault</h2>
+      <p class="card-help">
+        Convierte el backup en notas de Obsidian, una por pista, con el linaje entre
+        covers, remixes y mashups resuelto como enlaces. Se regenera entero en cada
+        pasada: el backup es la fuente de verdad, el vault es derivado.
+      </p>
+      <button class="btn" id="btn-suno-build">Construir vault</button>
+      <div id="suno-build-msg" class="msg"></div>
+      <pre id="suno-build-out" class="log-box" style="display:none;"></pre>
+    </div>
+  </section>
+
   <section id="panel-reconexion" class="panel">
     <div class="panel-header">
       <div class="panel-header-text">
