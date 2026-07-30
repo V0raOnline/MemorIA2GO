@@ -27,6 +27,8 @@ async function loadConfig() {
   document.getElementById("cfg-base_vault").value = paths.base_vault || "";
   document.getElementById("cfg-exports_dir").value = paths.exports_dir || "";
   document.getElementById("cfg-gizmo_map").value = paths.gizmo_map || "";
+  document.getElementById("cfg-suno_backup").value = paths.suno_backup || "";
+  document.getElementById("cfg-suno_vault").value = paths.suno_vault || "";
   document.getElementById("cfg-prj_vault_name").value = opts.prj_vault_name || "PRJ_VAULT";
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
   document.getElementById("cfg-by_month").checked = opts.by_month !== false;
@@ -40,6 +42,8 @@ async function saveConfig() {
       base_vault: document.getElementById("cfg-base_vault").value.trim(),
       exports_dir: document.getElementById("cfg-exports_dir").value.trim(),
       gizmo_map: document.getElementById("cfg-gizmo_map").value.trim(),
+      suno_backup: document.getElementById("cfg-suno_backup").value.trim(),
+      suno_vault: document.getElementById("cfg-suno_vault").value.trim(),
     },
     options: {
       prj_vault_name: document.getElementById("cfg-prj_vault_name").value.trim() || "PRJ_VAULT",
@@ -1180,6 +1184,126 @@ function attachPathAutocomplete(inputId, suggestId, ext) {
 attachPathAutocomplete("cfg-base_vault", "suggest-base_vault");
 attachPathAutocomplete("cfg-exports_dir", "suggest-exports_dir");
 attachPathAutocomplete("cfg-gizmo_map", "suggest-gizmo_map", "json");
+attachPathAutocomplete("cfg-suno_backup", "suggest-suno_backup");
+attachPathAutocomplete("cfg-suno_vault", "suggest-suno_vault");
 
 loadConfig();
 loadDashboard();
+
+// ─────────────────────────────────────────
+// MUSIC·0LOGY
+// ─────────────────────────────────────────
+
+// Los tokens NUNCA se guardan: ni en la config, ni en localStorage, ni en la
+// URL. Se leen del campo, viajan en el cuerpo del POST y se olvidan. Caducan
+// solos en minutos, asi que persistirlos no ahorraria nada y a cambio dejaria
+// una credencial de la cuenta entera escrita en disco.
+async function sunoBackup() {
+  const btn = document.getElementById("btn-suno-backup");
+  const msg = document.getElementById("suno-backup-msg");
+  const log = document.getElementById("suno-log");
+  const token = document.getElementById("suno-token").value.trim();
+  const browserToken = document.getElementById("suno-browser-token").value.trim();
+
+  if (!token) {
+    msg.textContent = "Pega el Bearer token primero.";
+    msg.className = "msg error";
+    return;
+  }
+
+  btn.disabled = true;
+  msg.textContent = "Descargando. El token caduca en minutos: si se corta, saca uno nuevo y vuelve a lanzarlo — retoma solo.";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+
+  try {
+    // POST con respuesta en streaming, no EventSource: EventSource solo hace
+    // GET, y el token acabaria en la query string -> historial del navegador
+    // y logs de acceso. En el cuerpo no.
+    const res = await fetch("/api/suno/backup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, browser_token: browserToken }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let resto = "";
+    let codigo = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resto += decoder.decode(value, { stream: true });
+      const lineas = resto.split("\n");
+      resto = lineas.pop();
+      for (const linea of lineas) {
+        if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
+        if (linea.startsWith("__ERROR__")) { throw new Error(linea.slice(9).trim()); }
+        log.textContent += linea + "\n";
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    if (codigo === 0) {
+      msg.textContent = "Biblioteca descargada. Verifica el backup antes de construir.";
+      msg.className = "msg ok";
+      loadDashboard();   // la tarjeta del Observatorio ya refleja lo nuevo
+    } else {
+      msg.textContent = "La descarga terminó con errores — mira el log. Si el token caducó, saca uno nuevo y relanza: retoma donde se quedó.";
+      msg.className = "msg warn";
+    }
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function sunoAccion(url, btnId, msgId, outId, textos) {
+  const btn = document.getElementById(btnId);
+  const msg = document.getElementById(msgId);
+  const out = document.getElementById(outId);
+  btn.disabled = true;
+  msg.textContent = textos.trabajando;
+  msg.className = "msg";
+  out.style.display = "none";
+  try {
+    const res = await fetch(url, { method: "POST" });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.salida) {
+      out.textContent = data.salida;
+      out.style.display = "";
+    }
+    msg.textContent = data.ok === false ? textos.problemas : textos.ok;
+    msg.className = data.ok === false ? "msg warn" : "msg ok";
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("btn-suno-backup").addEventListener("click", sunoBackup);
+
+document.getElementById("btn-suno-verify").addEventListener("click", () =>
+  sunoAccion("/api/suno/verify", "btn-suno-verify", "suno-verify-msg", "suno-verify-out", {
+    trabajando: "Cruzando el índice contra los ficheros...",
+    ok: "Backup íntegro.",
+    problemas: "Hay huecos o ficheros dañados — mira el detalle.",
+  }));
+
+document.getElementById("btn-suno-build").addEventListener("click", () =>
+  sunoAccion("/api/suno/build", "btn-suno-build", "suno-build-msg", "suno-build-out", {
+    trabajando: "Construyendo el vault (puede tardar)...",
+    ok: "Vault construido. Ábrelo en Obsidian.",
+    problemas: "Terminó con avisos — mira el detalle.",
+  }));

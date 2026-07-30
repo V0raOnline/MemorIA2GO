@@ -17,6 +17,10 @@ paths:
   # Opcional: sin esto, la tarjeta de música simplemente no aparece.
   suno_backup: ''
 
+  # 🎵 MUSIC·0LOGY — vault de Obsidian donde se construyen las canciones.
+  # Separado del vault de conversaciones: es otro pipeline.
+  suno_vault: ''
+
 #=============================================
 # ⚙️  Opciones de procesamiento
 #=============================================

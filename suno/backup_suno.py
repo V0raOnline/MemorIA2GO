@@ -40,6 +40,7 @@ en el JSON de respuesta (imprime uno con --debug para inspeccionar).
 
 import argparse
 import json
+import os
 import time
 import sys
 from pathlib import Path
@@ -252,16 +253,24 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Muestra info extra para depurar la API.")
     args = parser.parse_args()
 
-    if not args.token and not args.token_file:
-        print("[error] necesitas --token o --token-file")
-        sys.exit(1)
+    # Variables de entorno como tercera via, anadida al integrar la pestana
+    # MUSIC·0LOGY (2026-07-30). Es como se los pasa el launcher: un token en
+    # argv aparece en la lista de procesos del sistema (tasklist, ps) para
+    # cualquiera que mire, y un Bearer de Clerk da acceso a la cuenta entera
+    # mientras dure. Por el entorno del hijo no se expone asi.
+    token = args.token or os.environ.get("SUNO_TOKEN")
+    if not token and args.token_file:
+        token = Path(args.token_file).read_text(encoding="utf-8").strip()
+    browser_token = args.browser_token or os.environ.get("SUNO_BROWSER_TOKEN")
 
-    token = args.token or Path(args.token_file).read_text(encoding="utf-8").strip()
+    if not token:
+        print("[error] necesitas --token, --token-file o la variable SUNO_TOKEN")
+        sys.exit(1)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    session = build_session(token, args.browser_token)
+    session = build_session(token, browser_token)
 
     index_path = out_dir / "_index.json"
     existing_songs = []

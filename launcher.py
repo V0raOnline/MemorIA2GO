@@ -198,6 +198,123 @@ def set_config():
 # API: estadisticas
 # ─────────────────────────────────────────
 
+# ─────────────────────────────────────────
+# API: MUSIC·0LOGY — herramienta hermana, pipeline propio, misma casa.
+#
+# Es el UNICO sitio de la app que sale a Internet, y lo hace solo cuando le
+# pones un token en la mano y pulsas. La regla de producto ("el pipeline
+# nunca hace peticiones de red salientes") sigue en pie: no es el pipeline,
+# y no es por iniciativa propia.
+# ─────────────────────────────────────────
+
+def _suno_script(nombre: str) -> Path:
+    return HERE / "suno" / nombre
+
+
+@app.route("/api/suno/backup", methods=["POST"])
+def suno_backup():
+    """Descarga la biblioteca. POST con streaming (no SSE por GET) porque el
+    token viaja en el cuerpo: en una query string acabaria en el historial
+    del navegador y en cualquier log de acceso.
+
+    Los tokens se pasan al hijo por ENTORNO, no por argv. Un Bearer de Clerk
+    da acceso a la cuenta entera mientras dura, y argv es visible en la
+    lista de procesos del sistema para cualquiera que mire.
+    """
+    data = request.get_json(force=True) or {}
+    token = (data.get("token") or "").strip()
+    browser_token = (data.get("browser_token") or "").strip()
+    if not token:
+        return jsonify({"error": "Falta el Bearer token"}), 400
+
+    from config_loader import load_config, get_path
+    cfg = load_config(str(CONFIG_PATH))
+    backup = get_path(cfg, "suno_backup")
+    if not backup:
+        return jsonify({"error": "Configura primero la carpeta del backup (suno_backup)"}), 400
+
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+
+    def generate():
+        try:
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "SUNO_TOKEN": token}
+            if browser_token:
+                env["SUNO_BROWSER_TOKEN"] = browser_token
+            proc = subprocess.Popen(
+                [sys.executable, str(_suno_script("backup_suno.py")), "--out", str(backup)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", bufsize=1, env=env,
+            )
+            # Censura de salida: el log va EN VIVO a la pantalla, y de ahi a
+            # una captura compartida hay un paso. Hoy backup_suno.py no
+            # imprime los tokens, pero un print de depuracion anadido con
+            # prisa manana si podria -- esto lo ataja en la frontera en vez
+            # de confiar en que nadie se equivoque nunca. Hay un test que lo
+            # comprueba simulando un script que los escupe.
+            secretos = [s for s in (token, browser_token) if s and len(s) > 8]
+            for line in proc.stdout:
+                limpia = line.rstrip()
+                for s in secretos:
+                    limpia = limpia.replace(s, "[token oculto]")
+                yield limpia + "\n"
+            proc.wait()
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _suno_run(script: str, args: list) -> tuple:
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(_suno_script(script))] + args,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=1800, env=env,
+    )
+    salida = (result.stdout or "") + (result.stderr or "")
+    return result.returncode, salida.strip()
+
+
+@app.route("/api/suno/verify", methods=["POST"])
+def suno_verify():
+    """Cruza los IDs de _index.json contra los ficheros reales. La pasada que
+    confirma que el backup esta integro ANTES de construir el vault."""
+    try:
+        from config_loader import load_config, get_path
+        backup = get_path(load_config(str(CONFIG_PATH)), "suno_backup")
+        if not backup:
+            return jsonify({"error": "Configura primero la carpeta del backup (suno_backup)"}), 400
+        code, salida = _suno_run("verify_backup.py", ["--backup-dir", str(backup)])
+        return jsonify({"ok": code == 0, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/suno/build", methods=["POST"])
+def suno_build():
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        backup = get_path(cfg, "suno_backup")
+        vault = get_path(cfg, "suno_vault")
+        if not backup:
+            return jsonify({"error": "Configura primero la carpeta del backup (suno_backup)"}), 400
+        if not vault:
+            return jsonify({"error": "Configura primero el vault de musica (suno_vault)"}), 400
+        code, salida = _suno_run("build_suno_vault.py",
+                                  ["--backup-dir", str(backup), "--vault-dir", str(vault)])
+        if code != 0:
+            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+        return jsonify({"ok": True, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _con_suno(stats: dict, cfg: dict) -> dict:
     """Añade las stats de MUSIC·0LOGY al payload del dashboard.
 
