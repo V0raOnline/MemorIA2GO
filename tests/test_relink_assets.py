@@ -114,3 +114,54 @@ def test_relink_vault_dry_run_no_escribe_nada(tmp_path):
 
     assert stats["enlaces_reescritos"] == 1
     assert "IMAGE_BANK/uno.png" in nota.read_text(encoding="utf-8")  # intacto
+
+
+def test_relink_reescribe_enlaces_de_fichero_no_solo_imagenes(tmp_path):
+    """Bug real (cazado 2026-07-30 preparando el renombrado de carpetas):
+    la herramienta nacio cuando los bancos solo tenian imagenes, asi que su
+    patron era ![](ruta) y solo eso. Despues llegaron CLAUDE/ARTEFACTOS
+    (SIEMPRE [texto](ruta), nunca imagen) y los adjuntos no-imagen de Grok.
+    Contra el vault real: los 16 artefactos y 4 de los 16 adjuntos de Grok
+    usan la forma de enlace -- al mover un banco se quedaban apuntando a la
+    carpeta vieja SIN aviso, que es la peor manera de fallar."""
+    nota = tmp_path / "a.md"
+    _write_note(nota, (
+        "![](CLAUDE/ARTEFACTOS/codigo/script.py)\n\n"
+        "🧩 Artefacto: **Mi script** → [script.py](CLAUDE/ARTEFACTOS/codigo/script.py)\n"
+    ))
+    mapa = {"CLAUDE/ARTEFACTOS/codigo/script.py": "CLAUDE/ARTIFACTS/code/script.py"}
+
+    stats = ra.relink_vault(tmp_path, mapa)
+    texto = nota.read_text(encoding="utf-8")
+
+    assert stats["enlaces_reescritos"] == 2, "la forma [texto](ruta) se quedo sin reescribir"
+    assert "CLAUDE/ARTEFACTOS" not in texto
+    assert "[script.py](CLAUDE/ARTIFACTS/code/script.py)" in texto
+    assert "![](CLAUDE/ARTIFACTS/code/script.py)" in texto
+
+
+def test_relink_no_toca_wikilinks(tmp_path):
+    """El contrato de la herramienta: nunca [[wikilinks]] ni texto normal.
+    Ampliar el patron a [texto](ruta) no debe romper esa promesa."""
+    nota = tmp_path / "a.md"
+    _write_note(nota, "[[CLAUDE/ARTEFACTOS/codigo/script.py]]\n\nCLAUDE/ARTEFACTOS suelto\n")
+    mapa = {"CLAUDE/ARTEFACTOS/codigo/script.py": "CLAUDE/ARTIFACTS/code/script.py"}
+
+    stats = ra.relink_vault(tmp_path, mapa)
+
+    assert stats["enlaces_reescritos"] == 0
+    assert "[[CLAUDE/ARTEFACTOS/codigo/script.py]]" in nota.read_text(encoding="utf-8")
+
+
+def test_relink_dry_run_cuenta_las_dos_formas(tmp_path):
+    nota = tmp_path / "a.md"
+    _write_note(nota, "![](GROK/ADJUNTOS/foto.jpg)\n\n[informe.pdf](GROK/ADJUNTOS/informe.pdf)\n")
+    mapa = {
+        "GROK/ADJUNTOS/foto.jpg": "GROK/ATTACHMENTS/foto.jpg",
+        "GROK/ADJUNTOS/informe.pdf": "GROK/ATTACHMENTS/informe.pdf",
+    }
+
+    stats = ra.relink_vault(tmp_path, mapa, dry_run=True)
+
+    assert stats["enlaces_reescritos"] == 2
+    assert "GROK/ADJUNTOS" in nota.read_text(encoding="utf-8")  # intacto

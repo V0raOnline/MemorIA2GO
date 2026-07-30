@@ -9,9 +9,15 @@ ser habitual" -- ya pasó una vez con _assets->IMAGE_BANK, ahora con
 IMAGE_BANK->bancos por proveedor/tipo, y volverá a pasar). Sirve para
 CUALQUIER reorganización futura de assets, no solo esta.
 
-Solo toca enlaces markdown de imagen/archivo con la forma ![](ruta) --
-nunca wikilinks [[...]] ni el resto del texto de la nota. No escribe un
-archivo si no hubo cambios (no toca mtime sin motivo).
+Toca las dos formas de enlace markdown: ![](ruta) de imagen y [texto](ruta)
+de fichero -- nunca wikilinks [[...]] ni el resto del texto de la nota. No
+escribe un archivo si no hubo cambios (no toca mtime sin motivo).
+
+Nacio en 2026-07-22 casando SOLO ![](ruta), porque entonces los bancos solo
+guardaban imagenes. CLAUDE/ARTEFACTOS (siempre [texto](ruta)) y los adjuntos
+no-imagen de Grok llegaron despues y la dejaron insuficiente sin que nada
+avisara: mover uno de esos bancos dejaba los enlaces apuntando a la carpeta
+vieja, en silencio. Corregido 2026-07-30.
 
 Uso:
   python relink_assets.py RAW_VAULT --mapa mapeo.json
@@ -30,7 +36,15 @@ from typing import Dict
 
 from tree_index import iter_markdown_files
 
-IMG_LINK_RE = re.compile(r"!\[\]\(([^)]+)\)")
+# Casa las DOS formas de enlace markdown: ![](ruta) de imagen y [texto](ruta)
+# de fichero. Empezo siendo solo la primera (2026-07-22, cuando los bancos solo
+# tenian imagenes); CLAUDE/ARTEFACTOS usa SIEMPRE la segunda y GROK/ADJUNTOS
+# mezcla ambas segun el tipo, asi que la version de solo-imagen dejaba enlaces
+# apuntando a la carpeta vieja sin avisar. El grupo 'bang' preserva cual era.
+#
+# El '(?<!\[)' del principio protege el contrato de la herramienta: NUNCA
+# tocar wikilinks [[...]]. Sin el, "[[ruta]]" entraria por la rama de enlace.
+ASSET_LINK_RE = re.compile(r"(?<!\[)(?P<bang>!)?\[(?P<text>[^\]]*)\]\((?P<path>[^)]+)\)")
 
 
 def relink_file(path: Path, mapa: Dict[str, str]) -> int:
@@ -44,14 +58,16 @@ def relink_file(path: Path, mapa: Dict[str, str]) -> int:
 
     def _sub(m: "re.Match[str]") -> str:
         nonlocal cambios
-        vieja = m.group(1)
-        nueva = mapa.get(vieja)
+        nueva = mapa.get(m.group("path"))
         if nueva is None:
             return m.group(0)
         cambios += 1
-        return f"![]({nueva})"
+        # Se reconstruye respetando la forma original: una imagen sigue siendo
+        # imagen y un enlace conserva su texto (que en los artefactos de Claude
+        # es el nombre de fichero visible, no un adorno).
+        return f"{m.group('bang') or ''}[{m.group('text')}]({nueva})"
 
-    nuevo_texto = IMG_LINK_RE.sub(_sub, text)
+    nuevo_texto = ASSET_LINK_RE.sub(_sub, text)
     if cambios:
         path.write_text(nuevo_texto, encoding="utf-8", newline="")
     return cambios
@@ -63,7 +79,7 @@ def contar_cambios(path: Path, mapa: Dict[str, str]) -> int:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return 0
-    return sum(1 for m in IMG_LINK_RE.finditer(text) if m.group(1) in mapa)
+    return sum(1 for m in ASSET_LINK_RE.finditer(text) if m.group("path") in mapa)
 
 
 def relink_vault(vault_root: Path, mapa: Dict[str, str], dry_run: bool = False) -> dict:
