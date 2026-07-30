@@ -223,6 +223,11 @@ def suno_backup():
     """
     data = request.get_json(force=True) or {}
     token = (data.get("token") or "").strip()
+    # browser-token: la API de Suno lo pedia cuando se escribio el script,
+    # pero en la practica (verificado por V0ra sobre su biblioteca entera) el
+    # Bearer basta. Se retiro de la interfaz para no doblar la dificultad del
+    # paso mas dificil; el endpoint lo sigue aceptando y backup_suno.py lo
+    # sigue soportando por CLI, como via de escape si Suno vuelve a exigirlo.
     browser_token = (data.get("browser_token") or "").strip()
     if not token:
         return jsonify({"error": "Falta el Bearer token"}), 400
