@@ -40,3 +40,9 @@ topic_map.json
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Backup crudo de Suno: 2094 pistas (mp3 + jpg + json) y el _index.json de
+# 12 MB. Son datos personales de V0ra y pesan GB -- el codigo se versiona,
+# el contenido de su biblioteca no.
+suno_backup/
+suno/suno_backup/
