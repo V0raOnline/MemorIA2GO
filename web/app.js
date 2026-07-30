@@ -1131,7 +1131,6 @@ async function sunoBackup() {
   const msg = document.getElementById("suno-backup-msg");
   const log = document.getElementById("suno-log");
   const token = document.getElementById("suno-token").value.trim();
-  const browserToken = document.getElementById("suno-browser-token").value.trim();
 
   if (!token) {
     msg.textContent = "Pega el Bearer token primero.";
@@ -1152,7 +1151,7 @@ async function sunoBackup() {
     const res = await fetch("/api/suno/backup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, browser_token: browserToken }),
+      body: JSON.stringify({ token }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
