@@ -23,8 +23,8 @@ Dos diferencias clave frente a image_index.py:
 Uso:
   python content_index.py MERGED_VAULT --conversations-dir Conversations \\
       --proveedor "ChatGPT" --out _index_chatgpt.md \\
-      --banco "CHATGPT/GENERATED:Generadas" \\
-      --banco "CHATGPT/ATTACHMENTS:Adjuntos"
+      --banco "CHATGPT/GENERATED:Generated" \\
+      --banco "CHATGPT/ATTACHMENTS:Attachments"
 """
 import argparse
 import json
@@ -51,7 +51,7 @@ ARTIFACT_TITLE_RE = re.compile(r"Artifact:\s*\*\*(?P<title>[^*]+)\*\*")
 
 class BankSpec(NamedTuple):
     prefix: str       # p.ej. "CHATGPT/GENERATED" -- tal cual aparece en los enlaces
-    label: str         # p.ej. "Generadas" -- texto de la rama colapsada
+    label: str         # p.ej. "Generated" -- texto de la rama colapsada
     bank_dir: Optional[Path] = None  # por defecto: vault/prefix
     catalog: bool = False  # True: banco SIN enlaces en ninguna nota (media_posts de
     # Grok/Imagine son root-level, no viven en ninguna conversacion) -- se indexa
@@ -130,7 +130,7 @@ def collect_bank_entries(vault: Path, conversations_dir: str, bank: BankSpec) ->
             for m in link_re.finditer(line):
                 # Dos cosas distintas que antes se confundian en una sola
                 # variable, y de ahi el bug: 'ruta' es lo que va en el enlace
-                # del indice (puede llevar subcarpeta -- CLAUDE/ARTEFACTOS
+                # del indice (puede llevar subcarpeta -- CLAUDE/ARTIFACTS
                 # organiza por tipo), 'fname' es el nombre pelado, que es la
                 # clave del manifest y el criterio de deduplicacion.
                 # Reconstruir el enlace desde fname tiraba la subcarpeta y
@@ -298,7 +298,7 @@ def main():
     ap.add_argument("--out", required=True, help="Archivo de salida dentro del vault")
     ap.add_argument("--banco", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, un --banco por rama con enlaces en notas. "
-                          "Ejemplo: 'CHATGPT/GENERATED:Generadas'")
+                          "Ejemplo: 'CHATGPT/GENERATED:Generated'")
     ap.add_argument("--banco-catalogo", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, para bancos SIN enlace en ninguna nota "
                           "(p.ej. GROK/GENERATED_IMAGE: media_posts es root-level). Se lista "

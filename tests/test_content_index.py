@@ -30,7 +30,7 @@ def test_banco_de_imagenes_con_manifest(tmp_path):
         encoding="utf-8",
     )
 
-    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generadas")
+    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generated")
     entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert len(entries) == 1
@@ -45,7 +45,7 @@ def test_banco_solo_enlaces_recupera_titulo_de_artefacto(tmp_path):
     _write_note(conv_dir / "a.md", title="Con artefacto", date="2026-07-01",
                 body="🧩 Artifact: **Mi Contador** → [contador-a1b2c3d4.py](CLAUDE/ARTIFACTS/code/contador-a1b2c3d4.py)\n")
 
-    bank = ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artefactos")
+    bank = ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artifacts")
     entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert len(entries) == 1
@@ -58,10 +58,10 @@ def test_banco_solo_enlaces_recupera_titulo_de_artefacto(tmp_path):
 def test_banco_mixto_imagen_y_enlace_en_la_misma_nota(tmp_path):
     vault = tmp_path
     conv_dir = vault / "Conversations"
-    _write_note(conv_dir / "a.md", title="Adjuntos mixtos", date="2026-07-01",
+    _write_note(conv_dir / "a.md", title="Mixed attachments", date="2026-07-01",
                 body="![](GROK/ATTACHMENTS/foto.jpg)\n\n📎 [Attached file](GROK/ATTACHMENTS/informe.pdf)\n")
 
-    bank = ci.BankSpec(prefix="GROK/ATTACHMENTS", label="Adjuntos")
+    bank = ci.BankSpec(prefix="GROK/ATTACHMENTS", label="Attachments")
     entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     items = entries[0]["items"]
@@ -77,7 +77,7 @@ def test_titulo_sin_patron_ni_texto_se_embellece_desde_el_nombre(tmp_path):
     _write_note(conv_dir / "a.md", title="X", date="2026-07-01",
                 body="[](GROK/ATTACHMENTS/mi-documento-final.pdf)\n")
 
-    bank = ci.BankSpec(prefix="GROK/ATTACHMENTS", label="Adjuntos")
+    bank = ci.BankSpec(prefix="GROK/ATTACHMENTS", label="Attachments")
     entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert entries[0]["items"][0]["titulo"] == "mi documento final"
@@ -90,20 +90,20 @@ def test_generate_provider_index_combina_varios_bancos_colapsados(tmp_path):
                 body="![](CHATGPT/GENERATED/g1.png)\n\n![](CHATGPT/ATTACHMENTS/s1.png)\n")
 
     bancos = [
-        ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generadas"),
-        ci.BankSpec(prefix="CHATGPT/ATTACHMENTS", label="Adjuntos"),
+        ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generated"),
+        ci.BankSpec(prefix="CHATGPT/ATTACHMENTS", label="Attachments"),
     ]
     resultado = ci.generate_provider_index(vault, "Conversations", "ChatGPT", bancos)
     md = resultado["markdown"]
 
     assert "# ChatGPT" in md
-    assert "Generadas (1)" in md
-    assert "Adjuntos (1)" in md
+    assert "Generated (1)" in md
+    assert "Attachments (1)" in md
     # colapsado por defecto: ningun <details> lleva el atributo open
     assert "<details open" not in md
     assert md.count("<details>") >= 4  # 2 ramas + 2 conversaciones (una por banco)
-    assert resultado["stats"]["Generadas"]["items"] == 1
-    assert resultado["stats"]["Adjuntos"]["items"] == 1
+    assert resultado["stats"]["Generated"]["items"] == 1
+    assert resultado["stats"]["Attachments"]["items"] == 1
     # bug real 2026-07-22: el resumen llevaba un \n embebido que, sumado al
     # separador del join, dejaba DOS lineas en blanco antes de la primera
     # rama en vez de una -- se ve "raro" en Obsidian (hueco de mas).
@@ -124,7 +124,7 @@ def test_banco_catalogo_lista_directo_desde_manifest_sin_notas(tmp_path):
         "def.png": {"origen": "generada", "prompt": "", "create_time": "2026-06-05T08:00:00Z"},
     }), encoding="utf-8")
 
-    bank = ci.BankSpec(prefix="GROK/GENERATED_IMAGE", label="Generadas (imagen)", catalog=True)
+    bank = ci.BankSpec(prefix="GROK/GENERATED_IMAGE", label="Generated (image)", catalog=True)
     items = ci.collect_catalog_entries(bank, vault)
 
     assert len(items) == 2
@@ -132,7 +132,7 @@ def test_banco_catalogo_lista_directo_desde_manifest_sin_notas(tmp_path):
     assert items[0]["prompt"] == "un gato"
 
     md = ci.render_catalog_branch(bank, items)
-    assert "Generadas (imagen) (2)" in md
+    assert "Generated (image) (2)" in md
     assert "<details open" not in md
     assert '"un gato"' in md
 
@@ -150,7 +150,7 @@ def test_banco_catalogo_prompt_con_comillas_propias_no_se_dobla(tmp_path):
         "abc.png": {"origen": "generada", "prompt": '"Arte en estilo cyberpunk', "create_time": ""},
     }), encoding="utf-8")
 
-    bank = ci.BankSpec(prefix="GROK/GENERATED_IMAGE", label="Generadas (imagen)", catalog=True)
+    bank = ci.BankSpec(prefix="GROK/GENERATED_IMAGE", label="Generated (image)", catalog=True)
     items = ci.collect_catalog_entries(bank, vault)
     assert items[0]["prompt"] == "Arte en estilo cyberpunk"
 
@@ -190,7 +190,7 @@ def test_bank_dir_fuera_del_vault_se_respeta(tmp_path):
         encoding="utf-8",
     )
 
-    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generadas", bank_dir=bank_dir)
+    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generated", bank_dir=bank_dir)
     entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert len(entries) == 1
@@ -218,33 +218,33 @@ def test_render_pendientes_note_vacio():
 def test_generate_provider_index_sin_contenido_no_revienta(tmp_path):
     vault = tmp_path
     (vault / "Conversations").mkdir()
-    bancos = [ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artefactos")]
+    bancos = [ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artifacts")]
     resultado = ci.generate_provider_index(vault, "Conversations", "Claude", bancos)
-    assert "Artefactos (0)" in resultado["markdown"]
-    assert resultado["stats"]["Artefactos"]["conversaciones"] == 0
+    assert "Artifacts (0)" in resultado["markdown"]
+    assert resultado["stats"]["Artifacts"]["conversaciones"] == 0
 
 
 def test_banco_con_subcarpetas_conserva_la_ruta_en_el_enlace(tmp_path):
     """Bug real (cazado 2026-07-30 verificando el renombrado de carpetas):
     collect_bank_entries hacia basename() sobre la ruta del enlace y
     render_bank_branch la reconstruia como prefix/fname, TIRANDO la
-    subcarpeta por el camino. CLAUDE/ARTEFACTOS es el unico banco con
-    subcarpetas (una por tipo: markdown/html/codigo), asi que era el unico
+    subcarpeta por el camino. CLAUDE/ARTIFACTS es el unico banco con
+    subcarpetas (una por tipo: markdown/html/code), asi que era el unico
     afectado -- y lo estaba al 100%: en el vault real de V0ra los 16
     enlaces de artefacto del indice apuntaban a ficheros inexistentes.
     Abrir el indice en Obsidian y hacer clic no llevaba a ninguna parte."""
     vault = tmp_path
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="Con artefacto", date="2026-07-01",
-                body="🧩 Artefacto: **Mi Doc** → [mi-doc-a1b2.md](CLAUDE/ARTEFACTOS/markdown/mi-doc-a1b2.md)\n")
+                body="🧩 Artifact: **Mi Doc** → [mi-doc-a1b2.md](CLAUDE/ARTIFACTS/markdown/mi-doc-a1b2.md)\n")
 
-    bank = ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artifacts")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
     md = ci.render_bank_branch(bank, entries)
 
-    assert "CLAUDE/ARTEFACTOS/markdown/mi-doc-a1b2.md" in md, \
+    assert "CLAUDE/ARTIFACTS/markdown/mi-doc-a1b2.md" in md, \
         "el enlace del indice perdio la subcarpeta de tipo"
-    assert "(CLAUDE/ARTEFACTOS/mi-doc-a1b2.md)" not in md
+    assert "(CLAUDE/ARTIFACTS/mi-doc-a1b2.md)" not in md
 
 
 def test_banco_con_subcarpetas_el_enlace_del_indice_resuelve_en_disco(tmp_path):
@@ -252,15 +252,15 @@ def test_banco_con_subcarpetas_el_enlace_del_indice_resuelve_en_disco(tmp_path):
     ruta escrita en el indice apunte a un fichero que EXISTE. Es la unica
     forma de cazar esta familia de bugs -- el markdown se veia perfecto."""
     vault = tmp_path
-    art = vault / "CLAUDE" / "ARTEFACTOS" / "codigo" / "script-ff01.py"
+    art = vault / "CLAUDE" / "ARTIFACTS" / "code" / "script-ff01.py"
     art.parent.mkdir(parents=True)
     art.write_text("print('hola')\n", encoding="utf-8")
 
-    _write_note(vault / "Conversaciones" / "a.md", title="X", date="2026-07-01",
-                body="🧩 Artefacto: **S** → [script-ff01.py](CLAUDE/ARTEFACTOS/codigo/script-ff01.py)\n")
+    _write_note(vault / "Conversations" / "a.md", title="X", date="2026-07-01",
+                body="🧩 Artifact: **S** → [script-ff01.py](CLAUDE/ARTIFACTS/code/script-ff01.py)\n")
 
-    bank = ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artifacts")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
     md = ci.render_bank_branch(bank, entries)
 
     import re as _re
@@ -274,12 +274,12 @@ def test_banco_plano_sigue_funcionando_igual(tmp_path):
     """Los bancos sin subcarpetas (todos menos CLAUDE) no deben cambiar de
     comportamiento al arreglar lo anterior."""
     vault = tmp_path
-    _write_note(vault / "Conversaciones" / "a.md", title="X", date="2026-07-01",
-                body="![](CHATGPT/GENERADAS/abc123.png)\n")
+    _write_note(vault / "Conversations" / "a.md", title="X", date="2026-07-01",
+                body="![](CHATGPT/GENERATED/abc123.png)\n")
 
-    bank = ci.BankSpec(prefix="CHATGPT/GENERADAS", label="Generadas")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generated")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
     md = ci.render_bank_branch(bank, entries)
 
-    assert "![](CHATGPT/GENERADAS/abc123.png)" in md
+    assert "![](CHATGPT/GENERATED/abc123.png)" in md
     assert entries[0]["items"][0]["fname"] == "abc123.png"
