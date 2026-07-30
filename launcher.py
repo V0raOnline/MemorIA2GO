@@ -24,6 +24,8 @@ Endpoints:
   POST /api/pendientes/registrar -> da de alta un pendiente descargado a mano (upload)
   POST /api/pendientes/descartar -> marca una imagen web como irrelevante
   POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
+  GET  /api/layout             -> ¿el vault usa el layout español? (pinta la card o no)
+  POST /api/layout/migrate     -> renombra el layout al inglés y reengancha enlaces
 """
 import argparse
 import json
@@ -630,6 +632,46 @@ def _registrar_imagen_web(base_vault, url: str, archivo) -> "Response":
     restantes = sum(1 for p in pendientes
                     if (p.get("estado") or "sin_triar") == "sin_triar")
     return jsonify({"ok": True, "fname": fname, "restantes": restantes})
+
+
+@app.route("/api/layout")
+def get_layout():
+    """Estado del layout del vault: si esta construido con los nombres de
+    carpeta de la edicion espanola, hace falta migrarlo. La card de
+    Reconexion solo se pinta si esto dice que si, para que un usuario nuevo
+    no vea un boton que no le sirve para nada (decision V0ra 2026-07-30).
+
+    Barato a proposito -- solo stat de rutas -- porque se llama en cada
+    carga de la pestana."""
+    try:
+        from config_loader import load_config, get_path
+        import layout_migration
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault or not Path(base_vault).is_dir():
+            return jsonify({"necesaria": False})
+        return jsonify(layout_migration.detectar(Path(base_vault)))
+    except Exception as e:
+        # No poder comprobar el layout no debe tumbar la pestana entera:
+        # el resto de Reconexion (pendientes, reindexar) sigue siendo util.
+        return jsonify({"necesaria": False, "error": str(e)})
+
+
+@app.route("/api/layout/migrate", methods=["POST"])
+def post_layout_migrate():
+    """Renombra el layout y reengancha los enlaces. Import directo (no
+    subprocess como /api/reindex) porque devuelve un informe estructurado
+    que la UI pinta, no un log."""
+    try:
+        from config_loader import load_config, get_path
+        import layout_migration
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault or not Path(base_vault).is_dir():
+            return jsonify({"error": "base_vault is not configured or does not exist"}), 400
+        return jsonify({"ok": True, **layout_migration.migrar(Path(base_vault))})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/reindex", methods=["POST"])

@@ -579,6 +579,8 @@ async function loadReconexion() {
   const listEl = document.getElementById("pendientes-list");
   listEl.innerHTML = `<div class="empty-note">Loading...</div>`;
 
+  comprobarLayout();  // sin await: no debe retrasar la lista de pendientes
+
   const res = await fetch("/api/pendientes");
   const data = await res.json();
   pendientesCache = {
@@ -758,6 +760,76 @@ async function descartarPendiente(btn) {
     msg.className = "msg error";
   }
 }
+
+// ─────────────────────────────────────────
+// Migracion de layout (solo si el vault viene de la edicion espanola)
+// ─────────────────────────────────────────
+
+// La card sale de la deteccion, no siempre: en un vault ya ingles no se
+// pinta. Decision V0ra 2026-07-30, junto con la de no enseñar el alcance
+// antes de ejecutar -- ver el confirm de abajo.
+async function comprobarLayout() {
+  const card = document.getElementById("card-layout");
+  if (!card) return;
+  try {
+    const data = await (await fetch("/api/layout")).json();
+    card.style.display = data.necesaria ? "" : "none";
+  } catch {
+    card.style.display = "none";
+  }
+}
+
+document.getElementById("btn-layout").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-layout");
+  const msg = document.getElementById("layout-msg");
+
+  // Recordatorio breve, no un desglose. V0ra: enseñar el alcance completo
+  // genera ansiedad sobre un proceso controlado que no destruye nada --
+  // las notas siempre se pueden regenerar desde los zips.
+  const seguir = confirm(
+    "This renames the vault's folders and updates the asset links inside your notes.\n\n" +
+    "Nothing is deleted: your notes can always be rebuilt from your exports.\n\n" +
+    "Close Obsidian first if you have this vault open."
+  );
+  if (!seguir) return;
+
+  btn.disabled = true;
+  msg.textContent = "Renaming folders and reconnecting links...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/layout/migrate", { method: "POST" });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const partes = [];
+    const movidos = (data.carpetas || []).length + (data.ficheros || []).length;
+    if (movidos) partes.push(`${movidos} folder(s) and file(s) renamed`);
+    if (data.enlaces_reescritos) {
+      partes.push(`${data.enlaces_reescritos} link(s) updated in ${data.notas_tocadas} note(s)`);
+    }
+    let texto = partes.length ? `Done: ${partes.join(", ")}.` : "Nothing left to rename.";
+    texto += " Reprocess your exports to rewrite the note content in English.";
+
+    // Lo que NO se pudo hacer se dice, no se esconde: es lo unico que
+    // requiere que el usuario mire su vault a mano.
+    if ((data.bloqueadas || []).length) {
+      texto += ` ${data.bloqueadas.length} skipped because the target name already exists: ` +
+               data.bloqueadas.map(b => b.de).join(", ") + ".";
+    }
+    if ((data.errores || []).length) {
+      texto += ` Errors: ${data.errores.join("; ")}`;
+    }
+
+    msg.textContent = texto;
+    msg.className = (data.bloqueadas || []).length || (data.errores || []).length ? "msg warn" : "msg ok";
+    await comprobarLayout();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 document.getElementById("btn-reindex").addEventListener("click", async () => {
   const btn = document.getElementById("btn-reindex");

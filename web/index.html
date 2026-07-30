@@ -295,6 +295,19 @@
       <div id="pendientes-list"><div class="empty-note">Loading...</div></div>
     </div>
 
+    <!-- Solo se muestra si /api/layout detecta el layout espanol -->
+    <div class="card" id="card-layout" style="display:none;">
+      <h2>Vault layout</h2>
+      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
+        This vault was built with the Spanish edition's folder names
+        (<code>Conversaciones</code>, <code>GENERADAS</code>, <code>ADJUNTOS</code>…).
+        Renaming them to the English layout keeps every asset link intact, and means a
+        later reprocess writes into this tree instead of building a second one beside it.
+      </p>
+      <button class="btn" id="btn-layout">Rename to English layout</button>
+      <div id="layout-msg" class="msg"></div>
+    </div>
+
     <div class="card">
       <h2>Rebuild indexes</h2>
       <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">

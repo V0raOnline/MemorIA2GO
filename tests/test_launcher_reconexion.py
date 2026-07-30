@@ -284,3 +284,64 @@ def test_registrar_sin_fichero_da_error(client, tmp_path):
 
     res = client.post("/api/pendientes/registrar", data={"id": "abc123"}, content_type="multipart/form-data")
     assert res.status_code == 400
+
+
+# ─────────────────────────────────────────
+# Migracion de layout (i18n fase 3b)
+# ─────────────────────────────────────────
+
+def _vault_con_layout_espanol(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "MERGED_VAULT" / "Conversaciones" / "2026").mkdir(parents=True)
+    (vault / "CHATGPT" / "GENERADAS").mkdir(parents=True)
+    (vault / "CHATGPT" / "GENERADAS" / "img.png").write_bytes(b"x")
+    (vault / "MERGED_VAULT" / "Conversaciones" / "2026" / "a.md").write_text(
+        "![](CHATGPT/GENERADAS/img.png)\n", encoding="utf-8")
+    return vault
+
+
+def test_layout_en_vault_ingles_no_pide_migracion(client, tmp_path):
+    """Lo que decide si la card se pinta. En un vault ya ingles, no."""
+    (tmp_path / "vault" / "MERGED_VAULT" / "Conversations").mkdir(parents=True)
+
+    data = client.get("/api/layout").get_json()
+
+    assert data["necesaria"] is False
+
+
+def test_layout_detecta_el_vault_espanol(client, tmp_path):
+    _vault_con_layout_espanol(tmp_path)
+
+    data = client.get("/api/layout").get_json()
+
+    assert data["necesaria"] is True
+    assert any(c["de"] == "MERGED_VAULT/Conversaciones" for c in data["carpetas"])
+
+
+def test_layout_sin_vault_configurado_no_revienta(client):
+    """base_vault apunta a algo que no existe: la pestana entera no puede
+    caerse por esto -- pendientes y reindexar siguen siendo utiles."""
+    data = client.get("/api/layout").get_json()
+
+    assert data["necesaria"] is False
+
+
+def test_migrate_renombra_y_reengancha(client, tmp_path):
+    vault = _vault_con_layout_espanol(tmp_path)
+
+    data = client.post("/api/layout/migrate").get_json()
+
+    assert data["ok"] is True
+    assert data["enlaces_reescritos"] == 1
+    assert (vault / "MERGED_VAULT" / "Conversations").is_dir()
+    nota = (vault / "MERGED_VAULT" / "Conversations" / "2026" / "a.md").read_text(encoding="utf-8")
+    assert "![](CHATGPT/GENERATED/img.png)" in nota
+
+
+def test_migrate_deja_el_vault_sin_migracion_pendiente(client, tmp_path):
+    """Despues de migrar, la card debe desaparecer sola."""
+    _vault_con_layout_espanol(tmp_path)
+
+    client.post("/api/layout/migrate")
+
+    assert client.get("/api/layout").get_json()["necesaria"] is False
