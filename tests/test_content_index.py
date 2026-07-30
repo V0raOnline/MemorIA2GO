@@ -222,3 +222,64 @@ def test_generate_provider_index_sin_contenido_no_revienta(tmp_path):
     resultado = ci.generate_provider_index(vault, "Conversations", "Claude", bancos)
     assert "Artefactos (0)" in resultado["markdown"]
     assert resultado["stats"]["Artefactos"]["conversaciones"] == 0
+
+
+def test_banco_con_subcarpetas_conserva_la_ruta_en_el_enlace(tmp_path):
+    """Bug real (cazado 2026-07-30 verificando el renombrado de carpetas):
+    collect_bank_entries hacia basename() sobre la ruta del enlace y
+    render_bank_branch la reconstruia como prefix/fname, TIRANDO la
+    subcarpeta por el camino. CLAUDE/ARTEFACTOS es el unico banco con
+    subcarpetas (una por tipo: markdown/html/codigo), asi que era el unico
+    afectado -- y lo estaba al 100%: en el vault real de V0ra los 16
+    enlaces de artefacto del indice apuntaban a ficheros inexistentes.
+    Abrir el indice en Obsidian y hacer clic no llevaba a ninguna parte."""
+    vault = tmp_path
+    conv_dir = vault / "Conversaciones"
+    _write_note(conv_dir / "a.md", title="Con artefacto", date="2026-07-01",
+                body="🧩 Artefacto: **Mi Doc** → [mi-doc-a1b2.md](CLAUDE/ARTEFACTOS/markdown/mi-doc-a1b2.md)\n")
+
+    bank = ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")
+    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    md = ci.render_bank_branch(bank, entries)
+
+    assert "CLAUDE/ARTEFACTOS/markdown/mi-doc-a1b2.md" in md, \
+        "el enlace del indice perdio la subcarpeta de tipo"
+    assert "(CLAUDE/ARTEFACTOS/mi-doc-a1b2.md)" not in md
+
+
+def test_banco_con_subcarpetas_el_enlace_del_indice_resuelve_en_disco(tmp_path):
+    """La comprobacion que de verdad importa y que ningun test hacia: que la
+    ruta escrita en el indice apunte a un fichero que EXISTE. Es la unica
+    forma de cazar esta familia de bugs -- el markdown se veia perfecto."""
+    vault = tmp_path
+    art = vault / "CLAUDE" / "ARTEFACTOS" / "codigo" / "script-ff01.py"
+    art.parent.mkdir(parents=True)
+    art.write_text("print('hola')\n", encoding="utf-8")
+
+    _write_note(vault / "Conversaciones" / "a.md", title="X", date="2026-07-01",
+                body="🧩 Artefacto: **S** → [script-ff01.py](CLAUDE/ARTEFACTOS/codigo/script-ff01.py)\n")
+
+    bank = ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")
+    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    md = ci.render_bank_branch(bank, entries)
+
+    import re as _re
+    rutas = _re.findall(r"\]\((CLAUDE/[^)]+)\)", md)
+    assert rutas, "el indice no genero ningun enlace"
+    for r in rutas:
+        assert (vault / r).exists(), f"enlace roto en el indice: {r}"
+
+
+def test_banco_plano_sigue_funcionando_igual(tmp_path):
+    """Los bancos sin subcarpetas (todos menos CLAUDE) no deben cambiar de
+    comportamiento al arreglar lo anterior."""
+    vault = tmp_path
+    _write_note(vault / "Conversaciones" / "a.md", title="X", date="2026-07-01",
+                body="![](CHATGPT/GENERADAS/abc123.png)\n")
+
+    bank = ci.BankSpec(prefix="CHATGPT/GENERADAS", label="Generadas")
+    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    md = ci.render_bank_branch(bank, entries)
+
+    assert "![](CHATGPT/GENERADAS/abc123.png)" in md
+    assert entries[0]["items"][0]["fname"] == "abc123.png"

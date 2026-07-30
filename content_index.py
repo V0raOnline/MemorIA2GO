@@ -128,14 +128,23 @@ def collect_bank_entries(vault: Path, conversations_dir: str, bank: BankSpec) ->
         seen = set()
         for line in text.splitlines():
             for m in link_re.finditer(line):
-                fname = os.path.basename(m.group("fname"))
+                # Dos cosas distintas que antes se confundian en una sola
+                # variable, y de ahi el bug: 'ruta' es lo que va en el enlace
+                # del indice (puede llevar subcarpeta -- CLAUDE/ARTEFACTOS
+                # organiza por tipo), 'fname' es el nombre pelado, que es la
+                # clave del manifest y el criterio de deduplicacion.
+                # Reconstruir el enlace desde fname tiraba la subcarpeta y
+                # dejaba los 16 artefactos del indice apuntando a la nada.
+                ruta = m.group("fname")
+                fname = os.path.basename(ruta)
                 if fname in seen:
                     continue
                 seen.add(fname)
                 es_imagen = bool(m.group("bang")) and Path(fname).suffix.lower() in IMG_EXTS
                 titulo = _display_title(line, m.group("text"), fname)
                 caption = _caption_for(manifest.get(fname, {}))
-                items.append({"fname": fname, "es_imagen": es_imagen, "titulo": titulo, "caption": caption})
+                items.append({"fname": fname, "ruta": ruta, "es_imagen": es_imagen,
+                              "titulo": titulo, "caption": caption})
         if not items:
             continue
 
@@ -204,7 +213,8 @@ def render_bank_branch(bank: BankSpec, entries: list) -> str:
         lines.append(f"<summary>{date_str} — {link}</summary>")
         lines.append("")
         for it in e["items"]:
-            rel_path = f"{bank.prefix}/{it['fname']}".replace("\\", "/")
+            # it["ruta"], no it["fname"]: conserva la subcarpeta de tipo.
+            rel_path = f"{bank.prefix}/{it.get('ruta') or it['fname']}".replace("\\", "/")
             if it["es_imagen"]:
                 lines.append(f"![]({rel_path})")
                 if it["caption"]:
