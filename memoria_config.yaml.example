@@ -13,6 +13,10 @@ paths:
   # 🧩 Mapa de proyectos: id → nombre legible (opcional)
   gizmo_map: 'G:\ruta\a\MemorIA2GO\gizmo_map.json'
 
+  # 🎵 MUSIC·0LOGY — carpeta del backup de Suno (la que contiene _index.json).
+  # Opcional: sin esto, la tarjeta de música simplemente no aparece.
+  suno_backup: ''
+
 #=============================================
 # ⚙️  Opciones de procesamiento
 #=============================================

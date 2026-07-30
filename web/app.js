@@ -236,6 +236,7 @@ async function loadDashboard(refresh = false) {
     }).join("");
 
     renderAssets(stats);
+    renderSuno(stats);
 
     renderEvolution(stats);
     renderTopTemas(stats);
@@ -413,6 +414,27 @@ function renderAssets(stats) {
     cajas.push(statBox(NOMBRES[proveedor] || proveedor, v.items, detalle || "sin contenido"));
   }
   el.innerHTML = cajas.join("");
+}
+
+// MUSIC·0LOGY. La tarjeta solo existe si hay backup: sin ruta configurada
+// el backend no manda la clave y la caja no se pinta. Deliberadamente NO se
+// pinta a cero -- decir "0 pistas" sobre una biblioteca que no has
+// descargado es mentir, no informar.
+function renderSuno(stats) {
+  const card = document.getElementById("card-suno");
+  const s = stats.suno;
+  if (!s) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  const proyectosSub = s.sin_proyecto ? `${s.sin_proyecto} sin proyecto` : "";
+  document.getElementById("dashboard-suno").innerHTML = [
+    statBox("Pistas", s.total, s.duracion_legible),
+    statBox("Favoritas", s.favoritas),
+    statBox("Completas", s.completas, "cierres de ciclo"),
+    statBox("Proyectos", s.proyectos, proyectosSub),
+  ].join("");
 }
 
 function renderTopTemas(stats) {
