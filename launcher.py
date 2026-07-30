@@ -526,7 +526,7 @@ def registrar_pendiente():
         from split_chatgpt_export import sniff_ext
 
         media_type = pendiente.get("media_type")
-        bank_name = "GENERADAS_VIDEO" if media_type == "video" else "GENERADAS_IMAGEN"
+        bank_name = "GENERATED_VIDEO" if media_type == "video" else "GENERATED_IMAGE"
         bank_dir = base_vault / "GROK" / bank_name
         bank_dir.mkdir(parents=True, exist_ok=True)
 
@@ -574,7 +574,7 @@ def _registrar_imagen_web(base_vault, url: str, archivo) -> "Response":
     """Rescata una imagen de busqueda web de ChatGPT al banco CHATGPT/WEB.
 
     Banco propio a proposito (decision V0ra 2026-07-27): no encaja en
-    GENERADAS (no la genero la IA) ni en ADJUNTOS (no la subio V0ra) --
+    GENERATED (no la genero la IA) ni en ATTACHMENTS (no la subio V0ra) --
     son referencias web de terceros, categoria distinta.
 
     A diferencia de Grok, la entrada NO se borra de la lista: se marca

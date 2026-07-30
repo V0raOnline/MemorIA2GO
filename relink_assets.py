@@ -14,7 +14,7 @@ de fichero -- nunca wikilinks [[...]] ni el resto del texto de la nota. No
 escribe un archivo si no hubo cambios (no toca mtime sin motivo).
 
 Nacio en 2026-07-22 casando SOLO ![](ruta), porque entonces los bancos solo
-guardaban imagenes. CLAUDE/ARTEFACTOS (siempre [texto](ruta)) y los adjuntos
+guardaban imagenes. CLAUDE/ARTIFACTS (siempre [texto](ruta)) y los adjuntos
 no-imagen de Grok llegaron despues y la dejaron insuficiente sin que nada
 avisara: mover uno de esos bancos dejaba los enlaces apuntando a la carpeta
 vieja, en silencio. Corregido 2026-07-30.
@@ -26,7 +26,7 @@ Uso:
   python relink_assets.py RAW_VAULT --mapa mapeo.json --dry-run
 
 mapeo.json: {"ruta_vieja_del_enlace": "ruta_nueva_del_enlace", ...}
-Ejemplo: {"IMAGE_BANK/abc123def456.png": "CHATGPT/GENERADAS/abc123def456.png"}
+Ejemplo: {"IMAGE_BANK/abc123def456.png": "CHATGPT/GENERATED/abc123def456.png"}
 """
 import argparse
 import json
@@ -38,7 +38,7 @@ from tree_index import iter_markdown_files
 
 # Casa las DOS formas de enlace markdown: ![](ruta) de imagen y [texto](ruta)
 # de fichero. Empezo siendo solo la primera (2026-07-22, cuando los bancos solo
-# tenian imagenes); CLAUDE/ARTEFACTOS usa SIEMPRE la segunda y GROK/ADJUNTOS
+# tenian imagenes); CLAUDE/ARTIFACTS usa SIEMPRE la segunda y GROK/ATTACHMENTS
 # mezcla ambas segun el tipo, asi que la version de solo-imagen dejaba enlaces
 # apuntando a la carpeta vieja sin avisar. El grupo 'bang' preserva cual era.
 #

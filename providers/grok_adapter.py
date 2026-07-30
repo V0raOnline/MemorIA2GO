@@ -23,12 +23,12 @@ Particularidades del formato (autopsia 2026-07-16 contra export real):
 - file_attachments son UUIDs de assets cuyo binario SÍ viaja en el zip
   (ttl/30d/.../prod-mc-asset-server//<uuid>/content). Se emite un marcador
   \x00GROKFILE:<uid>\x00 que split_chatgpt_export.py resuelve con
-  GrokAssetIndex/render_grok_file_tokens hacia GROK/ADJUNTOS (extraccion
+  GrokAssetIndex/render_grok_file_tokens hacia GROK/ATTACHMENTS (extraccion
   real desde 2026-07-22; v1 solo dejaba una referencia de texto).
 - media_posts (generaciones de Imagine) se procesan aparte (no son parte
   del mapping de ninguna conversacion, ver process_grok_media_posts en
-  split_chatgpt_export.py) hacia GROK/GENERADAS_IMAGEN o
-  GROK/GENERADAS_VIDEO; solo ~18% trae el binario en el zip (verificado
+  split_chatgpt_export.py) hacia GROK/GENERATED_IMAGE o
+  GROK/GENERATED_VIDEO; solo ~18% trae el binario en el zip (verificado
   contra export real), el resto queda en una lista de pendientes de
   descarga. agent_thinking_traces/steps se omiten en v1.
 - projects ("workspaces") existen pero las conversaciones no los referencian
@@ -133,7 +133,7 @@ def _render_message(m: dict) -> str:
     for uid in m.get("file_attachments") or []:
         # Marcador \x00GROKFILE:<uid>\x00, resuelto luego por
         # render_grok_file_tokens (split_chatgpt_export.py) hacia
-        # GROK/ADJUNTOS, o degradado a texto legible si no hay banco
+        # GROK/ATTACHMENTS, o degradado a texto legible si no hay banco
         # configurado -- mismo patron que \x00IMG:...\x00 para ChatGPT.
         chunks.append(f"\x00GROKFILE:{uid}\x00")
     text = (m.get("message") or "").strip()

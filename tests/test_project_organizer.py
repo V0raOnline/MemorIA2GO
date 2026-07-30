@@ -33,7 +33,7 @@ def _organizar(src: Path, dst: Path):
 
 def test_organiza_conversaciones_por_proyecto_y_fecha(tmp_path):
     src, dst = tmp_path / "MERGED", tmp_path / "PRJ"
-    _nota(src / "Conversaciones" / "2026" / "03" / "a.md",
+    _nota(src / "Conversations" / "2026" / "03" / "a.md",
           titulo="Con proyecto", proyecto="Arkinesis", fecha="2026-03-15")
     _organizar(src, dst)
     assert (dst / "Arkinesis" / "2026" / "03" / "a.md").exists()
@@ -41,28 +41,28 @@ def test_organiza_conversaciones_por_proyecto_y_fecha(tmp_path):
 
 def test_conversacion_sin_proyecto_va_a_none(tmp_path):
     src, dst = tmp_path / "MERGED", tmp_path / "PRJ"
-    _nota(src / "Conversaciones" / "2026" / "03" / "b.md",
+    _nota(src / "Conversations" / "2026" / "03" / "b.md",
           titulo="Sin proyecto", fecha="2026-03-15")
     _organizar(src, dst)
     assert (dst / "none" / "2026" / "03" / "b.md").exists()
 
 
 def test_no_arrastra_indices_ni_notas_de_tema(tmp_path):
-    """Bug real 2026-07-28: los indices y las notas de _Temas/ no tienen
+    """Bug real 2026-07-28: los indices y las notas de _Topics/ no tienen
     Project_name ni date, asi que acababan en none/0000/00 -- 24 ficheros
     y 1353 KB duplicados en el vault real, con sus enlaces contando doble
     en el grafo de Obsidian. PRJ_VAULT es una vista de CONVERSACIONES."""
     src, dst = tmp_path / "MERGED", tmp_path / "PRJ"
-    _nota(src / "Conversaciones" / "2026" / "03" / "real.md",
+    _nota(src / "Conversations" / "2026" / "03" / "real.md",
           titulo="Conversacion de verdad", proyecto="Arkinesis", fecha="2026-03-15")
 
     # Notas generadas, tal como las escribe el paso 4 (sin frontmatter util)
     for nombre in ("_tree_index.md", "scaffolding_index.md", "_index_chatgpt.md",
-                   "_index_grok.md", "_grok_pendientes.md"):
+                   "_index_grok.md", "_grok_pending.md"):
         (src / nombre).write_text("# indice generado\n", encoding="utf-8")
-    (src / "_Temas").mkdir(parents=True, exist_ok=True)
+    (src / "_Topics").mkdir(parents=True, exist_ok=True)
     for tema in ("arkinesis.md", "organoides.md"):
-        (src / "_Temas" / tema).write_text("# tema\n", encoding="utf-8")
+        (src / "_Topics" / tema).write_text("# tema\n", encoding="utf-8")
 
     _organizar(src, dst)
 
@@ -75,7 +75,7 @@ def test_no_arrastra_indices_ni_notas_de_tema(tmp_path):
 def test_los_indices_originales_no_se_tocan(tmp_path):
     """El fix filtra la lectura, no borra nada del vault fuente."""
     src, dst = tmp_path / "MERGED", tmp_path / "PRJ"
-    _nota(src / "Conversaciones" / "2026" / "03" / "a.md",
+    _nota(src / "Conversations" / "2026" / "03" / "a.md",
           titulo="X", proyecto="P", fecha="2026-03-01")
     idx = src / "_tree_index.md"
     idx.write_text("# indice\n", encoding="utf-8")
@@ -84,9 +84,9 @@ def test_los_indices_originales_no_se_tocan(tmp_path):
 
 
 def test_sin_carpeta_conversaciones_aborta_con_mensaje(tmp_path):
-    """Guarda ya existente: sin Conversaciones/ no hay nada que organizar."""
+    """Guarda ya existente: sin Conversations/ no hay nada que organizar."""
     src, dst = tmp_path / "MERGED", tmp_path / "PRJ"
     src.mkdir(parents=True)
     res = _organizar(src, dst)
     assert res.returncode != 0
-    assert "Conversaciones" in (res.stdout + res.stderr)
+    assert "Conversations" in (res.stdout + res.stderr)

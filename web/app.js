@@ -975,7 +975,7 @@ document.getElementById("btn-generate-topics").addEventListener("click", async (
     let t = `Index generated: ${data.temas} theme(s), ${data.enlaces} link(s)`;
     if (data.borradas) t += `, ${data.borradas} removed`;
     if (typeof data.huerfanas_sin_tema === "number") {
-      t += ` · ${data.huerfanas_sin_tema} orphan(s) with no theme yet (list in _Temas/_sin-tema)`;
+      t += ` · ${data.huerfanas_sin_tema} orphan(s) with no theme yet (list in _Topics/_no-topic)`;
     }
     if (data.sin_coincidencias && data.sin_coincidencias.length) {
       t += ` · no matches: ${data.sin_coincidencias.join(", ")}`;

@@ -22,13 +22,13 @@ def test_banco_vacio_no_revienta(tmp_path):
 
 
 def test_cuenta_por_proveedor_y_tipo(tmp_path):
-    _write(tmp_path / "CHATGPT" / "GENERADAS" / "a.png")
-    _write(tmp_path / "CHATGPT" / "GENERADAS" / "b.png")
-    _write(tmp_path / "CHATGPT" / "ADJUNTOS" / "c.png")
-    _write(tmp_path / "GROK" / "ADJUNTOS" / "d.jpg")
-    _write(tmp_path / "GROK" / "GENERADAS_VIDEO" / "e.mp4")
-    _write(tmp_path / "CLAUDE" / "ARTEFACTOS" / "markdown" / "f.md")
-    _write(tmp_path / "CLAUDE" / "ARTEFACTOS" / "codigo" / "g.py")
+    _write(tmp_path / "CHATGPT" / "GENERATED" / "a.png")
+    _write(tmp_path / "CHATGPT" / "GENERATED" / "b.png")
+    _write(tmp_path / "CHATGPT" / "ATTACHMENTS" / "c.png")
+    _write(tmp_path / "GROK" / "ATTACHMENTS" / "d.jpg")
+    _write(tmp_path / "GROK" / "GENERATED_VIDEO" / "e.mp4")
+    _write(tmp_path / "CLAUDE" / "ARTIFACTS" / "markdown" / "f.md")
+    _write(tmp_path / "CLAUDE" / "ARTIFACTS" / "code" / "g.py")
 
     stats = compute_asset_stats(tmp_path)
 
@@ -38,17 +38,17 @@ def test_cuenta_por_proveedor_y_tipo(tmp_path):
     assert stats["por_proveedor"]["claude"]["items"] == 2
 
     chatgpt_detalle = {d["etiqueta"]: d["items"] for d in stats["por_proveedor"]["chatgpt"]["detalle"]}
-    assert chatgpt_detalle["generadas"] == 2
-    assert chatgpt_detalle["adjuntos"] == 1
+    assert chatgpt_detalle["generated"] == 2
+    assert chatgpt_detalle["attachments"] == 1
 
     claude_detalle = {d["etiqueta"]: d["items"] for d in stats["por_proveedor"]["claude"]["detalle"]}
     assert claude_detalle["markdown"] == 1
-    assert claude_detalle["codigo"] == 1
+    assert claude_detalle["code"] == 1
 
 
 def test_ignora_manifests_y_ficheros_ocultos(tmp_path):
-    _write(tmp_path / "CHATGPT" / "GENERADAS" / "a.png")
-    _write(tmp_path / "CHATGPT" / "GENERADAS" / "_image_manifest.json", b"{}")
+    _write(tmp_path / "CHATGPT" / "GENERATED" / "a.png")
+    _write(tmp_path / "CHATGPT" / "GENERATED" / "_image_manifest.json", b"{}")
 
     stats = compute_asset_stats(tmp_path)
     assert stats["por_proveedor"]["chatgpt"]["items"] == 1
@@ -57,8 +57,8 @@ def test_ignora_manifests_y_ficheros_ocultos(tmp_path):
 def test_claude_sin_subtipos_con_items_no_aparece_en_detalle(tmp_path):
     """Solo se lista un tipo en el detalle si tiene al menos 1 item --
     evita ramas vacias tipo '0 svg' ensuciando la tarjeta."""
-    _write(tmp_path / "CLAUDE" / "ARTEFACTOS" / "markdown" / "a.md")
-    (tmp_path / "CLAUDE" / "ARTEFACTOS" / "html").mkdir(parents=True)
+    _write(tmp_path / "CLAUDE" / "ARTIFACTS" / "markdown" / "a.md")
+    (tmp_path / "CLAUDE" / "ARTIFACTS" / "html").mkdir(parents=True)
 
     stats = compute_asset_stats(tmp_path)
     etiquetas = [d["etiqueta"] for d in stats["por_proveedor"]["claude"]["detalle"]]

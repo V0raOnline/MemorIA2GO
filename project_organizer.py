@@ -28,21 +28,21 @@ def main():
 
     src = Path(args.source).expanduser().resolve()
     dst = Path(args.target).expanduser().resolve()
-    if not (src / "Conversaciones").exists():
-        raise SystemExit(f"❌ No encuentro {src}/Conversaciones")
+    if not (src / "Conversations").exists():
+        raise SystemExit(f"❌ No encuentro {src}/Conversations")
     dst.mkdir(parents=True, exist_ok=True)
 
     # Solo las conversaciones, no todo el vault. Bug real (2026-07-28): al
-    # recorrer `src` entero se arrastraban tambien las notas GENERADAS
+    # recorrer `src` entero se arrastraban tambien las notas GENERATED
     # (_tree_index, scaffolding_index, _index_chatgpt/claude/grok,
-    # _grok_pendientes y todas las de _Temas/). Ninguna tiene Project_name
+    # _grok_pending y todas las de _Topics/). Ninguna tiene Project_name
     # ni date, asi que caian en el cajon none/0000/00 y se refrescaban en
     # cada corrida: 24 ficheros y 1353 KB duplicados en el vault real de
     # V0ra, con sus enlaces contando doble en el grafo de Obsidian.
     # PRJ_VAULT es una vista de CONVERSACIONES por proyecto -- los indices
     # no pintan nada ahi. Filtrar por carpeta en vez de por lista de
     # nombres evita tener que acordarse de cada indice nuevo que se anada.
-    notes = list(iter_markdown_files(src / "Conversaciones"))
+    notes = list(iter_markdown_files(src / "Conversations"))
     created = 0
     for md in notes:
         try:

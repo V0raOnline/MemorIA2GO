@@ -17,14 +17,14 @@ Dos diferencias clave frente a image_index.py:
   - Combina VARIOS bancos en un solo archivo de salida (una rama <details>
     por banco), no uno por banco.
   - Entiende tanto enlaces de imagen ![](...) como enlaces de archivo
-    [texto](...) -- CLAUDE/ARTEFACTOS solo usa la segunda forma (no son
-    imagenes), GROK/ADJUNTOS mezcla ambas segun el tipo de archivo.
+    [texto](...) -- CLAUDE/ARTIFACTS solo usa la segunda forma (no son
+    imagenes), GROK/ATTACHMENTS mezcla ambas segun el tipo de archivo.
 
 Uso:
-  python content_index.py MERGED_VAULT --conversations-dir Conversaciones \\
+  python content_index.py MERGED_VAULT --conversations-dir Conversations \\
       --proveedor "ChatGPT" --out _index_chatgpt.md \\
-      --banco "CHATGPT/GENERADAS:Generadas" \\
-      --banco "CHATGPT/ADJUNTOS:Adjuntos"
+      --banco "CHATGPT/GENERATED:Generadas" \\
+      --banco "CHATGPT/ATTACHMENTS:Adjuntos"
 """
 import argparse
 import json
@@ -38,7 +38,7 @@ from tree_index import read_frontmatter, INDEX_FILENAMES, iter_markdown_files
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
 # Linea completa que produce render_claude_artifact_tokens (split_chatgpt_
-# export.py): "🧩 Artifact: **Titulo** → [fname](CLAUDE/ARTEFACTOS/...)".
+# export.py): "🧩 Artifact: **Titulo** → [fname](CLAUDE/ARTIFACTS/...)".
 # OJO (i18n fase 3a): este patron y el escritor de split_chatgpt_export.py
 # son un par -- traducir uno sin el otro rompe el indice de Claude EN
 # SILENCIO (los artefactos pierden el titulo y caen al nombre de fichero).
@@ -50,7 +50,7 @@ ARTIFACT_TITLE_RE = re.compile(r"Artifact:\s*\*\*(?P<title>[^*]+)\*\*")
 
 
 class BankSpec(NamedTuple):
-    prefix: str       # p.ej. "CHATGPT/GENERADAS" -- tal cual aparece en los enlaces
+    prefix: str       # p.ej. "CHATGPT/GENERATED" -- tal cual aparece en los enlaces
     label: str         # p.ej. "Generadas" -- texto de la rama colapsada
     bank_dir: Optional[Path] = None  # por defecto: vault/prefix
     catalog: bool = False  # True: banco SIN enlaces en ninguna nota (media_posts de
@@ -281,17 +281,17 @@ def main():
     ap.add_argument("vault", help="Ruta al vault a escanear (donde viven las notas)")
     ap.add_argument("--base-vault", default=None,
                      help="Raiz donde viven los bancos de assets (hermanos de RAW_VAULT/MERGED_VAULT/"
-                          "PRJ_VAULT), p.ej. CHATGPT/GENERADAS cuelga de aqui. Por defecto, el propio "
+                          "PRJ_VAULT), p.ej. CHATGPT/GENERATED cuelga de aqui. Por defecto, el propio "
                           "vault (sirve si vault YA es esa raiz, pero normalmente no lo es).")
-    ap.add_argument("--conversations-dir", default="Conversaciones")
+    ap.add_argument("--conversations-dir", default="Conversations")
     ap.add_argument("--proveedor", required=True, help="Titulo del proveedor (ChatGPT, Claude, Grok...)")
     ap.add_argument("--out", required=True, help="Archivo de salida dentro del vault")
     ap.add_argument("--banco", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, un --banco por rama con enlaces en notas. "
-                          "Ejemplo: 'CHATGPT/GENERADAS:Generadas'")
+                          "Ejemplo: 'CHATGPT/GENERATED:Generadas'")
     ap.add_argument("--banco-catalogo", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, para bancos SIN enlace en ninguna nota "
-                          "(p.ej. GROK/GENERADAS_IMAGEN: media_posts es root-level). Se lista "
+                          "(p.ej. GROK/GENERATED_IMAGE: media_posts es root-level). Se lista "
                           "directo desde el manifest, no cruzando con notas.")
     ap.add_argument("--pendientes-json", default=None,
                      help="[Grok] Ruta a _pendientes_descarga.json -- genera ademas una nota aparte "

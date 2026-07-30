@@ -27,26 +27,26 @@ def test_relink_file_reescribe_solo_los_enlaces_del_mapa(tmp_path):
         "![](IMAGE_BANK/sindestino.png)\n\n"
         "texto normal sin enlaces\n"
     ))
-    mapa = {"IMAGE_BANK/abc123.png": "CHATGPT/GENERADAS/abc123.png"}
+    mapa = {"IMAGE_BANK/abc123.png": "CHATGPT/GENERATED/abc123.png"}
 
     cambios = ra.relink_file(nota, mapa)
 
     assert cambios == 1
     texto = nota.read_text(encoding="utf-8")
-    assert "![](CHATGPT/GENERADAS/abc123.png)" in texto
+    assert "![](CHATGPT/GENERATED/abc123.png)" in texto
     assert "![](IMAGE_BANK/sindestino.png)" in texto  # sin mapeo, se queda igual
 
 
 def test_relink_file_no_toca_wikilinks(tmp_path):
     nota = tmp_path / "nota.md"
     _write_note(nota, "Ver [[IMAGE_BANK/abc123.png]] y ![](IMAGE_BANK/abc123.png)\n")
-    mapa = {"IMAGE_BANK/abc123.png": "CHATGPT/GENERADAS/abc123.png"}
+    mapa = {"IMAGE_BANK/abc123.png": "CHATGPT/GENERATED/abc123.png"}
 
     ra.relink_file(nota, mapa)
 
     texto = nota.read_text(encoding="utf-8")
     assert "[[IMAGE_BANK/abc123.png]]" in texto  # wikilink intacto
-    assert "![](CHATGPT/GENERADAS/abc123.png)" in texto  # embed reescrito
+    assert "![](CHATGPT/GENERATED/abc123.png)" in texto  # embed reescrito
 
 
 def test_relink_file_sin_cambios_no_reescribe_el_archivo(tmp_path):
@@ -54,19 +54,19 @@ def test_relink_file_sin_cambios_no_reescribe_el_archivo(tmp_path):
     _write_note(nota, "sin ningun enlace de imagen\n")
     mtime_antes = nota.stat().st_mtime
 
-    cambios = ra.relink_file(nota, {"IMAGE_BANK/x.png": "CHATGPT/GENERADAS/x.png"})
+    cambios = ra.relink_file(nota, {"IMAGE_BANK/x.png": "CHATGPT/GENERATED/x.png"})
 
     assert cambios == 0
     assert nota.stat().st_mtime == mtime_antes
 
 
 def test_relink_vault_recorre_recursivamente_y_suma_stats(tmp_path):
-    _write_note(tmp_path / "Conversaciones" / "2026" / "07" / "a.md",
+    _write_note(tmp_path / "Conversations" / "2026" / "07" / "a.md",
                 "![](IMAGE_BANK/uno.png)\n![](IMAGE_BANK/dos.png)\n")
-    _write_note(tmp_path / "Conversaciones" / "2026" / "07" / "b.md",
+    _write_note(tmp_path / "Conversations" / "2026" / "07" / "b.md",
                 "sin enlaces\n")
-    mapa = {"IMAGE_BANK/uno.png": "CHATGPT/GENERADAS/uno.png",
-            "IMAGE_BANK/dos.png": "CHATGPT/ADJUNTOS/dos.png"}
+    mapa = {"IMAGE_BANK/uno.png": "CHATGPT/GENERATED/uno.png",
+            "IMAGE_BANK/dos.png": "CHATGPT/ATTACHMENTS/dos.png"}
 
     stats = ra.relink_vault(tmp_path, mapa)
 
@@ -87,7 +87,7 @@ def test_relink_vault_no_revienta_con_junction_colgando(tmp_path):
     if sys.platform != "win32":
         pytest.skip("junctions son un concepto especifico de Windows")
 
-    _write_note(tmp_path / "Conversaciones" / "real.md", "![](IMAGE_BANK/uno.png)\n")
+    _write_note(tmp_path / "Conversations" / "real.md", "![](IMAGE_BANK/uno.png)\n")
 
     destino_inexistente = tmp_path / "no_existe" / "IMAGE_BANK"
     junction = tmp_path / "_assets"
@@ -98,7 +98,7 @@ def test_relink_vault_no_revienta_con_junction_colgando(tmp_path):
     if resultado.returncode != 0:
         pytest.skip(f"no se pudo crear el junction de prueba: {resultado.stderr.strip()}")
 
-    mapa = {"IMAGE_BANK/uno.png": "CHATGPT/GENERADAS/uno.png"}
+    mapa = {"IMAGE_BANK/uno.png": "CHATGPT/GENERATED/uno.png"}
     stats = ra.relink_vault(tmp_path, mapa)  # no debe lanzar FileNotFoundError
 
     assert stats["archivos_escaneados"] == 1
@@ -108,7 +108,7 @@ def test_relink_vault_no_revienta_con_junction_colgando(tmp_path):
 def test_relink_vault_dry_run_no_escribe_nada(tmp_path):
     nota = tmp_path / "a.md"
     _write_note(nota, "![](IMAGE_BANK/uno.png)\n")
-    mapa = {"IMAGE_BANK/uno.png": "CHATGPT/GENERADAS/uno.png"}
+    mapa = {"IMAGE_BANK/uno.png": "CHATGPT/GENERATED/uno.png"}
 
     stats = ra.relink_vault(tmp_path, mapa, dry_run=True)
 
@@ -119,7 +119,7 @@ def test_relink_vault_dry_run_no_escribe_nada(tmp_path):
 def test_relink_reescribe_enlaces_de_fichero_no_solo_imagenes(tmp_path):
     """Bug real (cazado 2026-07-30 preparando el renombrado de carpetas):
     la herramienta nacio cuando los bancos solo tenian imagenes, asi que su
-    patron era ![](ruta) y solo eso. Despues llegaron CLAUDE/ARTEFACTOS
+    patron era ![](ruta) y solo eso. Despues llegaron los artefactos
     (SIEMPRE [texto](ruta), nunca imagen) y los adjuntos no-imagen de Grok.
     Contra el vault real: los 16 artefactos y 4 de los 16 adjuntos de Grok
     usan la forma de enlace -- al mover un banco se quedaban apuntando a la
@@ -144,7 +144,7 @@ def test_relink_no_toca_wikilinks(tmp_path):
     """El contrato de la herramienta: nunca [[wikilinks]] ni texto normal.
     Ampliar el patron a [texto](ruta) no debe romper esa promesa."""
     nota = tmp_path / "a.md"
-    _write_note(nota, "[[CLAUDE/ARTEFACTOS/codigo/script.py]]\n\nCLAUDE/ARTEFACTOS suelto\n")
+    _write_note(nota, "[[CLAUDE/ARTEFACTOS/codigo/script.py]]\n\nCLAUDE/ARTIFACTS suelto\n")
     mapa = {"CLAUDE/ARTEFACTOS/codigo/script.py": "CLAUDE/ARTIFACTS/code/script.py"}
 
     stats = ra.relink_vault(tmp_path, mapa)

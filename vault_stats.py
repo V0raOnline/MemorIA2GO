@@ -34,7 +34,7 @@ def human_size(num_bytes: int) -> str:
 
 def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict:
     """conversations_dir='.' si las notas cuelgan directo de vault_path (caso
-    PRJ_VAULT); 'Conversaciones' si viven en esa subcarpeta (RAW/MERGED)."""
+    PRJ_VAULT); 'Conversations' si viven en esa subcarpeta (RAW/MERGED)."""
     conv_base = vault_path if conversations_dir == "." else vault_path / conversations_dir
 
     total_size = 0
@@ -114,12 +114,16 @@ def _count_dir(path: Path) -> "tuple[int, int]":
 
 # Bancos fijos por proveedor (taxonomia 2026-07-22, ver CONTEXT.md seccion 3):
 # (ruta relativa a base_vault, etiqueta legible). Claude no esta aqui porque
-# sus subcarpetas (markdown/html/codigo/...) son dinamicas por tipo -- se
+# sus subcarpetas (markdown/html/code/...) son dinamicas por tipo -- se
 # recorren directamente en compute_asset_stats.
+# Las etiquetas se dejaron en espanol durante la fase 2 A PROPOSITO: espejaban
+# los nombres reales de las carpetas, y traducir la etiqueta sin renombrar la
+# carpeta habria dejado la UI diciendo "generated" mientras Obsidian mostraba
+# GENERADAS. Renombradas ya las carpetas (fase 3b), las etiquetas las siguen.
 ASSET_BANKS = {
-    "chatgpt": [("CHATGPT/GENERADAS", "generadas"), ("CHATGPT/ADJUNTOS", "adjuntos")],
-    "grok": [("GROK/ADJUNTOS", "adjuntos"), ("GROK/GENERADAS_IMAGEN", "generadas (imagen)"),
-             ("GROK/GENERADAS_VIDEO", "generadas (video)")],
+    "chatgpt": [("CHATGPT/GENERATED", "generated"), ("CHATGPT/ATTACHMENTS", "attachments")],
+    "grok": [("GROK/ATTACHMENTS", "attachments"), ("GROK/GENERATED_IMAGE", "generated (image)"),
+             ("GROK/GENERATED_VIDEO", "generated (video)")],
 }
 
 
@@ -146,7 +150,7 @@ def compute_asset_stats(base_vault: Path) -> dict:
         total_items += items
         total_bytes += size
 
-    claude_dir = base_vault / "CLAUDE" / "ARTEFACTOS"
+    claude_dir = base_vault / "CLAUDE" / "ARTIFACTS"
     detalle = []
     items = 0
     size = 0
@@ -210,15 +214,15 @@ def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
     temas_stats = None
     try:
         temas_stats = json.loads(
-            (merged_vault / "_Temas" / ".temas_stats.json").read_text(encoding="utf-8"))
+            (merged_vault / "_Topics" / ".temas_stats.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
 
     return {
         "base_vault": str(base_vault),
         "vaults": {
-            "RAW_VAULT": compute_single_vault_stats(raw_vault, "Conversaciones"),
-            "MERGED_VAULT": compute_single_vault_stats(merged_vault, "Conversaciones"),
+            "RAW_VAULT": compute_single_vault_stats(raw_vault, "Conversations"),
+            "MERGED_VAULT": compute_single_vault_stats(merged_vault, "Conversations"),
             prj_vault_name: compute_single_vault_stats(project_vault, "."),
         },
         "assets": compute_asset_stats(base_vault),

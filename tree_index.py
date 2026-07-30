@@ -188,7 +188,7 @@ def main():
     ap.add_argument("vault", help="Ruta al vault (raiz que contiene la carpeta de conversaciones)")
     ap.add_argument("--out", default="_tree_index.md", help="Archivo de salida dentro del vault")
     ap.add_argument("--max-per-month", type=int, default=0, help="Limite de notas por mes (0 = sin limite)")
-    ap.add_argument("--conversations-dir", default="Conversaciones", help="Subcarpeta a escanear dentro del vault")
+    ap.add_argument("--conversations-dir", default="Conversations", help="Subcarpeta a escanear dentro del vault")
     args = ap.parse_args()
 
     vault = Path(args.vault).expanduser().resolve()

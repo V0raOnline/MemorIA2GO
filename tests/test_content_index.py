@@ -2,8 +2,8 @@
 """Tests de regresion de content_index.py (backlog: indice de contenido por
 proveedor, decision V0ra 2026-07-22). Un archivo por proveedor, una rama
 <details> colapsada por banco, cada conversacion tambien colapsada dentro.
-Debe entender tanto ![](...) (imagenes) como [texto](...) (CLAUDE/ARTEFACTOS,
-que nunca usa la forma de imagen) y bancos que mezclan ambas (GROK/ADJUNTOS).
+Debe entender tanto ![](...) (imagenes) como [texto](...) (CLAUDE/ARTIFACTS,
+que nunca usa la forma de imagen) y bancos que mezclan ambas (GROK/ATTACHMENTS).
 """
 import json
 from pathlib import Path
@@ -19,19 +19,19 @@ def _write_note(path: Path, *, title, date, body):
 
 def test_banco_de_imagenes_con_manifest(tmp_path):
     vault = tmp_path
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="Con imagen", date="2026-07-01",
-                body="![](CHATGPT/GENERADAS/abc123.png)\n")
+                body="![](CHATGPT/GENERATED/abc123.png)\n")
 
-    bank_dir = vault / "CHATGPT" / "GENERADAS"
+    bank_dir = vault / "CHATGPT" / "GENERATED"
     bank_dir.mkdir(parents=True)
     (bank_dir / "_image_manifest.json").write_text(
         json.dumps({"abc123.png": {"origen": "generada", "width": 1024, "height": 1024}}),
         encoding="utf-8",
     )
 
-    bank = ci.BankSpec(prefix="CHATGPT/GENERADAS", label="Generadas")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generadas")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert len(entries) == 1
     item = entries[0]["items"][0]
@@ -41,12 +41,12 @@ def test_banco_de_imagenes_con_manifest(tmp_path):
 
 def test_banco_solo_enlaces_recupera_titulo_de_artefacto(tmp_path):
     vault = tmp_path
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="Con artefacto", date="2026-07-01",
-                body="🧩 Artifact: **Mi Contador** → [contador-a1b2c3d4.py](CLAUDE/ARTEFACTOS/codigo/contador-a1b2c3d4.py)\n")
+                body="🧩 Artifact: **Mi Contador** → [contador-a1b2c3d4.py](CLAUDE/ARTIFACTS/code/contador-a1b2c3d4.py)\n")
 
-    bank = ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artefactos")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert len(entries) == 1
     item = entries[0]["items"][0]
@@ -57,12 +57,12 @@ def test_banco_solo_enlaces_recupera_titulo_de_artefacto(tmp_path):
 
 def test_banco_mixto_imagen_y_enlace_en_la_misma_nota(tmp_path):
     vault = tmp_path
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="Adjuntos mixtos", date="2026-07-01",
-                body="![](GROK/ADJUNTOS/foto.jpg)\n\n📎 [Attached file](GROK/ADJUNTOS/informe.pdf)\n")
+                body="![](GROK/ATTACHMENTS/foto.jpg)\n\n📎 [Attached file](GROK/ATTACHMENTS/informe.pdf)\n")
 
-    bank = ci.BankSpec(prefix="GROK/ADJUNTOS", label="Adjuntos")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="GROK/ATTACHMENTS", label="Adjuntos")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     items = entries[0]["items"]
     assert len(items) == 2
@@ -73,27 +73,27 @@ def test_banco_mixto_imagen_y_enlace_en_la_misma_nota(tmp_path):
 
 def test_titulo_sin_patron_ni_texto_se_embellece_desde_el_nombre(tmp_path):
     vault = tmp_path
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="X", date="2026-07-01",
-                body="[](GROK/ADJUNTOS/mi-documento-final.pdf)\n")
+                body="[](GROK/ATTACHMENTS/mi-documento-final.pdf)\n")
 
-    bank = ci.BankSpec(prefix="GROK/ADJUNTOS", label="Adjuntos")
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="GROK/ATTACHMENTS", label="Adjuntos")
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert entries[0]["items"][0]["titulo"] == "mi documento final"
 
 
 def test_generate_provider_index_combina_varios_bancos_colapsados(tmp_path):
     vault = tmp_path
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="Nota", date="2026-07-01",
-                body="![](CHATGPT/GENERADAS/g1.png)\n\n![](CHATGPT/ADJUNTOS/s1.png)\n")
+                body="![](CHATGPT/GENERATED/g1.png)\n\n![](CHATGPT/ATTACHMENTS/s1.png)\n")
 
     bancos = [
-        ci.BankSpec(prefix="CHATGPT/GENERADAS", label="Generadas"),
-        ci.BankSpec(prefix="CHATGPT/ADJUNTOS", label="Adjuntos"),
+        ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generadas"),
+        ci.BankSpec(prefix="CHATGPT/ATTACHMENTS", label="Adjuntos"),
     ]
-    resultado = ci.generate_provider_index(vault, "Conversaciones", "ChatGPT", bancos)
+    resultado = ci.generate_provider_index(vault, "Conversations", "ChatGPT", bancos)
     md = resultado["markdown"]
 
     assert "# ChatGPT" in md
@@ -115,7 +115,7 @@ def test_banco_catalogo_lista_directo_desde_manifest_sin_notas(tmp_path):
     conversacion, asi que no hay enlace que rastrear en ninguna nota. El
     banco se marca catalog=True y se lista directo desde el manifest."""
     vault = tmp_path
-    bank_dir = vault / "GROK" / "GENERADAS_IMAGEN"
+    bank_dir = vault / "GROK" / "GENERATED_IMAGE"
     bank_dir.mkdir(parents=True)
     (bank_dir / "abc.png").write_bytes(b"fake")
     (bank_dir / "def.png").write_bytes(b"fake")
@@ -124,7 +124,7 @@ def test_banco_catalogo_lista_directo_desde_manifest_sin_notas(tmp_path):
         "def.png": {"origen": "generada", "prompt": "", "create_time": "2026-06-05T08:00:00Z"},
     }), encoding="utf-8")
 
-    bank = ci.BankSpec(prefix="GROK/GENERADAS_IMAGEN", label="Generadas (imagen)", catalog=True)
+    bank = ci.BankSpec(prefix="GROK/GENERATED_IMAGE", label="Generadas (imagen)", catalog=True)
     items = ci.collect_catalog_entries(bank, vault)
 
     assert len(items) == 2
@@ -143,14 +143,14 @@ def test_banco_catalogo_prompt_con_comillas_propias_no_se_dobla(tmp_path):
     render_catalog_branch envolvia el prompt en comillas sin comprobarlo,
     dejando '""Arte...' -- se veia "raro" en el indice real."""
     vault = tmp_path
-    bank_dir = vault / "GROK" / "GENERADAS_IMAGEN"
+    bank_dir = vault / "GROK" / "GENERATED_IMAGE"
     bank_dir.mkdir(parents=True)
     (bank_dir / "abc.png").write_bytes(b"fake")
     (bank_dir / "_image_manifest.json").write_text(json.dumps({
         "abc.png": {"origen": "generada", "prompt": '"Arte en estilo cyberpunk', "create_time": ""},
     }), encoding="utf-8")
 
-    bank = ci.BankSpec(prefix="GROK/GENERADAS_IMAGEN", label="Generadas (imagen)", catalog=True)
+    bank = ci.BankSpec(prefix="GROK/GENERATED_IMAGE", label="Generadas (imagen)", catalog=True)
     items = ci.collect_catalog_entries(bank, vault)
     assert items[0]["prompt"] == "Arte en estilo cyberpunk"
 
@@ -168,7 +168,7 @@ def test_render_pendientes_note_prompt_con_comillas_propias_no_se_dobla():
 
 
 def test_bank_dir_fuera_del_vault_se_respeta(tmp_path):
-    """Bug real 2026-07-22: en produccion los bancos (CHATGPT/GENERADAS...)
+    """Bug real 2026-07-22: en produccion los bancos (CHATGPT/GENERATED...)
     cuelgan de base_vault, que NO es el mismo directorio que MERGED_VAULT
     (el 'vault' que se escanea en busca de notas). Si bank_dir por defecto
     cae a vault/prefix en vez de al bank_dir explicito, el manifest no se
@@ -179,19 +179,19 @@ def test_bank_dir_fuera_del_vault_se_respeta(tmp_path):
     a proposito, como en produccion (base_vault/CHATGPT/... vs MERGED_VAULT)."""
     base_vault = tmp_path / "base"
     vault = base_vault / "MERGED_VAULT"
-    conv_dir = vault / "Conversaciones"
+    conv_dir = vault / "Conversations"
     _write_note(conv_dir / "a.md", title="Con imagen", date="2026-07-01",
-                body="![](CHATGPT/GENERADAS/abc123.png)\n")
+                body="![](CHATGPT/GENERATED/abc123.png)\n")
 
-    bank_dir = base_vault / "CHATGPT" / "GENERADAS"  # hermano de MERGED_VAULT, no dentro
+    bank_dir = base_vault / "CHATGPT" / "GENERATED"  # hermano de MERGED_VAULT, no dentro
     bank_dir.mkdir(parents=True)
     (bank_dir / "_image_manifest.json").write_text(
         json.dumps({"abc123.png": {"origen": "generada", "width": 512, "height": 512}}),
         encoding="utf-8",
     )
 
-    bank = ci.BankSpec(prefix="CHATGPT/GENERADAS", label="Generadas", bank_dir=bank_dir)
-    entries = ci.collect_bank_entries(vault, "Conversaciones", bank)
+    bank = ci.BankSpec(prefix="CHATGPT/GENERATED", label="Generadas", bank_dir=bank_dir)
+    entries = ci.collect_bank_entries(vault, "Conversations", bank)
 
     assert len(entries) == 1
     assert entries[0]["items"][0]["caption"] == "Generated · 512×512"
@@ -217,8 +217,8 @@ def test_render_pendientes_note_vacio():
 
 def test_generate_provider_index_sin_contenido_no_revienta(tmp_path):
     vault = tmp_path
-    (vault / "Conversaciones").mkdir()
-    bancos = [ci.BankSpec(prefix="CLAUDE/ARTEFACTOS", label="Artefactos")]
-    resultado = ci.generate_provider_index(vault, "Conversaciones", "Claude", bancos)
+    (vault / "Conversations").mkdir()
+    bancos = [ci.BankSpec(prefix="CLAUDE/ARTIFACTS", label="Artefactos")]
+    resultado = ci.generate_provider_index(vault, "Conversations", "Claude", bancos)
     assert "Artefactos (0)" in resultado["markdown"]
     assert resultado["stats"]["Artefactos"]["conversaciones"] == 0

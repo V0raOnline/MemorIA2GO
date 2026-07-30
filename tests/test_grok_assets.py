@@ -48,14 +48,14 @@ def test_grok_asset_index_encuentra_blob_por_uuid(tmp_path):
 def test_render_grok_file_tokens_con_binario_disponible(tmp_path):
     uuid = "7027b36c-88d3-4166-b85c-5c3364e123e7"
     zpath = _zip_con_asset(tmp_path, uuid, PNG_MAGIC)
-    out_dir = tmp_path / "GROK_ADJUNTOS"
+    out_dir = tmp_path / "GROK_ATTACHMENTS"
     with zipfile.ZipFile(zpath) as zf:
         idx = sce.GrokAssetIndex(zf)
         writer = sce.AssetWriter(str(out_dir))
         content = f"texto antes \x00GROKFILE:{uuid}\x00 texto despues"
-        rendered = sce.render_grok_file_tokens(content, idx, writer, "GROK/ADJUNTOS")
-    assert "GROK/ADJUNTOS/" in rendered
-    assert rendered.startswith("texto antes ![](GROK/ADJUNTOS/")
+        rendered = sce.render_grok_file_tokens(content, idx, writer, "GROK/ATTACHMENTS")
+    assert "GROK/ATTACHMENTS/" in rendered
+    assert rendered.startswith("texto antes ![](GROK/ATTACHMENTS/")
     assert (out_dir / list(writer.hash_to_filename.values())[0]).exists()
 
 
@@ -72,9 +72,9 @@ def test_render_grok_file_tokens_binario_no_encontrado(tmp_path):
     class _IndiceVacio:
         def get_bytes(self, uid):
             return None
-    writer = sce.AssetWriter(str(tmp_path / "GROK_ADJUNTOS"))
+    writer = sce.AssetWriter(str(tmp_path / "GROK_ATTACHMENTS"))
     rendered = sce.render_grok_file_tokens(
-        "\x00GROKFILE:uuid-perdido\x00", _IndiceVacio(), writer, "GROK/ADJUNTOS"
+        "\x00GROKFILE:uuid-perdido\x00", _IndiceVacio(), writer, "GROK/ATTACHMENTS"
     )
     assert "not available in the export" in rendered
 
@@ -93,11 +93,11 @@ def test_process_grok_media_posts_separa_extraidas_de_pendientes(tmp_path):
         {"id": "img-sin-binario", "media_type": "image", "original_prompt": "sin binario", "link": "https://grok.com/z"},
     ]
     idx = _IndiceParcial({"img-1": PNG_MAGIC, "vid-1": PNG_MAGIC})
-    imagen_writer = sce.AssetWriter(str(tmp_path / "GENERADAS_IMAGEN"))
-    video_writer = sce.AssetWriter(str(tmp_path / "GENERADAS_VIDEO"))
+    imagen_writer = sce.AssetWriter(str(tmp_path / "GENERATED_IMAGE"))
+    video_writer = sce.AssetWriter(str(tmp_path / "GENERATED_VIDEO"))
 
     n_extraidas, pendientes = sce.process_grok_media_posts(
-        media_posts, idx, imagen_writer, "GROK/GENERADAS_IMAGEN", video_writer, "GROK/GENERADAS_VIDEO",
+        media_posts, idx, imagen_writer, "GROK/GENERATED_IMAGE", video_writer, "GROK/GENERATED_VIDEO",
     )
 
     assert n_extraidas == 2

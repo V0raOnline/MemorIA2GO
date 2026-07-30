@@ -34,7 +34,7 @@ def test_adjunto_de_chatgpt_llega_al_indice(tmp_path):
     linea = sce.render_attachments(msg)
     assert linea, "el renderizador no produjo nada -- fixture mal construido"
 
-    _nota(tmp_path / "Conversaciones" / "a.md", linea)
+    _nota(tmp_path / "Conversations" / "a.md", linea)
     encontrados = si.scan_vault(tmp_path)
 
     assert "contrato.pdf" in encontrados
@@ -47,7 +47,7 @@ def test_adjunto_de_claude_llega_al_indice(tmp_path):
         {"file_name": "anexo.docx", "file_type": "docx", "file_size": 4096},
     ]}
     lineas = claude_adapter._render_attachments(m)
-    _nota(tmp_path / "Conversaciones" / "b.md", "\n".join(lineas))
+    _nota(tmp_path / "Conversations" / "b.md", "\n".join(lineas))
 
     encontrados = si.scan_vault(tmp_path)
 
@@ -65,7 +65,7 @@ def test_tether_quote_llega_al_indice(tmp_path):
     })
     assert rendered, "render_tether_quote devolvio None -- fixture mal construido"
 
-    _nota(tmp_path / "Conversaciones" / "c.md", rendered)
+    _nota(tmp_path / "Conversations" / "c.md", rendered)
     encontrados = si.scan_vault(tmp_path)
 
     assert "informe-anual.pdf" in encontrados
@@ -79,7 +79,7 @@ def test_tether_quote_sin_texto_tambien_llega(tmp_path):
         "domain": "vacio.txt",
         "text": "",
     })
-    _nota(tmp_path / "Conversaciones" / "d.md", rendered)
+    _nota(tmp_path / "Conversations" / "d.md", rendered)
 
     assert "vacio.txt" in si.scan_vault(tmp_path)
 
@@ -89,7 +89,7 @@ def test_una_nota_con_ambos_formatos_cuenta_los_dos(tmp_path):
     tether = sce.render_tether_quote({
         "content_type": "tether_quote", "domain": "dos.txt", "text": "algo",
     })
-    _nota(tmp_path / "Conversaciones" / "e.md",
+    _nota(tmp_path / "Conversations" / "e.md",
           sce.render_attachments(msg) + "\n\n" + tether)
 
     encontrados = si.scan_vault(tmp_path)
@@ -100,7 +100,7 @@ def test_una_nota_con_ambos_formatos_cuenta_los_dos(tmp_path):
 def test_el_indice_generado_lista_los_ficheros(tmp_path):
     """Comprobacion de extremo a extremo: del render al markdown final."""
     msg = {"metadata": {"attachments": [{"name": "memoria.pdf", "mimeType": "application/pdf"}]}}
-    _nota(tmp_path / "Conversaciones" / "f.md", sce.render_attachments(msg))
+    _nota(tmp_path / "Conversations" / "f.md", sce.render_attachments(msg))
 
     md = si.build_index_text(si.scan_vault(tmp_path))
 

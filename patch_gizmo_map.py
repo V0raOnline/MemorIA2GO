@@ -7,7 +7,7 @@ de notas ya existentes en RAW_VAULT, sin reimportar ni crear variantes nuevas.
 Uso:
   python patch_gizmo_map.py RAW_VAULT gizmo_map.json
 
-Para cada nota en RAW_VAULT/Conversaciones:
+Para cada nota en RAW_VAULT/Conversations:
 - Lee source_project_id del front-matter.
 - Si ese id esta en gizmo_map.json y el Project_name actual es "none" (o
   distinto al nombre mapeado), reescribe SOLO esas dos lineas del front-matter,
@@ -119,11 +119,11 @@ def patch_note(path: str, gizmo_map: dict) -> bool:
 
 def main():
     ap = argparse.ArgumentParser(description="Parchea Project_name en RAW_VAULT a partir de un gizmo_map.json actualizado.")
-    ap.add_argument("raw_vault", help="Ruta a RAW_VAULT (o a la carpeta que contiene Conversaciones)")
+    ap.add_argument("raw_vault", help="Ruta a RAW_VAULT (o a la carpeta que contiene Conversations)")
     ap.add_argument("gizmo_map", help="Ruta al gizmo_map.json ya actualizado")
     args = ap.parse_args()
 
-    conv_dir = os.path.join(args.raw_vault, "Conversaciones")
+    conv_dir = os.path.join(args.raw_vault, "Conversations")
     if not os.path.isdir(conv_dir):
         conv_dir = args.raw_vault
 

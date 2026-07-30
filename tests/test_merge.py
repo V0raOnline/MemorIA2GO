@@ -35,7 +35,7 @@ def _write_raw_note(path: Path, *, conv_id, title, date, suffix, mtime):
 
 
 def test_merge_resuelve_renombrado_y_conserva_titulo_original(tmp_path):
-    raw_conv = tmp_path / "RAW_VAULT" / "Conversaciones"
+    raw_conv = tmp_path / "RAW_VAULT" / "Conversations"
     merged_dir = tmp_path / "MERGED_VAULT"
 
     now = time.time()
@@ -57,7 +57,7 @@ def test_merge_resuelve_renombrado_y_conserva_titulo_original(tmp_path):
     )
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
 
-    out_dir = merged_dir / "Conversaciones"
+    out_dir = merged_dir / "Conversations"
     notas = list(out_dir.glob("*.md"))
     assert len(notas) == 1, f"se esperaba 1 nota fusionada, hay: {[n.name for n in notas]}"
 

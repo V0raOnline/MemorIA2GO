@@ -139,7 +139,7 @@ def test_listado_oculta_lo_ya_triado(client, tmp_path):
 
 
 def test_registrar_imagen_web_va_al_banco_chatgpt_web(client, tmp_path):
-    """Banco propio: no GENERADAS (no la genero la IA) ni ADJUNTOS (no la
+    """Banco propio: no GENERATED (no la genero la IA) ni ATTACHMENTS (no la
     subio V0ra) -- es una referencia web de terceros."""
     path = _pendientes_chatgpt(tmp_path, [
         {"url": "https://a.es/1.jpg", "estado": "sin_triar",
@@ -233,9 +233,9 @@ def test_registrar_pendiente_sube_archiva_y_da_de_alta(client, tmp_path):
 
     fname = body["fname"]
     assert fname.endswith(".png")
-    assert (grok_dir / "GENERADAS_IMAGEN" / fname).exists()
+    assert (grok_dir / "GENERATED_IMAGE" / fname).exists()
 
-    manifest = json.loads((grok_dir / "GENERADAS_IMAGEN" / "_image_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((grok_dir / "GENERATED_IMAGE" / "_image_manifest.json").read_text(encoding="utf-8"))
     assert manifest[fname]["prompt"] == "un gato"
     assert manifest[fname]["create_time"] == "2026-06-01T00:00:00Z"
     assert manifest[fname]["origen"] == "generada"
@@ -262,8 +262,8 @@ def test_registrar_video_va_a_generadas_video(client, tmp_path):
     body = res.get_json()
     assert body["ok"] is True
     fname = body["fname"]
-    assert (grok_dir / "GENERADAS_VIDEO" / fname).exists()
-    assert not (grok_dir / "GENERADAS_IMAGEN" / fname).exists()
+    assert (grok_dir / "GENERATED_VIDEO" / fname).exists()
+    assert not (grok_dir / "GENERATED_IMAGE" / fname).exists()
 
 
 def test_registrar_pendiente_inexistente_da_error(client, tmp_path):

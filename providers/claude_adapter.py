@@ -216,7 +216,7 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             if content:
                 messages.append({"role": role, "content": content})
         if not messages:
-            # Conversaciones sin contenido textual (solo bloques thinking/tool):
+            # Conversations sin contenido textual (solo bloques thinking/tool):
             # se saltan; no aportan nada al vault y el backup conserva el original.
             continue
         conversations.append({

@@ -5,7 +5,7 @@ vault_merge.py — Construye un vault MERGED a partir de un vault RAW generado p
 split_chatgpt_export.py con --keep-versions.
 
 Adaptado de POC/CLI4Humans_v1.0_Release/vault_cleaner.py a la estructura actual
-de MemorIA2GO (Conversaciones/ con front-matter Project_name, source_project_id,
+de MemorIA2GO (Conversations/ con front-matter Project_name, source_project_id,
 tags, etc. y enlaces de imagen ![](...)).
 
 Reglas:
@@ -160,7 +160,7 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
-    conv_dir = os.path.join(args.raw_dir, "Conversaciones")
+    conv_dir = os.path.join(args.raw_dir, "Conversations")
     if not os.path.isdir(conv_dir):
         conv_dir = args.raw_dir  # permite apuntar directo a la carpeta de notas
 
@@ -175,7 +175,7 @@ def main():
         key = f"id:{cid}" if cid else base_name(os.path.basename(path))
         groups.setdefault(key, []).append(path)
 
-    out_conv = os.path.join(args.merged_dir, "Conversaciones")
+    out_conv = os.path.join(args.merged_dir, "Conversations")
     os.makedirs(out_conv, exist_ok=True)
 
     stats = {"grupos": 0, "variantes_totales": 0, "mensajes_campeon": 0,

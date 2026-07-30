@@ -110,14 +110,14 @@ def test_render_claude_artifact_tokens_escribe_version_final_en_subdir_por_tipo(
             "language": "python", "content": "x = 1\nprint(x)\n",
         },
     }
-    writer = sce.AssetWriter(str(tmp_path / "ARTEFACTOS"))
+    writer = sce.AssetWriter(str(tmp_path / "ARTIFACTS"))
     content = "antes \x00CLAUDEARTIFACT:contador\x00 despues"
     rendered = sce.render_claude_artifact_tokens(
-        content, artifacts, writer, "CLAUDE/ARTEFACTOS", conv_id="conv-1",
+        content, artifacts, writer, "CLAUDE/ARTIFACTS", conv_id="conv-1",
     )
-    assert "CLAUDE/ARTEFACTOS/codigo/" in rendered
+    assert "CLAUDE/ARTIFACTS/code/" in rendered
     assert rendered.endswith(".py)") or ".py](" in rendered
-    escritos = list((tmp_path / "ARTEFACTOS" / "codigo").glob("*.py"))
+    escritos = list((tmp_path / "ARTIFACTS" / "code").glob("*.py"))
     assert len(escritos) == 1
     assert escritos[0].read_text(encoding="utf-8") == "x = 1\nprint(x)\n"
 
@@ -136,14 +136,14 @@ def test_render_claude_artifact_tokens_mismo_id_distinta_conversacion_no_colisio
     chats distintos pueden crear ambos un artefacto 'app'."""
     artifacts_conv1 = {"app": {"type": "text/plain", "title": "App", "content": "version conv 1"}}
     artifacts_conv2 = {"app": {"type": "text/plain", "title": "App", "content": "version conv 2"}}
-    writer = sce.AssetWriter(str(tmp_path / "ARTEFACTOS"))
+    writer = sce.AssetWriter(str(tmp_path / "ARTIFACTS"))
     sce.render_claude_artifact_tokens(
-        "\x00CLAUDEARTIFACT:app\x00", artifacts_conv1, writer, "CLAUDE/ARTEFACTOS", conv_id="conv-1",
+        "\x00CLAUDEARTIFACT:app\x00", artifacts_conv1, writer, "CLAUDE/ARTIFACTS", conv_id="conv-1",
     )
     sce.render_claude_artifact_tokens(
-        "\x00CLAUDEARTIFACT:app\x00", artifacts_conv2, writer, "CLAUDE/ARTEFACTOS", conv_id="conv-2",
+        "\x00CLAUDEARTIFACT:app\x00", artifacts_conv2, writer, "CLAUDE/ARTIFACTS", conv_id="conv-2",
     )
-    escritos = list((tmp_path / "ARTEFACTOS" / "otros").glob("*.txt"))
+    escritos = list((tmp_path / "ARTIFACTS" / "otros").glob("*.txt"))
     assert len(escritos) == 2
     contenidos = {p.read_text(encoding="utf-8") for p in escritos}
     assert contenidos == {"version conv 1", "version conv 2"}

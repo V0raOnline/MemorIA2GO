@@ -193,7 +193,7 @@ def project_vocabulary(prj_vault: Path,
 
 def iter_orphans(merged_vault: Path):
     """(ruta, frontmatter) de cada nota huérfana de MERGED_VAULT."""
-    conv = merged_vault / "Conversaciones"
+    conv = merged_vault / "Conversations"
     if not conv.exists():
         return
     for f in iter_markdown_files(conv):
@@ -314,8 +314,8 @@ def _slug_tema(nombre: str) -> str:
 
 
 def generate_topic_index(base_vault: Path, topic_map_path: Path,
-                         subdir: str = "_Temas") -> dict:
-    """Genera una nota por tema en MERGED_VAULT/_Temas con wiki-links a las
+                         subdir: str = "_Topics") -> dict:
+    """Genera una nota por tema en MERGED_VAULT/_Topics con wiki-links a las
     huerfanas que contienen alguna de sus palabras (token exacto) o frases
     (subcadena sobre texto normalizado).
 
@@ -469,9 +469,9 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
     ]
     for fecha, prov, titulo, stem in solo_estructural:
         lineas.append(f"- [[{stem}]] — {fecha} · {prov} · {titulo}")
-    (out_dir / "_sin-tema.md").write_text(
+    (out_dir / "_no-topic.md").write_text(
         "\n".join(lineas) + "\n", encoding="utf-8", newline="\n")
-    generadas.add("_sin-tema")
+    generadas.add("_no-topic")
 
     # Resumen legible por maquina para vault_stats/dashboard (atomico, oculto
     # de Obsidian por el punto inicial)
@@ -513,7 +513,7 @@ def main():
     ap.add_argument("--top", type=int, default=40)
     ap.add_argument("--term", help="En vez de la nube, lista las notas que contienen este término")
     ap.add_argument("--generate-topics", action="store_true",
-                    help="Genera el indice de temas en MERGED_VAULT/_Temas a partir del topic map")
+                    help="Genera el indice de temas en MERGED_VAULT/_Topics a partir del topic map")
     ap.add_argument("--topic-map", default="topic_map.json",
                     help="Ruta al topic_map.json (por defecto, junto al script)")
     args = ap.parse_args()

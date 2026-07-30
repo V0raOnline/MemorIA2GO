@@ -2,7 +2,7 @@
 """Test de regresion de orphan_cloud.generate_topic_index (backlog CONTEXT.md #1).
 
 Cubre las tres formas de regla del topic_map (palabra suelta, frase, campo=valor
-estructural) y las dos capas de puntos ciegos de _sin-tema.md: sin ningun tema
+estructural) y las dos capas de puntos ciegos de _no-topic.md: sin ningun tema
 vs. solo pescada por redes estructurales.
 """
 import json
@@ -26,7 +26,7 @@ def _write_note(path: Path, *, project, provider, title, body):
 
 def test_generate_topic_index_reglas_palabra_frase_y_estructural(tmp_path):
     base_vault = tmp_path
-    conv_dir = base_vault / "MERGED_VAULT" / "Conversaciones"
+    conv_dir = base_vault / "MERGED_VAULT" / "Conversations"
 
     _write_note(
         conv_dir / "pan-casero.md", project="none", provider="chatgpt",
@@ -66,7 +66,7 @@ def test_generate_topic_index_reglas_palabra_frase_y_estructural(tmp_path):
     stats = oc.generate_topic_index(base_vault, topic_map_path)
     assert stats["temas"] == 3
 
-    temas_dir = base_vault / "MERGED_VAULT" / "_Temas"
+    temas_dir = base_vault / "MERGED_VAULT" / "_Topics"
 
     cocina = (temas_dir / "cocina.md").read_text(encoding="utf-8")
     assert "[[pan-casero]]" in cocina
@@ -78,7 +78,7 @@ def test_generate_topic_index_reglas_palabra_frase_y_estructural(tmp_path):
     fuente_claude = (temas_dir / "fuente-claude.md").read_text(encoding="utf-8")
     assert "[[consulta-clima]]" in fuente_claude
 
-    sin_tema = (temas_dir / "_sin-tema.md").read_text(encoding="utf-8")
+    sin_tema = (temas_dir / "_no-topic.md").read_text(encoding="utf-8")
     assert "## Caught by nothing at all" in sin_tema
     assert "[[capital-francia]]" in sin_tema
     assert "## Caught only by structural nets" in sin_tema

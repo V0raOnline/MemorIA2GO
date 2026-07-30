@@ -353,7 +353,7 @@ CLAUDE_ARTIFACT_TOKEN_RE = re.compile(r"\x00CLAUDEARTIFACT:(?P<aid>[^\x00]+)\x00
 _ARTIFACT_TYPE_MAP = {
     "text/markdown": ("markdown", ".md"),
     "text/html": ("html", ".html"),
-    "application/vnd.ant.code": ("codigo", ".txt"),
+    "application/vnd.ant.code": ("code", ".txt"),
     "image/svg+xml": ("svg", ".svg"),
     "application/vnd.ant.react": ("react", ".jsx"),
     "application/vnd.ant.mermaid": ("mermaid", ".mmd"),
@@ -377,7 +377,7 @@ def render_claude_artifact_tokens(content: str, artifacts: Optional[Dict[str, di
                                    writer: Optional[AssetWriter], bank_prefix: Optional[str],
                                    conv_id: Optional[str] = None) -> str:
     """Sustituye \\x00CLAUDEARTIFACT:<id>\\x00 por un enlace al artefacto ya
-    escrito en CLAUDE/ARTEFACTOS/<tipo>/, o por un aviso legible si no hay
+    escrito en CLAUDE/ARTIFACTS/<tipo>/, o por un aviso legible si no hay
     banco configurado. El contenido escrito es siempre la version FINAL
     (ver claude_adapter._resolve_artifacts), independientemente de cuantas
     revisiones tuviera en el export. conv_id entra en el nombre de fichero
@@ -896,7 +896,7 @@ def load_grok_media_posts(zf: Optional[zipfile.ZipFile]) -> List[dict]:
 def process_grok_media_posts(media_posts: List[dict], asset_index: "GrokAssetIndex",
                               imagen_writer: Optional[AssetWriter], imagen_rel_prefix: str,
                               video_writer: Optional[AssetWriter], video_rel_prefix: str) -> Tuple[int, List[dict]]:
-    """Extrae a GROK/GENERADAS_IMAGEN o GROK/GENERADAS_VIDEO segun
+    """Extrae a GROK/GENERATED_IMAGE o GROK/GENERATED_VIDEO segun
     media_type los media_posts cuyo binario SI viaja en el zip (verificado
     contra export real: ~18%, prod-mc-asset-server indexado por el mismo
     uuid que media_post['id']). El resto (~82%, solo un link externo a
@@ -1071,7 +1071,7 @@ def main():
 
     ap.add_argument("--claude-artefactos-dir", default=None,
                     help="[Solo exports de Claude] Carpeta donde escribir artefactos (solo version final), "
-                         "organizados en subcarpetas por tipo (markdown/html/codigo/...).")
+                         "organizados en subcarpetas por tipo (markdown/html/code/...).")
 
     args = ap.parse_args()
 
@@ -1119,9 +1119,9 @@ def main():
     asset_index = AssetIndex(zf) if tiene_bancos else None
     asset_writers: Dict[str, BankTarget] = {}
     if args.generadas_dir:
-        asset_writers["generada"] = BankTarget(AssetWriter(args.generadas_dir), "CHATGPT/GENERADAS")
+        asset_writers["generada"] = BankTarget(AssetWriter(args.generadas_dir), "CHATGPT/GENERATED")
     if args.adjuntos_dir:
-        asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ADJUNTOS")
+        asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ATTACHMENTS")
     if tiene_bancos:
         print(f"Assets indexed in the ZIP: {len(asset_index.by_id)}")
 
@@ -1139,8 +1139,8 @@ def main():
         if media_posts:
             n_extraidas, pendientes = process_grok_media_posts(
                 media_posts, grok_asset_index,
-                imagen_writer, "GROK/GENERADAS_IMAGEN",
-                video_writer, "GROK/GENERADAS_VIDEO",
+                imagen_writer, "GROK/GENERATED_IMAGE",
+                video_writer, "GROK/GENERATED_VIDEO",
             )
             print(f"Imagine (media_posts): {len(media_posts)} total, {n_extraidas} extracted, "
                   f"{len(pendientes)} pending download")
@@ -1275,7 +1275,7 @@ def main():
         # los .. salen del sitio donde el junction existe y todas las
         # imagenes se rompen (bug 2026-07-20). La ruta absoluta desde el
         # vault raiz funciona en cualquier layout: va directa al banco
-        # correspondiente (CHATGPT/GENERADAS o CHATGPT/ADJUNTOS, ver
+        # correspondiente (CHATGPT/GENERATED o CHATGPT/ATTACHMENTS, ver
         # BankTarget) sin depender de la topologia.
         rendered_msgs = []
         for msg in msgs:
@@ -1291,12 +1291,12 @@ def main():
             # trae binario, se resuelve aqui tambien (o degrada a texto si no hay
             # --grok-adjuntos-dir, mismo criterio que las imagenes de ChatGPT).
             content = render_grok_file_tokens(content, grok_asset_index, grok_adjuntos_writer,
-                                               "GROK/ADJUNTOS" if grok_adjuntos_writer else None)
+                                               "GROK/ATTACHMENTS" if grok_adjuntos_writer else None)
             # Independiente de lo anterior: si es Claude y hay artefactos,
             # se resuelven aqui (o degradan a texto sin --claude-artefactos-dir).
             content = render_claude_artifact_tokens(
                 content, conv.get("artifacts"), claude_artifacts_writer,
-                "CLAUDE/ARTEFACTOS" if claude_artifacts_writer else None,
+                "CLAUDE/ARTIFACTS" if claude_artifacts_writer else None,
                 conv_id=conv.get("conv_id"),
             )
             rendered_msgs.append({"role": msg.get("role"), "content": content})

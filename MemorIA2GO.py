@@ -5,7 +5,7 @@ MemorIA2GO.py — Orquestador para migración de contexto desde ChatGPT.
 
 Flujo:
   Paso 1  → split_chatgpt_export.py   (todo export VALIDO y PENDIENTE en
-                                        exports_dir → RAW_VAULT/Conversaciones,
+                                        exports_dir → RAW_VAULT/Conversations,
                                         con --keep-versions: nunca sobrescribe nada)
   Paso 2  → vault_merge.py            (RAW_VAULT → MERGED_VAULT, fusiona variantes
                                         sin perder ni duplicar mensajes)
@@ -288,7 +288,7 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
                  chatgpt_pendientes: Path,
                  log_path: Path, reprocess_all: bool = False) -> Path:
     """Procesa TODO export valido y pendiente en exports_dir hacia
-    RAW_VAULT/Conversaciones. Incremental por defecto (registro en
+    RAW_VAULT/Conversations. Incremental por defecto (registro en
     _exports_procesados.json); reprocess_all fuerza a repasarlos todos.
     Nunca sobrescribe: toda colisión de nombre genera una variante con
     sufijo hash (--keep-versions).
@@ -319,7 +319,7 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
 
     info(f"Exports pending import: {len(pending)} ({', '.join(p.name for p in pending)})")
 
-    conv_dir = raw_vault / "Conversaciones"
+    conv_dir = raw_vault / "Conversations"
     conv_dir.mkdir(parents=True, exist_ok=True)
 
     procesados_ok = []
@@ -434,12 +434,12 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     # traduce aqui (i18n fase 3a) -- renombrar las carpetas es la fase 3b.
     proveedores = [
         ("ChatGPT", "_index_chatgpt.md",
-         ["CHATGPT/GENERADAS:Generated", "CHATGPT/ADJUNTOS:Attachments"], []),
+         ["CHATGPT/GENERATED:Generated", "CHATGPT/ATTACHMENTS:Attachments"], []),
         ("Claude", "_index_claude.md",
-         ["CLAUDE/ARTEFACTOS:Artifacts"], []),
+         ["CLAUDE/ARTIFACTS:Artifacts"], []),
         ("Grok", "_index_grok.md",
-         ["GROK/ADJUNTOS:Attachments"],
-         ["GROK/GENERADAS_IMAGEN:Generated (image)", "GROK/GENERADAS_VIDEO:Generated (video)"]),
+         ["GROK/ATTACHMENTS:Attachments"],
+         ["GROK/GENERATED_IMAGE:Generated (image)", "GROK/GENERATED_VIDEO:Generated (video)"]),
     ]
     grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
 
@@ -447,9 +447,9 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     # Se retiran en cada corrida para que no queden colgando desincronizados.
     archivos_obsoletos = ["_image_index.md", "_index_generadas.md", "_index_adjuntos.md"]
 
-    targets = [(merged_vault, "Conversaciones")]
+    targets = [(merged_vault, "Conversations")]
     if project_vault is not None:
-        # PRJ_VAULT no tiene subcarpeta "Conversaciones": project_organizer.py
+        # PRJ_VAULT no tiene subcarpeta "Conversations": project_organizer.py
         # organiza directo como {proyecto}/{ano}/{mes}/nota.md desde la raiz.
         targets.append((project_vault, "."))
 
@@ -484,7 +484,7 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
                 if titulo == "Grok":
                     args += [
                         "--pendientes-json", grok_pendientes_json,
-                        "--pendientes-out", "_grok_pendientes.md",
+                        "--pendientes-out", "_grok_pending.md",
                         "--pendientes-titulo", "Grok — pendientes de descarga",
                     ]
                 run_script(content_script, args, log_path)
@@ -604,14 +604,14 @@ def main():
     # bajo CHATGPT/, hermanos de RAW_VAULT/MERGED_VAULT/PRJ_VAULT. IMAGE_BANK
     # es legado, migrado por completo y retirado de todo el pipeline
     # (ver CONTEXT.md seccion 3).
-    chatgpt_generadas = params["vault_path"] / "CHATGPT" / "GENERADAS"
-    chatgpt_adjuntos = params["vault_path"] / "CHATGPT" / "ADJUNTOS"
-    grok_adjuntos = params["vault_path"] / "GROK" / "ADJUNTOS"
-    grok_generadas_imagen = params["vault_path"] / "GROK" / "GENERADAS_IMAGEN"
-    grok_generadas_video = params["vault_path"] / "GROK" / "GENERADAS_VIDEO"
+    chatgpt_generadas = params["vault_path"] / "CHATGPT" / "GENERATED"
+    chatgpt_adjuntos = params["vault_path"] / "CHATGPT" / "ATTACHMENTS"
+    grok_adjuntos = params["vault_path"] / "GROK" / "ATTACHMENTS"
+    grok_generadas_imagen = params["vault_path"] / "GROK" / "GENERATED_IMAGE"
+    grok_generadas_video = params["vault_path"] / "GROK" / "GENERATED_VIDEO"
     grok_pendientes = params["vault_path"] / "GROK" / "_pendientes_descarga.json"
     chatgpt_pendientes = params["vault_path"] / "CHATGPT" / "_pendientes_descarga.json"
-    claude_artefactos = params["vault_path"] / "CLAUDE" / "ARTEFACTOS"
+    claude_artefactos = params["vault_path"] / "CLAUDE" / "ARTIFACTS"
     info(f"🖼  Generadas: {chatgpt_generadas}")
     info(f"🖼  Adjuntos:  {chatgpt_adjuntos}")
 
