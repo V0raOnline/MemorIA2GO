@@ -37,6 +37,16 @@ A diferencia de las herramientas genéricas de migración que solo transfieren m
 
 Todos los proveedores conviven en un único vault fusionado (MERGED). Cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Cada banco de assets tiene su propio índice navegable, mismo patrón que el índice de imágenes clásico.
 
+### MUSIC·0LOGY — una herramienta hermana compartiendo casa
+
+Suno vive aparte de los cuatro pasos de arriba, y a propósito. **No tiene export**: la única forma de sacar tu biblioteca es pedírsela a su API, con la sesión iniciada, con un token que copias del navegador y que caduca en minutos. El pipeline de M3M0R·IA no sale a Internet por su cuenta — así que Suno tiene su propia pestaña, su propio pipeline y su propio paso manual, en vez de forzarlo a ser un proveedor que no es.
+
+Qué hace: descarga tu biblioteca (audio, portadas y metadatos), verifica que el backup está íntegro, y construye un vault de Obsidian aparte con una nota por pista — incluyendo el **linaje real** entre covers, remixes y mashups, resuelto como enlaces. Los árboles de 60+ variantes son normales; los códigos Dewey los mantienen navegables, y el badge `Full Song` marca cuál es la versión terminada.
+
+También asoma al Observatorio: pistas, duración total, favoritas, canciones completas y proyectos.
+
+La regla que lo gobierna merece enunciarse con precisión, porque la versión corta ("el pipeline nunca hace peticiones salientes") prohibiría esto y no debería: **la aplicación nunca sale a Internet por iniciativa propia — sale cuando le pones un token en la mano y pulsas.** Si algo de esto te suena a criptología, ve a [la guía del token](#el-token-de-suno-o-la-llave-de-tu-propia-casa).
+
 ---
 
 ## Cómo funciona
@@ -226,6 +236,7 @@ Busca la línea `Authorization: Bearer eyJ...` y copia **solo lo que va después
 - `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, mapa de gizmos) y opciones (carpetas por año/mes, generación de índice). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
 - `gizmo_map.json` — mapea IDs de proyecto (gizmo) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Cartografía); nunca se commitea.
 - `topic_map.json` — tus temas para conversaciones sin asignar: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas de índice enlazadas en `MERGED_VAULT/_Temas`. Nunca se commitea.
+- `suno_backup` y `suno_vault` (en `memoria_config.yaml`) — las dos rutas de MUSIC·0LOGY: dónde vive el backup crudo de Suno, y dónde se construye su vault de Obsidian. Las dos opcionales: sin `suno_backup` la tarjeta del Observatorio simplemente no aparece — no se pinta a cero, porque decir "0 pistas" sobre una biblioteca que no has descargado es mentir, no informar.
 
 Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas se organizan por temas (varios-a-varios), no por carpetas.
 
@@ -264,6 +275,8 @@ Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas s
   - **`IMAGE_BANK` en sí ha desaparecido**, no solo ha quedado sin uso: el mecanismo de junction que lo enlazaba antes a cada vault (`ensure_image_bank_junction`) se ha retirado del pipeline, y los tres junctions sobrantes más la carpeta vacía se limpiaron del vault real tras confirmar que cero notas reales dependían aún de ellos. La vieja herramienta standalone `image_index.py` para la que existía también ha desaparecido, superada por `content_index.py`.
   - **La interfaz ganó un nombre, no solo una UI.** "Pipeline" y "Dashboard" eran genéricos — el resto de la app habla de reconstruir memoria a partir de ficheros de export, y esos dos no lo hacían. Renombrados a **Observatorio**, **Configuración**, **Verificación**, **Construcción**, **Cartografía**, cada una con su propia cabecera: una frase de "qué haces aquí", un eslogan de marca consistente debajo, y una pequeña mascota ilustrada por sección.
   - **Una pestaña nueva, Reconexión, cierra un hueco real.** Regenerar índices por sí solo nunca iba a hacer aparecer un fichero de Grok descargado a mano — el catálogo lee del *manifest* del asset, no de la carpeta, así que un fichero soltado a mano sin entrada de manifest se quedaba invisible. Reconexión lista los pendientes de descarga de Grok, acepta el fichero por subida (nunca una ruta escrita a mano — el servidor elige el banco y calcula el mismo nombre basado en hash que calcularía el extractor automático), y un botón separado "Regenerar índices" relanza solo el paso de indexado (`--reindex-only`) sin un reproceso completo.
+
+- **v2.10 trajo una herramienta hermana a la casa: MUSIC·0LOGY.** Suno vivía en un repositorio aparte, porque parecía que no encajaba — M3M0R·IA asume conversaciones, y una pista es un evento de generación con linaje padre→hijo. Ese razonamiento era medio correcto: juzgaba el paso 1. El obstáculo decisivo resultó ser otro. M3M0R·IA come ficheros quietos en una carpeta; Suno no tiene export ninguno, solo una API autenticada. Así que se integró **en la interfaz, no en el pipeline**: su pestaña, su pipeline, su paso manual. La regla de producto sobrevive, enunciada con más precisión — la aplicación no sale a Internet por iniciativa propia, sale cuando le pones un token en la mano y pulsas. La biblioteca asoma también al Observatorio, y hay guía paso a paso para quien nunca ha abierto DevTools.
 
 Principios de diseño en todo momento: diagnosticar antes de implementar, validar contra exports reales, nunca destruir datos, y que los fallos sean ruidosos y honestos en vez de silenciosos.
 
