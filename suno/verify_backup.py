@@ -31,11 +31,11 @@ _args = _ap.parse_args()
 backup_dir = Path(_args.backup_dir)
 _index_path = backup_dir / "_index.json"
 if not _index_path.is_file():
-    print(f"[error] no hay _index.json en {backup_dir} — ¿has hecho el backup ya?")
+    print(f"[error] no _index.json in {backup_dir} -- have you run the backup yet?")
     sys.exit(1)
 index = json.loads(_index_path.read_text(encoding="utf-8"))
 
-print(f"Total en indice: {len(index)}")
+print(f"Total in index: {len(index)}")
 
 missing_mp3 = []
 empty_mp3 = []
@@ -79,37 +79,37 @@ for song in index:
     elif jpg.stat().st_size == 0:
         empty_jpg.append(stem)
 
-print(f"IDs duplicados en indice: {len(dup_ids)}")
+print(f"Duplicate IDs in index: {len(dup_ids)}")
 print()
-print(f"mp3 faltantes: {len(missing_mp3)}")
-print(f"mp3 vacios (0 bytes): {len(empty_mp3)}")
-print(f"json faltantes: {len(missing_json)}")
-print(f"json corruptos: {len(bad_json)}")
-print(f"jpg faltantes: {len(missing_jpg)}")
-print(f"jpg vacios (0 bytes): {len(empty_jpg)}")
+print(f"mp3 missing: {len(missing_mp3)}")
+print(f"mp3 empty (0 bytes): {len(empty_mp3)}")
+print(f"json missing: {len(missing_json)}")
+print(f"json corrupted: {len(bad_json)}")
+print(f"jpg missing: {len(missing_jpg)}")
+print(f"jpg empty (0 bytes): {len(empty_jpg)}")
 print()
 
 
 def show(label, items, limit=15):
     if items:
-        print(f"--- {label} (mostrando hasta {limit}) ---")
+        print(f"--- {label} (showing up to {limit}) ---")
         for x in items[:limit]:
             print(f"  {x}")
         if len(items) > limit:
-            print(f"  ... y {len(items) - limit} mas")
+            print(f"  ... and {len(items) - limit} more")
         print()
 
 
-show("mp3 faltantes", missing_mp3)
-show("mp3 vacios", empty_mp3)
-show("json faltantes", missing_json)
-show("json corruptos", bad_json)
-show("jpg faltantes", missing_jpg)
-show("jpg vacios", empty_jpg)
+show("mp3 missing", missing_mp3)
+show("mp3 empty", empty_mp3)
+show("json missing", missing_json)
+show("json corrupted", bad_json)
+show("jpg missing", missing_jpg)
+show("jpg empty", empty_jpg)
 
 total_problems = (len(missing_mp3) + len(empty_mp3) + len(missing_json)
                    + len(bad_json) + len(missing_jpg) + len(empty_jpg))
 if total_problems == 0:
-    print("TODO OK: las pistas del indice tienen mp3+json+jpg validos.")
+    print("ALL OK: every track in the index has a valid mp3+json+jpg.")
 else:
-    print(f"Hay {total_problems} problemas en total (ver arriba).")
+    print(f"{total_problems} problem(s) in total (see above).")

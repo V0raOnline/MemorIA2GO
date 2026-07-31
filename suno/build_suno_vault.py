@@ -63,7 +63,7 @@ def load_songs(backup_dir: Path, debug=False):
         except json.JSONDecodeError:
             skipped += 1
             if debug:
-                print(f"  [aviso] {jf.name} no es JSON válido, se salta")
+                print(f"  [warn] {jf.name} is not valid JSON, skipping")
             continue
         song_id = data.get("id")
         if not song_id:
@@ -75,7 +75,7 @@ def load_songs(backup_dir: Path, debug=False):
         data["_image_path"] = img if img.exists() else None
         songs[song_id] = data
     if skipped:
-        print(f"[aviso] {skipped} archivo(s) saltado(s) por JSON inválido o sin id")
+        print(f"[warn] skipped {skipped} file(s): invalid JSON or missing id")
     return songs
 
 
@@ -431,24 +431,24 @@ def main():
     portadas_dir = vault_dir / "Portadas"
 
     if not backup_dir.exists():
-        print(f"[error] no existe {backup_dir}")
+        print(f"[error] {backup_dir} does not exist")
         sys.exit(1)
 
     canciones_dir.mkdir(parents=True, exist_ok=True)
     audio_dir.mkdir(parents=True, exist_ok=True)
     portadas_dir.mkdir(parents=True, exist_ok=True)
 
-    print("[info] cargando JSON del backup...")
+    print("[info] loading the backup JSON...")
     songs_by_id = load_songs(backup_dir, debug=args.debug)
-    print(f"[info] {len(songs_by_id)} pistas cargadas")
+    print(f"[info] {len(songs_by_id)} tracks loaded")
 
-    print("[info] calculando arbol genealogico (codigos Dewey)...")
+    print("[info] computing the family tree (Dewey codes)...")
     codes, children, roots = compute_dewey_codes(songs_by_id)
-    print(f"[info] {len(roots)} arboles/raices detectados")
+    print(f"[info] {len(roots)} tree(s)/root(s) detected")
 
-    print("[info] resolviendo nombres de nota...")
+    print("[info] resolving note names...")
     filenames = compute_filenames(songs_by_id, codes)
-    print(f"[info] {len(filenames)} nombres resueltos")
+    print(f"[info] {len(filenames)} names resolved")
 
     audio_missing = 0
     audio_copied = 0
@@ -472,7 +472,7 @@ def main():
             else:
                 audio_missing += 1
                 if args.debug:
-                    print(f"  [aviso] audio no encontrado para '{stem}'")
+                    print(f"  [warn] audio not found for '{stem}'")
 
             if song.get("_image_path"):
                 dst_img = portadas_dir / song["_image_path"].name
@@ -481,7 +481,7 @@ def main():
                     images_copied += 1
 
         if i % 200 == 0:
-            print(f"[info] {i}/{len(songs_by_id)} notas escritas")
+            print(f"[info] {i}/{len(songs_by_id)} notes written")
 
     index_path = vault_dir / "_index_suno.md"
     index_path.write_text(build_index(songs_by_id, filenames, children, roots), encoding="utf-8")
@@ -489,14 +489,14 @@ def main():
     genealogy_path = vault_dir / "_linaje.md"
     genealogy_path.write_text(build_genealogy_file(songs_by_id, filenames, children, roots), encoding="utf-8")
 
-    print(f"\n[hecho] {len(filenames)} notas escritas en {canciones_dir}")
+    print(f"\n[done] {len(filenames)} note(s) written to {canciones_dir}")
     if not args.no_copy_audio:
-        print(f"[hecho] {audio_copied} audios copiados a {audio_dir}")
-        print(f"[hecho] {images_copied} portadas copiadas a {portadas_dir}")
+        print(f"[done] {audio_copied} audio file(s) copied to {audio_dir}")
+        print(f"[done] {images_copied} cover(s) copied to {portadas_dir}")
         if audio_missing:
-            print(f"[aviso] {audio_missing} audio(s) no encontrados en el backup")
-    print(f"[hecho] indice: {index_path}")
-    print(f"[hecho] linaje: {genealogy_path}")
+            print(f"[warn] {audio_missing} audio file(s) not found in the backup")
+    print(f"[done] index: {index_path}")
+    print(f"[done] lineage: {genealogy_path}")
 
 
 if __name__ == "__main__":

@@ -85,10 +85,10 @@ def get_with_retries(session, url, params=None, debug=False):
             if resp.status_code == 200:
                 return resp
             if debug:
-                print(f"  [aviso] status {resp.status_code} en intento {attempt}")
+                print(f"  [warn] status {resp.status_code} on attempt {attempt}")
         except requests.RequestException as e:
             if debug:
-                print(f"  [aviso] error de red en intento {attempt}: {e}")
+                print(f"  [warn] network error on attempt {attempt}: {e}")
         time.sleep(2 * attempt)  # backoff simple
     return None
 
@@ -106,26 +106,26 @@ def fetch_all_songs(session, debug=False, start_page=0, existing_songs=None):
             debug=debug,
         )
         if resp is None:
-            print(f"[error] no se pudo obtener la página {page} tras {MAX_RETRIES} intentos. Deteniendo.")
-            print(f"[info] última página completada con éxito: {page - 1}. "
+            print(f"[error] could not fetch page {page} after {MAX_RETRIES} attempts. Stopping.")
+            print(f"[info] last page completed successfully: {page - 1}. "
                   f"Relanza el script tal cual: retomará solo desde aquí automáticamente.")
             break
 
         try:
             data = resp.json()
         except json.JSONDecodeError:
-            print(f"[error] respuesta no-JSON en página {page}. Deteniendo.")
+            print(f"[error] non-JSON response on page {page}. Stopping.")
             break
 
         if debug and page == 0:
-            print("[debug] estructura de la primera respuesta:")
+            print("[debug] shape of the first response:")
             print(json.dumps(data, indent=2)[:2000])
 
         # El nombre del campo de lista puede variar (clips / songs / data...)
         songs = data.get("clips") or data.get("songs") or data.get("data") or []
 
         if not songs:
-            print(f"[info] página {page} vacía — fin de la biblioteca.")
+            print(f"[info] page {page} is empty -- end of the library.")
             break
 
         new_count = 0
@@ -138,7 +138,7 @@ def fetch_all_songs(session, debug=False, start_page=0, existing_songs=None):
                 seen_ids.add(sid)
             new_count += 1
 
-        print(f"[info] página {page}: +{new_count} pistas nuevas (total {len(all_songs)})")
+        print(f"[info] page {page}: +{new_count} new tracks (total {len(all_songs)})")
 
         page += 1
         time.sleep(SLEEP_BETWEEN_PAGES)
@@ -213,7 +213,7 @@ def download_song(session, song: dict, out_dir: Path, debug=False):
     audio_url = song.get("audio_url")
 
     if not audio_url:
-        print(f"  [aviso] sin audio_url para '{title}' ({song_id}), se guarda solo metadata.")
+        print(f"  [warn] no audio_url for '{title}' ({song_id}), saving metadata only.")
     else:
         audio_path = out_dir / f"{title}_{song_id}.mp3"
         if not audio_path.exists():
@@ -222,7 +222,7 @@ def download_song(session, song: dict, out_dir: Path, debug=False):
                 audio_path.write_bytes(resp.content)
                 print(f"  [ok] audio: {audio_path.name}")
             else:
-                print(f"  [error] no se pudo descargar audio de '{title}' ({song_id})")
+                print(f"  [error] could not download audio for '{title}' ({song_id})")
         time.sleep(SLEEP_BETWEEN_DOWNLOADS)
 
     meta = extract_metadata(song)
@@ -236,9 +236,9 @@ def download_song(session, song: dict, out_dir: Path, debug=False):
             resp = get_with_retries(session, image_url, debug=debug)
             if resp is not None:
                 img_path.write_bytes(resp.content)
-                print(f"  [ok] portada: {img_path.name}")
+                print(f"  [ok] cover: {img_path.name}")
             else:
-                print(f"  [aviso] no se pudo descargar la portada de '{title}' ({song_id})")
+                print(f"  [warn] could not download the cover for '{title}' ({song_id})")
             time.sleep(SLEEP_BETWEEN_DOWNLOADS)
 
 
@@ -264,7 +264,7 @@ def main():
     browser_token = args.browser_token or os.environ.get("SUNO_BROWSER_TOKEN")
 
     if not token:
-        print("[error] necesitas --token, --token-file o la variable SUNO_TOKEN")
+        print("[error] you need --token, --token-file or the SUNO_TOKEN variable")
         sys.exit(1)
 
     out_dir = Path(args.out)
@@ -279,30 +279,30 @@ def main():
         try:
             existing_songs = json.loads(index_path.read_text(encoding="utf-8"))
             start_page = len(existing_songs) // PAGE_SIZE
-            print(f"[info] _index.json existente encontrado: {len(existing_songs)} pistas ya listadas, "
+            print(f"[info] found an existing _index.json: {len(existing_songs)} tracks already listed, "
                   f"retomando listado desde la página {start_page}.")
         except json.JSONDecodeError:
-            print("[aviso] _index.json existente no es JSON válido, se listará desde cero.")
+            print("[warn] the existing _index.json is not valid JSON, listing from scratch.")
 
-    print("[info] listando biblioteca...")
+    print("[info] listing the library...")
     songs = fetch_all_songs(session, debug=args.debug, start_page=start_page, existing_songs=existing_songs)
-    print(f"[info] total encontrado: {len(songs)} pistas")
+    print(f"[info] found {len(songs)} tracks in total")
 
     if not songs:
-        print("[info] nada que descargar. Si esperabas resultados, prueba con --debug "
+        print("[info] nothing to download. If you expected results, try --debug "
               "para ver la respuesta cruda y ajustar LIBRARY_ENDPOINT / nombres de campo.")
         return
 
     index_path = out_dir / "_index.json"
     index_path.write_text(json.dumps(songs, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"[info] índice completo guardado en {index_path.name}")
+    print(f"[info] full index saved to {index_path.name}")
 
     for i, song in enumerate(songs, start=1):
         print(f"[{i}/{len(songs)}] {song.get('title') or song.get('id')}")
         download_song(session, song, out_dir, debug=args.debug)
 
-    print(f"\n[hecho] backup completo en: {out_dir.resolve()}")
-    print(f"Terminado: {datetime.now().isoformat(timespec='seconds')}")
+    print(f"\n[done] backup complete in: {out_dir.resolve()}")
+    print(f"Finished: {datetime.now().isoformat(timespec='seconds')}")
 
 
 if __name__ == "__main__":

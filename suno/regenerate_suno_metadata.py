@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 try:
     from backup_suno import extract_metadata, safe_filename
 except ImportError:
-    print("[error] no se encuentra backup_suno.py en la misma carpeta que este script.")
-    print("        Copia regenerate_suno_metadata.py junto a backup_suno.py y reintenta.")
+    print("[error] backup_suno.py is not in the same folder as this script.")
+    print("        Put regenerate_suno_metadata.py next to backup_suno.py and try again.")
     sys.exit(1)
 
 
@@ -40,12 +40,12 @@ def main():
     index_path = backup_dir / "_index.json"
 
     if not index_path.exists():
-        print(f"[error] no existe {index_path}")
+        print(f"[error] {index_path} does not exist")
         sys.exit(1)
 
-    print("[info] leyendo _index.json...")
+    print("[info] reading _index.json...")
     songs = json.loads(index_path.read_text(encoding="utf-8"))
-    print(f"[info] {len(songs)} pistas en el índice crudo")
+    print(f"[info] {len(songs)} tracks in the raw index")
 
     regenerated = 0
     skipped_no_title = 0
@@ -60,10 +60,10 @@ def main():
         regenerated += 1
 
         if i % 200 == 0:
-            print(f"[info] {i}/{len(songs)} regenerados")
+            print(f"[info] {i}/{len(songs)} regenerated")
 
-    print(f"\n[hecho] {regenerated} archivos .json regenerados en {backup_dir}")
-    print("[info] audio (.mp3) y portadas (.jpg) no se han tocado.")
+    print(f"\n[done] {regenerated} .json file(s) regenerated in {backup_dir}")
+    print("[info] audio (.mp3) and covers (.jpg) were left untouched.")
 
 
 if __name__ == "__main__":

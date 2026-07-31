@@ -34,10 +34,10 @@ def get_with_retries(session, url, debug=False):
             if resp.status_code == 200:
                 return resp
             if debug:
-                print(f"  [aviso] status {resp.status_code} en intento {attempt}")
+                print(f"  [warn] status {resp.status_code} on attempt {attempt}")
         except requests.RequestException as e:
             if debug:
-                print(f"  [aviso] error de red en intento {attempt}: {e}")
+                print(f"  [warn] network error on attempt {attempt}: {e}")
         time.sleep(2 * attempt)
     return None
 
@@ -50,14 +50,14 @@ def main():
 
     backup_dir = Path(args.backup_dir)
     if not backup_dir.exists():
-        print(f"[error] no existe {backup_dir}")
+        print(f"[error] {backup_dir} does not exist")
         sys.exit(1)
 
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0 (backfill script personal)"})
 
     json_files = [f for f in backup_dir.glob("*.json") if f.name != "_index.json"]
-    print(f"[info] {len(json_files)} archivos de metadata encontrados")
+    print(f"[info] {len(json_files)} metadata file(s) found")
 
     downloaded = 0
     already_had = 0
@@ -80,13 +80,13 @@ def main():
         if not image_url:
             no_url += 1
             if args.debug:
-                print(f"  [aviso] sin image_url para {jf.stem}")
+                print(f"  [warn] no image_url for {jf.stem}")
             continue
 
         resp = get_with_retries(session, image_url, debug=args.debug)
         if resp is None:
             failed += 1
-            print(f"  [error] no se pudo descargar imagen de '{jf.stem}'")
+            print(f"  [error] could not download the image for '{jf.stem}'")
             continue
 
         img_path.write_bytes(resp.content)
@@ -94,10 +94,10 @@ def main():
         time.sleep(SLEEP_BETWEEN_DOWNLOADS)
 
         if i % 200 == 0:
-            print(f"[info] {i}/{len(json_files)} procesados")
+            print(f"[info] {i}/{len(json_files)} processed")
 
-    print(f"\n[hecho] {downloaded} imágenes nuevas descargadas")
-    print(f"[info] {already_had} ya existían, {no_url} sin URL de imagen, {failed} fallidas")
+    print(f"\n[done] {downloaded} new image(s) downloaded")
+    print(f"[info] {already_had} already there, {no_url} with no image URL, {failed} failed")
 
 
 if __name__ == "__main__":
