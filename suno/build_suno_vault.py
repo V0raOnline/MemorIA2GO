@@ -42,7 +42,7 @@ def safe_filename(name: str, fallback: str) -> str:
     return cleaned[:120] if cleaned else fallback
 
 
-def safe_folder_name(name: str, fallback: str = "_Sin proyecto") -> str:
+def safe_folder_name(name: str, fallback: str = "_No project") -> str:
     if not name:
         return fallback
     name = name.strip()
@@ -212,15 +212,15 @@ def build_frontmatter(song: dict, task: str, badges: list, code: str) -> str:
 
 def build_family_section(origin_ids: list, songs_by_id: dict, filenames: dict) -> str:
     if not origin_ids:
-        return "## Familia\n\nOriginal — sin pista de origen conocida."
+        return "## Family\n\nOriginal -- no known source track."
 
-    lines = ["## Familia", ""]
+    lines = ["## Family", ""]
     for oid in origin_ids:
         origin = songs_by_id.get(oid)
         if origin:
-            lines.append(f"- Origen: [[{filenames[oid]}]]")
+            lines.append(f"- Source: [[{filenames[oid]}]]")
         else:
-            lines.append(f"- Origen: `{oid}` (no encontrado en este backup)")
+            lines.append(f"- Source: `{oid}` (not found in this backup)")
     return "\n".join(lines)
 
 
@@ -233,8 +233,8 @@ def build_note(song: dict, songs_by_id: dict, filenames: dict, codes: dict) -> s
 
     fm = build_frontmatter(song, task, badges, code)
     family = build_family_section(origin_ids, songs_by_id, filenames)
-    tags = song.get("style_tags") or "_(sin tags)_"
-    lyrics = song.get("lyrics") or "_(sin letra)_"
+    tags = song.get("style_tags") or "_(no tags)_"
+    lyrics = song.get("lyrics") or "_(no lyrics)_"
 
     heart = "❤️ " if song.get("is_liked") else ""
     parts = [
@@ -244,18 +244,18 @@ def build_note(song: dict, songs_by_id: dict, filenames: dict, codes: dict) -> s
         "",
     ]
     if image_path:
-        parts.append(f"![[Portadas/{image_path.name}|200]]")
+        parts.append(f"![[Covers/{image_path.name}|200]]")
         parts.append("")
     parts += [
         f"![[Audio/{audio_name}]]",
         "",
         family,
         "",
-        "## Estilo",
+        "## Style",
         "",
         tags,
         "",
-        "## Letra",
+        "## Lyrics",
         "",
         lyrics,
         "",
@@ -283,9 +283,9 @@ def build_family_summary(root_sid: str, songs_by_id: dict, filenames: dict, chil
 
     root_title = songs_by_id[root_sid].get("title") or root_sid
     lines = [f"### {root_title}", "",
-             f"**{n_total} pistas · {n_liked} ❤️ favoritas · {len(full_ids)} ✅ Full Song**", ""]
+             f"**{n_total} tracks · {n_liked} ❤️ liked · {len(full_ids)} ✅ Full Song**", ""]
     if full_ids:
-        lines.append("Cierre(s) de ciclo (Full Song):")
+        lines.append("Cycle closer(s) (Full Song):")
         for fid in sorted(full_ids, key=lambda i: songs_by_id[i].get("created_at") or ""):
             lines.append(f"- [[{filenames[fid]}]]")
         lines.append("")
@@ -307,8 +307,8 @@ def build_genealogy_file(songs_by_id: dict, filenames: dict, children: dict, roo
 
     families.sort(key=lambda x: -len(x[1]))
 
-    lines = ["# 🧬 Linaje — Suno", "",
-              "_Cada familia con más de una variación lleva un resumen; si alguna pista "
+    lines = ["# 🧬 Lineage — Suno", "",
+              "_Every family with more than one variation carries a summary; if any track "
               "está marcada como Full Song aparece primero, para localizar rápido la que "
               "cerró el ciclo. El árbol completo va debajo, plegable con la flechita de "
               "cada línea en Obsidian._", ""]
@@ -350,7 +350,7 @@ def build_full_liked_section(songs_by_id: dict, filenames: dict) -> str:
 
 
 def build_badge_section(songs_by_id: dict, filenames: dict) -> str:
-    lines = ["## Por tipo (badge)", ""]
+    lines = ["## By type (badge)", ""]
     by_badge = {}
     for sid, song in songs_by_id.items():
         badges = badges_from(song)
@@ -370,11 +370,11 @@ def build_badge_section(songs_by_id: dict, filenames: dict) -> str:
 
 
 def build_index(songs_by_id: dict, filenames: dict, children: dict, roots: list) -> str:
-    lines = ["# Índice — Suno Vault", "", f"Total de pistas: {len(songs_by_id)}", ""]
+    lines = ["# Index — Suno Vault", "", f"Total tracks: {len(songs_by_id)}", ""]
 
     liked = [s for s in songs_by_id.values() if s.get("is_liked")]
     if liked:
-        lines.append(f"## ❤️ Favoritas ({len(liked)})")
+        lines.append(f"## ❤️ Liked ({len(liked)})")
         lines.append("")
         for song in sorted(liked, key=lambda s: s.get("created_at") or ""):
             lines.append(f"- [[{filenames[song['id']]}]]")
@@ -384,16 +384,16 @@ def build_index(songs_by_id: dict, filenames: dict, children: dict, roots: list)
     if full_liked:
         lines.append(full_liked)
 
-    lines.append("## 🧬 Linaje")
+    lines.append("## 🧬 Lineage")
     lines.append("")
-    lines.append("Ver [[_linaje]] — archivo separado (es grande, con resumen por familia).")
+    lines.append("See [[_lineage]] -- a separate file (it is large, with a per-family summary).")
     lines.append("")
 
     by_project = {}
     for song in songs_by_id.values():
-        name = song.get("project_name") or "_Sin proyecto"
+        name = song.get("project_name") or "_No project"
         by_project[name] = by_project.get(name, 0) + 1
-    lines.append(f"## Proyectos ({len(by_project)})")
+    lines.append(f"## Projects ({len(by_project)})")
     lines.append("")
     for name, count in sorted(by_project.items(), key=lambda x: -x[1]):
         lines.append(f"- {name}: {count}")
@@ -426,9 +426,9 @@ def main():
 
     backup_dir = Path(args.backup_dir)
     vault_dir = Path(args.vault_dir)
-    canciones_dir = vault_dir / "Canciones"
+    canciones_dir = vault_dir / "Songs"
     audio_dir = vault_dir / "Audio"
-    portadas_dir = vault_dir / "Portadas"
+    portadas_dir = vault_dir / "Covers"
 
     if not backup_dir.exists():
         print(f"[error] {backup_dir} does not exist")
@@ -486,7 +486,7 @@ def main():
     index_path = vault_dir / "_index_suno.md"
     index_path.write_text(build_index(songs_by_id, filenames, children, roots), encoding="utf-8")
 
-    genealogy_path = vault_dir / "_linaje.md"
+    genealogy_path = vault_dir / "_lineage.md"
     genealogy_path.write_text(build_genealogy_file(songs_by_id, filenames, children, roots), encoding="utf-8")
 
     print(f"\n[done] {len(filenames)} note(s) written to {canciones_dir}")

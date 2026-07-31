@@ -76,6 +76,39 @@ def validate_export_file(path) -> dict:
             return {"valido": True, "mensaje": "conversations.json found inside the ZIP (ChatGPT export).", "tipo": "chatgpt_zip"}
         if any(n.lower().endswith("prod-grok-backend.json") for n in names):
             return {"valido": True, "mensaje": "Grok export recognized (prod-grok-backend.json).", "tipo": "grok_zip"}
+        # Export de Substack. Se evalua ANTES que has_html porque cae justo en
+        # esa rama: sus 109 .html la disparan, el zip se acepta como
+        # 'chatgpt_zip_html' degradado y load_conversations lee UN solo .html
+        # fabricando una conversacion falsa que alterna user/assistant con los
+        # parrafos de un unico post (medido contra el export real de V0ra
+        # 2026-07-31: 109 posts -> 1 "conversacion" de 108 mensajes, los otros
+        # 108 posts desaparecidos, sin conv_id ni provider ni fecha). Es el
+        # mismo fallo silencioso que motivo la deteccion por estructura del
+        # conversations.json de Claude, pero sin red debajo.
+        # No es un proveedor de este pipeline y no debe serlo (decision de V0ra
+        # 2026-07-31: un post no es un dialogo, ver CONTEXT.md seccion 3j). Al
+        # pipeline conversacional no se le ensena un supuesto nuevo, solo a
+        # RECONOCER y RECHAZAR: eso es lo que cierra el agujero.
+        if any(n.lower() == "posts.csv" for n in names) and \
+           any(n.lower().startswith("posts/") and n.lower().endswith(".html") for n in names):
+            # Los CSV de posts/ (delivers/opens) y email_list.*.csv llevan
+            # emails de suscriptores, y los de opens ademas pais/ciudad/
+            # dispositivo/user-agent: datos personales de TERCEROS. Se nombran
+            # en voz alta a proposito, mismo criterio que gritar ante un zip
+            # corrupto -- que nadie los descubra el dia que reprocese esto con
+            # otra herramienta.
+            csv_pii = [n for n in names if n.lower().endswith(".csv") and n.lower() != "posts.csv"]
+            return {
+                "valido": False,
+                "mensaje": "SUBSTACK EXPORT: recognized, and deliberately NOT imported here. "
+                           "Posts are publications, not conversations: this pipeline would turn "
+                           "them into degraded fake dialogue. They have their own tool. "
+                           f"Heads-up: this ZIP also carries {len(csv_pii)} CSV files with "
+                           "subscriber personal data (emails; the 'opens' ones also include "
+                           "country, city, device and user agent). They are never imported.",
+                "tipo": "substack_zip",
+            }
+
         if has_html:
             # Valido pero con aviso de deriva: si solo hay HTML, o es un export
             # muy antiguo o el proveedor cambio de formato y no lo reconocemos.

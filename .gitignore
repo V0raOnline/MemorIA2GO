@@ -12,6 +12,7 @@ build/
 .claude
 _SESION_EN_CURSO.md
 CONTEXT.md
+session_files.json
 
 # Config personal (contiene rutas locales)
 memoria_config.yaml
