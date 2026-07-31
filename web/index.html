@@ -142,12 +142,12 @@
         <div class="path-suggest" id="suggest-gizmo_map"></div>
       </div>
       <div class="field">
-        <label for="cfg-suno_backup">MUSIC<span class="brand-ia">·0</span>LOGY — carpeta del backup de Suno</label>
+        <label for="cfg-suno_backup">MUSIC<span class="brand-ia">·0</span>LOGY — Suno backup folder</label>
         <input type="text" id="cfg-suno_backup" autocomplete="off">
         <div class="path-suggest" id="suggest-suno_backup"></div>
       </div>
       <div class="field">
-        <label for="cfg-suno_vault">MUSIC<span class="brand-ia">·0</span>LOGY — vault de música</label>
+        <label for="cfg-suno_vault">MUSIC<span class="brand-ia">·0</span>LOGY — music vault</label>
         <input type="text" id="cfg-suno_vault" autocomplete="off">
         <div class="path-suggest" id="suggest-suno_vault"></div>
       </div>
@@ -299,136 +299,137 @@
     <div class="panel-header">
       <div class="panel-header-text">
         <h1>MUSIC<span class="brand-ia">·0</span>LOGY</h1>
-        <p class="panel-header-desc">Rescata tu biblioteca de Suno y ponla en orden.</p>
-        <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
+        <p class="panel-header-desc">Rescue your Suno library and put it in order.</p>
+        <p class="panel-header-brand">Your memory. Your context. Ready to think with you.</p>
       </div>
       <img src="assets/musicology.png" alt="" class="panel-header-icon"
            onerror="this.style.display='none'">
     </div>
 
     <div class="card">
-      <h2>Captura</h2>
+      <h2>Capture</h2>
       <p class="card-help">
-        Suno no tiene export. Su biblioteca se pide a la API con un token que copias
-        del navegador y que caduca en minutos — por eso este paso es manual a propósito.
-        Es lo único de la aplicación que sale a Internet, y solo cuando tú lo lanzas.
+        Suno has no export. Its library can only be asked for through the API, with a
+        token you copy from your browser and that expires within minutes — which is why
+        this step is manual on purpose. It is the only part of the app that reaches out
+        to the internet, and only when you launch it.
       </p>
+
+      <details class="check-fold" style="margin-bottom:14px;">
+        <summary>
+          <span class="check-fold-name">Does this sound like cryptography? Open me</span>
+        </summary>
+        <div class="check-fold-body" style="line-height:1.6;">
+          <p style="margin-top:0;">
+            None of this needs programming. It's copying a long piece of text from one
+            screen to another. The odd part is where it's hidden.
+          </p>
+
+          <p><strong>What you're copying.</strong> A <em>token</em> is a temporary pass:
+          proof that your browser is already signed in to Suno. While it lasts, whoever
+          holds it can ask Suno for things as if they were you — so don't paste it
+          anywhere else. It expires on its own within minutes, which is exactly why this
+          step can't be automated: there's nothing to store.</p>
+
+          <p><strong>1. Open your library on Suno.</strong> Go to suno.com signed in, to
+          the screen where you see your songs.</p>
+
+          <p><strong>2. Open the developer tools.</strong> Press <code>F12</code>. If your
+          keyboard has an <code>Fn</code> key, it may be <code>Fn</code>+<code>F12</code>.
+          A panel opens at the side or the bottom, full of tabs: it's the console every
+          browser ships with. Looking around breaks nothing.</p>
+
+          <p><strong>3. Go to the «Network» tab.</strong> It only records what happens
+          <em>while</em> it's open, so it starts empty — <strong>refresh the page</strong>
+          (<code>F5</code>) without closing the panel. A list fills up: each line is one
+          request your browser makes to Suno.</p>
+
+          <p><strong>4. Search with the magnifying glass.</strong> That same tab has a
+          <strong>magnifier</strong> icon. Open it and type <code>bearer</code>. This
+          search looks <em>inside</em> the requests, not just at their names — which is
+          what you need, because the token lives inside. It will flag the lines carrying
+          it.</p>
+
+          <p><strong>5. Switch to the «Headers» view.</strong> Click one of the results: a
+          detail panel opens with its own tabs — <em>Headers</em>, Payload, Response…
+          <strong>You have to be on Headers.</strong> The token doesn't show in the other
+          views, and this is where most people get stuck.</p>
+
+          <p><strong>6. Copy the token.</strong> Find the line
+          <code>Authorization: Bearer eyJ...</code> and copy <strong>only what comes after
+          the word «Bearer»</strong>: a very long string starting with <code>eyJ</code>.
+          Without the word «Bearer», without quotes, without leading spaces.</p>
+
+          <p style="margin-bottom:0;"><strong>If something doesn't add up:</strong> there
+          are requests to <code>clerk.suno.com</code> that also carry a token but won't
+          work; the good ones go to <code>studio-api</code>. And if the download stops
+          halfway, it's almost always the token expiring — get a fresh one by repeating
+          this and launch it again: it resumes where it left off, it doesn't start over.</p>
+        </div>
+      </details>
 
       <div class="metro">
         <div class="metro-stop">
           <div class="metro-dot">1</div>
           <div class="metro-label">suno.com</div>
-          <div class="metro-sub">abre tu Library<br>con la sesión iniciada</div>
+          <div class="metro-sub">open your Library<br>signed in</div>
         </div>
         <div class="metro-line"></div>
         <div class="metro-stop">
           <div class="metro-dot">2</div>
           <div class="metro-label">F12 → Network</div>
-          <div class="metro-sub">refresca la página<br>para ver las llamadas</div>
+          <div class="metro-sub">refresh the page<br>to see the requests</div>
         </div>
         <div class="metro-line"></div>
         <div class="metro-stop">
           <div class="metro-dot">3</div>
-          <div class="metro-label">Lupa → «bearer»</div>
-          <div class="metro-sub">busca dentro de<br>las cabeceras</div>
+          <div class="metro-label">Magnifier → «bearer»</div>
+          <div class="metro-sub">it searches inside<br>the headers</div>
         </div>
         <div class="metro-line"></div>
         <div class="metro-stop">
           <div class="metro-dot">4</div>
-          <div class="metro-label">Copia el JWT</div>
-          <div class="metro-sub">lo que va después<br>de «Bearer »</div>
+          <div class="metro-label">Copy the JWT</div>
+          <div class="metro-sub">whatever comes after<br>«Bearer »</div>
         </div>
       </div>
 
-      <details class="check-fold" style="margin-bottom:14px;">
-        <summary>
-          <span class="check-fold-name">¿Esto te suena a criptología? Ábreme</span>
-        </summary>
-        <div class="check-fold-body" style="line-height:1.6;">
-          <p style="margin-top:0;">
-            Nada de lo de aquí abajo requiere saber programar. Es copiar un texto largo
-            de una pantalla a otra. Lo raro es dónde está escondido.
-          </p>
-
-          <p><strong>Qué vas a copiar.</strong> Un <em>token</em> es un pase temporal:
-          la prueba de que tu navegador ya inició sesión en Suno. Mientras dura, quien
-          lo tenga puede pedirle cosas a Suno como si fueras tú — así que no lo pegues
-          en ningún otro sitio. Caduca solo en minutos, y por eso este paso no se puede
-          automatizar: no hay nada que guardar.</p>
-
-          <p><strong>1. Abre tu biblioteca en Suno.</strong> Ve a suno.com con tu sesión
-          iniciada, la pantalla donde ves tus canciones.</p>
-
-          <p><strong>2. Abre las herramientas de desarrollo.</strong> Pulsa <code>F12</code>.
-          Si tu teclado tiene tecla <code>Fn</code>, quizá sea <code>Fn</code>+<code>F12</code>.
-          Se abre un panel lateral o inferior lleno de pestañas: es la consola que trae
-          de fábrica todo navegador. No vas a romper nada mirando.</p>
-
-          <p><strong>3. Ve a la pestaña «Network».</strong> En algunos navegadores se llama
-          «Red». Está vacía hasta que la página vuelva a pedir datos, así que
-          <strong>refresca</strong> (<code>F5</code>) sin cerrar el panel. Verás llenarse
-          una lista: cada línea es una petición que tu navegador le hace a Suno.</p>
-
-          <p><strong>4. Busca con la lupa.</strong> En esa pestaña hay un icono de lupa
-          (búsqueda). Ábrelo y escribe <code>bearer</code>. Esta búsqueda mira <em>dentro</em>
-          de las peticiones, no solo en sus nombres — que es justo lo que hace falta,
-          porque el token vive dentro. Te dejará señaladas las líneas que lo llevan.</p>
-
-          <p><strong>5. Ponte en la vista «Headers».</strong> Haz clic en uno de los
-          resultados: se abre un panel de detalle con sus propias pestañas —
-          <em>Headers</em> (o «Cabeceras»), Payload, Response… <strong>Tienes que estar en
-          Headers.</strong> En las otras vistas el token no aparece, y es donde más gente
-          se atasca.</p>
-
-          <p><strong>6. Copia el token.</strong> Busca la línea
-          <code>Authorization: Bearer eyJ...</code> y copia <strong>solo lo que va después
-          de la palabra «Bearer»</strong>: una tira larguísima que empieza por
-          <code>eyJ</code>. Sin la palabra «Bearer», sin comillas, sin espacios delante.</p>
-
-          <p style="margin-bottom:0;"><strong>Si algo no cuadra:</strong> hay peticiones a
-          <code>clerk.suno.com</code> que también llevan token pero no valen; las buenas van
-          a <code>studio-api</code>. Y si la descarga se corta a mitad, casi siempre es que
-          el token caducó — saca uno nuevo repitiendo esto y vuelve a lanzarla: retoma
-          donde se quedó, no empieza de cero.</p>
-        </div>
-      </details>
-
       <div class="field">
-        <label for="suno-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
+        <label for="suno-token">Authorization — the JWT only, without the «Bearer » prefix</label>
         <input type="password" id="suno-token" autocomplete="off" spellcheck="false"
                placeholder="eyJhbGciOi...">
       </div>
       <p class="card-help" style="margin-top:-4px;">
-        No se guarda en ningún sitio: vive en memoria durante la descarga y se va
-        contigo al cerrar la pestaña. Caduca solo en minutos, así que tampoco habría
-        nada que guardar.
+        It isn't stored anywhere: it lives in memory for the duration of the download and
+        leaves with you when you close the tab. It expires on its own within minutes, so
+        there would be nothing worth keeping anyway.
       </p>
 
-      <button class="btn" id="btn-suno-backup">Descargar biblioteca</button>
+      <button class="btn" id="btn-suno-backup">Download library</button>
       <div id="suno-backup-msg" class="msg"></div>
       <pre id="suno-log" class="log-box" style="display:none;"></pre>
     </div>
 
     <div class="card">
-      <h2>Verificación</h2>
+      <h2>Verification</h2>
       <p class="card-help">
-        Cruza los identificadores del índice contra los ficheros que hay en disco y
-        avisa de huecos, vacíos y corruptos. Merece la pena antes de construir: si el
-        token caducó a mitad de descarga, aquí es donde se ve.
+        Cross-checks the identifiers in the index against the files actually on disk and
+        reports gaps, empty files and corrupted ones. Worth doing before building: if the
+        token expired mid-download, this is where you see it.
       </p>
-      <button class="btn" id="btn-suno-verify">Verificar backup</button>
+      <button class="btn" id="btn-suno-verify">Verify backup</button>
       <div id="suno-verify-msg" class="msg"></div>
       <pre id="suno-verify-out" class="log-box" style="display:none;"></pre>
     </div>
 
     <div class="card">
-      <h2>Construir el vault</h2>
+      <h2>Build the vault</h2>
       <p class="card-help">
-        Convierte el backup en notas de Obsidian, una por pista, con el linaje entre
-        covers, remixes y mashups resuelto como enlaces. Se regenera entero en cada
-        pasada: el backup es la fuente de verdad, el vault es derivado.
+        Turns the backup into Obsidian notes, one per track, with the lineage between
+        covers, remixes and mashups resolved as links. It's regenerated whole on every
+        pass: the backup is the source of truth, the vault is derived.
       </p>
-      <button class="btn" id="btn-suno-build">Construir vault</button>
+      <button class="btn" id="btn-suno-build">Build vault</button>
       <div id="suno-build-msg" class="msg"></div>
       <pre id="suno-build-out" class="log-box" style="display:none;"></pre>
     </div>

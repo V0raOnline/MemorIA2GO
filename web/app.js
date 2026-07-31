@@ -1194,9 +1194,9 @@ loadDashboard();
 // MUSIC·0LOGY
 // ─────────────────────────────────────────
 
-// Los tokens NUNCA se guardan: ni en la config, ni en localStorage, ni en la
-// URL. Se leen del campo, viajan en el cuerpo del POST y se olvidan. Caducan
-// solos en minutos, asi que persistirlos no ahorraria nada y a cambio dejaria
+// El token NUNCA se guarda: ni en la config, ni en localStorage, ni en la
+// URL. Se lee del campo, viaja en el cuerpo del POST y se olvida. Caduca
+// solo en minutos, asi que persistirlo no ahorraria nada y a cambio dejaria
 // una credencial de la cuenta entera escrita en disco.
 async function sunoBackup() {
   const btn = document.getElementById("btn-suno-backup");
@@ -1205,13 +1205,13 @@ async function sunoBackup() {
   const token = document.getElementById("suno-token").value.trim();
 
   if (!token) {
-    msg.textContent = "Pega el Bearer token primero.";
+    msg.textContent = "Paste the Bearer token first.";
     msg.className = "msg error";
     return;
   }
 
   btn.disabled = true;
-  msg.textContent = "Descargando. El token caduca en minutos: si se corta, saca uno nuevo y vuelve a lanzarlo — retoma solo.";
+  msg.textContent = "Downloading. The token expires within minutes: if it stops, get a fresh one and launch it again — it resumes on its own.";
   msg.className = "msg";
   log.style.display = "";
   log.textContent = "";
@@ -1250,11 +1250,11 @@ async function sunoBackup() {
     }
 
     if (codigo === 0) {
-      msg.textContent = "Biblioteca descargada. Verifica el backup antes de construir.";
+      msg.textContent = "Library downloaded. Verify the backup before building.";
       msg.className = "msg ok";
       loadDashboard();   // la tarjeta del Observatorio ya refleja lo nuevo
     } else {
-      msg.textContent = "La descarga terminó con errores — mira el log. Si el token caducó, saca uno nuevo y relanza: retoma donde se quedó.";
+      msg.textContent = "The download finished with errors — check the log. If the token expired, get a fresh one and relaunch: it resumes where it left off.";
       msg.className = "msg warn";
     }
   } catch (e) {
@@ -1295,14 +1295,14 @@ document.getElementById("btn-suno-backup").addEventListener("click", sunoBackup)
 
 document.getElementById("btn-suno-verify").addEventListener("click", () =>
   sunoAccion("/api/suno/verify", "btn-suno-verify", "suno-verify-msg", "suno-verify-out", {
-    trabajando: "Cruzando el índice contra los ficheros...",
-    ok: "Backup íntegro.",
-    problemas: "Hay huecos o ficheros dañados — mira el detalle.",
+    trabajando: "Cross-checking the index against the files...",
+    ok: "Backup intact.",
+    problemas: "There are gaps or damaged files — check the detail.",
   }));
 
 document.getElementById("btn-suno-build").addEventListener("click", () =>
   sunoAccion("/api/suno/build", "btn-suno-build", "suno-build-msg", "suno-build-out", {
-    trabajando: "Construyendo el vault (puede tardar)...",
-    ok: "Vault construido. Ábrelo en Obsidian.",
-    problemas: "Terminó con avisos — mira el detalle.",
+    trabajando: "Building the vault (this can take a while)...",
+    ok: "Vault built. Open it in Obsidian.",
+    problemas: "Finished with warnings — check the detail.",
   }));
