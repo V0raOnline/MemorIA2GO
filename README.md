@@ -39,6 +39,16 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin. Every asset bank gets its own navigable index, same pattern as the classic image index.
 
+### MUSIC·0LOGY — a sister tool sharing the house
+
+Suno sits apart from the four steps above, and deliberately so. It has **no export**: the only way to get your library out is to ask its API, signed in, with a token you copy from your browser and that expires within minutes. M3M0R·IA's pipeline never reaches out to the internet on its own — so Suno gets its own tab, its own pipeline, and its own manual step, rather than being bent into a provider it isn't.
+
+What it does: downloads your library (audio, cover art and metadata), verifies the backup is intact, and builds a separate Obsidian vault with one note per track — including the **real lineage** between covers, remixes and mashups, resolved as links. Trees of 60+ variants are normal; Dewey-decimal codes keep them navigable, and the `Full Song` badge marks which one is the finished version.
+
+It also surfaces in the Observatory: tracks, total duration, favorites, finished songs and projects.
+
+The rule that governs it is worth stating precisely, because the short version ("the pipeline never makes outbound requests") would forbid this and shouldn't: **the app never reaches out on its own initiative — it reaches out when you hand it a token and press the button.** See [the token guide](#the-suno-token-or-the-key-to-your-own-house) if any of that sounds like cryptography.
+
 ---
 
 ## How it works
@@ -178,11 +188,57 @@ Your browser opens with the interface. From here on, everything is clicks: **Con
 
 ---
 
+## The Suno token, or the key to your own house
+
+Token, F12, headers? This section is for you. No programming needed: it's copying a long piece of text from one screen to another. The odd part is where it's hidden.
+
+### Why this step is manual
+
+The other providers give you an "export my data" button and a ZIP. **Suno doesn't.** Your library can only be asked for through its API, and the API wants proof that you're you.
+
+That proof is the **token**: a temporary pass your browser has held since you signed in. It lives a few minutes and expires on its own. There's nothing to store, no credentials to put in a config file — which is why the step isn't automated, and why you do it yourself each time.
+
+Worth saying plainly: **while it lasts, that token stands in for you.** Whoever holds it can ask Suno for the same things you can. Don't paste it anywhere that isn't this app, don't send it over chat, and don't publish it in a screenshot. It expires fast, which is the good news.
+
+M3M0R·IA treats it accordingly: it travels in the request body and not in the address bar, it's handed to the process through its environment and not on the command line, it's redacted from the log before it reaches your screen, and it isn't stored anywhere. It leaves with you when you close the tab.
+
+### Getting it, step by step
+
+**1. Open your library on Suno.**
+Go to [suno.com](https://suno.com) signed in, to the screen where you see your songs.
+
+**2. Open the developer tools.**
+Press `F12`. If your keyboard has an `Fn` key, it may be `Fn`+`F12`. A panel opens, at the side or the bottom, full of tabs: it's the console every browser ships with. Looking around breaks nothing.
+
+**3. Go to the «Network» tab.**
+Some browsers call it «Net». It will be empty: it only records what happens *while* it's open. So **refresh the page** (`F5`) without closing the panel. A list fills up — each line is one request your browser makes to Suno.
+
+**4. Search with the magnifying glass.**
+That same tab has a **magnifier** icon. Open it and type `bearer`. This search looks *inside* the requests, not just at their names, which is exactly what you need: the token is inside. It will flag the lines carrying it.
+
+**5. Switch to the «Headers» view.**
+Click one of the results. A detail panel opens with its own tabs: **Headers**, Payload, Response... **You have to be on Headers.** The token doesn't appear in the other views, and this is where most people get stuck.
+
+**6. Copy the token.**
+Find the line `Authorization: Bearer eyJ...` and copy **only what comes after the word «Bearer»**: a very long string of letters and numbers starting with `eyJ`. Without the word «Bearer», without quotes, without leading spaces.
+
+**7. Paste it into the MUSIC·0LOGY tab** and press "Download library".
+
+### If something doesn't add up
+
+- **I can't find any line with `Authorization`.** Refresh the page with the panel open. If the list is still empty, check you're on Network and not on Console.
+- **I pasted it and it says it's invalid.** You may have copied the word «Bearer» along with it, or a space. You may also have picked a request to `clerk.suno.com`: those carry a token but won't work. The good ones go to `studio-api`.
+- **The download stopped halfway.** Almost always the token expiring. Get a fresh one by repeating these steps and launch it again: it **resumes where it left off**, it doesn't start over.
+- **I've forgotten all of this.** It's inside the app too: in the MUSIC·0LOGY tab, the fold labelled «Does this sound like cryptography? Open me».
+
+---
+
 ## Configuration
 
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
 - `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
 - `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed.
+- `suno_backup` and `suno_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's two paths: where the raw Suno backup lives, and where its Obsidian vault is built. Both optional: without `suno_backup` the Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
 
 Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
 
@@ -228,6 +284,8 @@ Claude and Grok exports do not link conversations to projects: those notes are o
   - **The asset relinker only ever rewrote image links.** Written back when the asset banks held nothing but images, its pattern matched `![](path)` and nothing else. Claude artifacts — which always use `[text](path)` — arrived later and left it quietly insufficient: moving that bank would have left every artifact link pointing at the old folder. Measured against a real 1641-note vault, it rewrote 0 of 32 links. Fixed in both editions.
   - **Every artifact link in the Claude index was dead.** The index builder stripped the filename from its path and then rebuilt the link without the type subfolder, so all 16 artifacts pointed at files that do not exist — clicking one in Obsidian did nothing. It had been that way since artifacts existed. No test caught it because every test checked the generated markdown, never whether the paths inside it resolve on disk. Fixed in both editions, with a test that walks each link to the filesystem.
   - **Upgrading an existing vault is one click.** See "Language editions" above: Reconnection detects the old Spanish layout, renames the folders and reconnects every asset link, without deleting anything or disturbing your download triage.
+
+- **v2.10 brought a sister tool into the house: MUSIC·0LOGY.** Suno had lived in a separate repo, because it looked like it didn't fit — M3M0R·IA assumes conversations, and a track is a generation event with parent→child lineage. That reasoning was half right: it judged step 1. The decisive obstacle turned out to be different. M3M0R·IA eats files sitting in a folder; Suno has no export at all, only an authenticated API. So it was integrated **at the interface, not in the pipeline**: its own tab, its own pipeline, its own manual step. The product rule survives, stated more precisely — the app never reaches out on its own initiative, it reaches out when you hand it a token and press the button. The library also shows up in the Observatory, and there's a step-by-step guide for anyone who has never opened DevTools.
 
 Design principles throughout: diagnose before implementing, validate against real exports, never destroy data, and make failures loud and honest rather than silent.
 
