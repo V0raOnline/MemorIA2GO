@@ -53,11 +53,19 @@ Substack **sí tiene export**, a diferencia de Suno: un zip que te descargas del
 
 Qué hace: convierte cada post en una nota de Obsidian con el cuerpo en Markdown, y distingue **publicados, retirados y borradores** — porque un borrador con fecha y métricas no es un borrador, es algo que publicaste y luego bajaste. Si le pasas el CSV de estadísticas que se descarga aparte, recupera además dos cosas que el export **no** trae: la **sección** y las **etiquetas** de cada post, que son las que hacen que el grafo se ordene solo.
 
+Tiene su propia pestaña, con dos pasos: **verificar** —qué trae el export, cuánto cruza el CSV, cuántos CSV de suscriptores se ignoran y, sobre todo, **qué no viene**— y **construir**. También asoma al Observatorio con posts, palabras, publicados y borradores: las cuatro cifras salen del zip, así que la tarjeta está completa aunque no hayas descargado el CSV, y si no hay export no se pinta en vez de mentir con ceros.
+
+Y desde la terminal, si lo prefieres:
+
 ```bash
 python substack/build_substack_vault.py --exports-dir "TU_CARPETA_DE_EXPORTS" --vault-dir "TU_VAULT_DE_TINTERO" --stats "ruta/al/email_stats_AAAA-MM-DD.csv"
 ```
 
 Las métricas van **fechadas** dentro de la nota, no sueltas: un `views: 55` sin fecha miente con aplomo seis meses después. Cada CSV nuevo sobrescribe la foto; el histórico vive en los propios ficheros, que ya llevan la fecha en el nombre.
+
+El vault se construye con dos índices propios: `_indice.md`, con las cifras y el archivo en cronología inversa por año y mes, más bloques aparte para los retirados y los borradores; y `_secciones.md`, con tu taxonomía. Ese segundo **solo existe si le has dado el CSV** — sin él no se fabrica una categoría "sin clasificar", porque pintaría como dato lo que en realidad es una fuente que no descargaste.
+
+Un detalle que se nota al mirar el vault: las etiquetas se normalizan al escribirlas (`bitácora glitch` → `bitácora-glitch`). Obsidian no admite espacios dentro de una etiqueta y, sin ese cambio, quedan en el fichero pero muertas — ni panel de etiquetas ni grafo. Los acentos se conservan.
 
 Dos ausencias que conviene saber de antemano, porque son del export y no de la herramienta: **los comentarios no viajan** (ninguno) y **las imágenes tampoco** — solo sus URLs remotas, que la nota conserva.
 
@@ -252,6 +260,7 @@ Busca la línea `Authorization: Bearer eyJ...` y copia **solo lo que va después
 - `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, mapa de gizmos) y opciones (carpetas por año/mes, generación de índice). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
 - `gizmo_map.json` — mapea IDs de proyecto (gizmo) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Cartografía); nunca se commitea.
 - `topic_map.json` — tus temas para conversaciones sin asignar: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas de índice enlazadas en `MERGED_VAULT/_Temas`. Nunca se commitea.
+- `substack_vault` (en `memoria_config.yaml`) — dónde se construye el vault de Tintero. Es la **única** ruta que necesita: el export de Substack y su CSV de estadísticas viven en tu carpeta de exports de siempre, porque el pipeline de conversaciones los rechaza y Tintero los recoge de ahí. Una carpeta, dos puertas.
 - `suno_backup` y `suno_vault` (en `memoria_config.yaml`) — las dos rutas de MUSIC·0LOGY: dónde vive el backup crudo de Suno, y dónde se construye su vault de Obsidian. Las dos opcionales: sin `suno_backup` la tarjeta del Observatorio simplemente no aparece — no se pinta a cero, porque decir "0 pistas" sobre una biblioteca que no has descargado es mentir, no informar.
 
 Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas se organizan por temas (varios-a-varios), no por carpetas.
