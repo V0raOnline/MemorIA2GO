@@ -55,11 +55,19 @@ Substack **does have an export**, unlike Suno: a ZIP you download from the dashb
 
 What it does: turns each post into an Obsidian note with the body in Markdown, and tells apart **published, retired and draft** — because a draft with a date and metrics isn't a draft, it's something you published and later took down. If you hand it the stats CSV you download separately, it also recovers two things the export does **not** carry: each post's **section** and **tags**, which are what make the graph sort itself out.
 
+It has its own tab, with two steps: **verify** — what the export brings, how much the CSV matches, how many subscriber CSV files are ignored and, above all, **what doesn't come** — and **build**. It also surfaces in the Observatory with posts, words, published and drafts: all four figures come from the ZIP, so the card is complete even if you never downloaded the CSV, and when there's no export it isn't painted at all rather than lying with zeros.
+
+And from the terminal, if you'd rather:
+
 ```bash
 python substack/build_substack_vault.py --exports-dir "YOUR_EXPORTS_FOLDER" --vault-dir "YOUR_INKWELL_VAULT" --stats "path/to/email_stats_YYYY-MM-DD.csv"
 ```
 
 Metrics are **dated** inside the note, not left loose: a `views: 55` with no date lies with total confidence six months later. Each new CSV overwrites the snapshot; the history lives in the files themselves, which already carry the date in their names.
+
+The vault is built with two indexes of its own: `_index.md`, with the figures and the archive in reverse chronology by year and month, plus separate blocks for retired posts and drafts; and `_sections.md`, with your taxonomy. That second one **only exists if you handed it the CSV** — without it, no "unclassified" bucket gets invented, because that would paint as data what is really a source you didn't download.
+
+One detail you'll notice looking at the vault: tags are normalized as they're written (`bitácora glitch` → `bitácora-glitch`). Obsidian doesn't allow spaces inside a tag and, without that change, they sit in the file but dead — no tag pane, no graph. Accents are kept.
 
 Two absences worth knowing up front, because they belong to the export and not to the tool: **comments don't travel** (none of them) and **neither do images** — only their remote URLs, which the note keeps.
 
@@ -254,6 +262,7 @@ Find the line `Authorization: Bearer eyJ...` and copy **only what comes after th
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
 - `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
 - `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed.
+- `substack_vault` (in `memoria_config.yaml`) — where the Inkwell vault gets built. It's the **only** path it needs: the Substack export and its stats CSV live in your usual exports folder, because the conversation pipeline rejects them and Inkwell picks them up from there. One folder, two doors.
 - `suno_backup` and `suno_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's two paths: where the raw Suno backup lives, and where its Obsidian vault is built. Both optional: without `suno_backup` the Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
 
 Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
