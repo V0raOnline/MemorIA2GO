@@ -89,7 +89,8 @@ def validate_export_file(path) -> dict:
         # 2026-07-31: un post no es un dialogo). Al pipeline conversacional no
         # se le ensena un supuesto nuevo, solo a RECONOCER y RECHAZAR: eso es
         # lo que cierra el agujero.
-        if any(n.lower() == "posts.csv" for n in names) and            any(n.lower().startswith("posts/") and n.lower().endswith(".html") for n in names):
+        if any(n.lower() == "posts.csv" for n in names) and \
+           any(n.lower().startswith("posts/") and n.lower().endswith(".html") for n in names):
             # Los CSV de posts/ (delivers/opens) y email_list.*.csv llevan
             # emails de suscriptores, y los de opens ademas pais/ciudad/
             # dispositivo/user-agent: datos personales de TERCEROS. Se nombran
