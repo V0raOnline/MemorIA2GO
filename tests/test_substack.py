@@ -231,3 +231,80 @@ def test_zip_que_no_es_de_substack_se_rechaza(tmp_path):
     zpath = _make_zip(tmp_path, "otro.zip", {"conversations.json": "[]"})
     with pytest.raises(ValueError):
         bsv.construir_vault(zpath, tmp_path / "vault", None, log=lambda *a: None)
+
+
+# ─────────────────────────────────────────
+# Indices del vault
+# ─────────────────────────────────────────
+
+def test_indice_lista_cronologia_secciones_retirados_y_borradores(tmp_path):
+    vault = tmp_path / "vault"
+    bsv.construir_vault(_export_sintetico(tmp_path), vault,
+                        _stats_sinteticas(tmp_path), log=lambda *a: None)
+    idx = (vault / "_indice.md").read_text(encoding="utf-8")
+    assert "# Índice — Tintero" in idx
+    assert "4 publicaciones" in idx
+    # Cronologia inversa: lo ultimo primero, que es como se mira un archivo.
+    assert idx.index("## 2026") < idx.index("## 2025")
+    assert "[[2026-01-15_publicado]] — Publicado" in idx
+    # El retirado se marca donde se lista, no solo dentro de su nota.
+    assert "· retirado" in idx
+    assert "## Retirados (1)" in idx
+    # Los borradores no tienen fecha: van sin ella y en su propio bloque.
+    assert "## Borradores (1)" in idx
+    assert "- [[borrador]]" in idx
+
+
+def test_sin_csv_no_se_escribe_el_indice_de_secciones(tmp_path):
+    """La decisión que más importa de todo esto: las secciones SOLO vienen
+    del CSV. Sin él, el fichero no existe. Fabricar un "sin clasificar"
+    pintaría como dato lo que en realidad es una fuente no descargada."""
+    vault = tmp_path / "vault"
+    bsv.construir_vault(_export_sintetico(tmp_path), vault, None, log=lambda *a: None)
+    assert (vault / "_indice.md").is_file()
+    assert not (vault / "_secciones.md").exists()
+    assert "## Secciones" not in (vault / "_indice.md").read_text(encoding="utf-8")
+
+
+def test_indice_de_secciones_agrupa_y_recoge_los_que_no_tienen(tmp_path):
+    vault = tmp_path / "vault"
+    bsv.construir_vault(_export_sintetico(tmp_path), vault,
+                        _stats_sinteticas(tmp_path), log=lambda *a: None)
+    sec = (vault / "_secciones.md").read_text(encoding="utf-8")
+    assert "## Bitacora Glitch (1)" in sec
+    assert "## Hackeo limbico (1)" in sec
+    # El podcast no cruza con el CSV sintetico: no se pierde, se recoge.
+    assert "## Sin sección (1)" in sec
+    assert "[[2026-02-20_episodio]]" in sec
+
+
+def test_en_seco_no_se_escriben_indices(tmp_path):
+    vault = tmp_path / "vault"
+    bsv.construir_vault(_export_sintetico(tmp_path), vault,
+                        _stats_sinteticas(tmp_path), dry_run=True, log=lambda *a: None)
+    assert not vault.exists()
+
+
+def test_las_etiquetas_con_espacio_serian_invalidas_en_obsidian():
+    """Verificado por V0ra sobre su vault real (2026-08-01): una etiqueta con
+    espacio sale tachada en rojo en las propiedades y no existe ni para el
+    panel de etiquetas ni para el grafo. 16 de sus 46 estaban muertas.
+
+    SEÑUELO: la etiqueta ya válida tiene que salir IDÉNTICA, con acentos
+    incluidos. Si alguien "mejora" esto convirtiéndolo en un slugify, se
+    llevará por delante los acentos y `bitácora` no es lo que ella escribió."""
+    assert bsv.etiqueta_obsidian("bitácora glitch") == "bitácora-glitch"
+    assert bsv.etiqueta_obsidian("Emisión Pirata") == "Emisión-Pirata"
+    assert bsv.etiqueta_obsidian("human-AI") == "human-AI"
+    assert bsv.etiqueta_obsidian("V0raOnline") == "V0raOnline"
+    assert bsv.etiqueta_obsidian("  dos   espacios  ") == "dos-espacios"
+    assert bsv.etiqueta_obsidian("con.punto") == "con-punto"
+    assert bsv.etiqueta_obsidian("") == ""
+
+
+def test_la_nota_lleva_las_etiquetas_ya_validas(tmp_path):
+    vault = tmp_path / "vault"
+    bsv.construir_vault(_export_sintetico(tmp_path), vault,
+                        _stats_sinteticas(tmp_path), log=lambda *a: None)
+    texto = (vault / "Posts" / "2026" / "01" / "2026-01-15_publicado.md").read_text(encoding="utf-8")
+    assert '  - "uno"' in texto and '  - "dos"' in texto
