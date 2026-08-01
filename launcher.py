@@ -26,6 +26,8 @@ Endpoints:
   POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
   GET  /api/layout             -> ¿el vault usa el layout español? (pinta la card o no)
   POST /api/layout/migrate     -> renombra el layout al inglés y reengancha enlaces
+  POST /api/substack/verify    -> qué trae el export de Substack y qué NO (Inkwell)
+  POST /api/substack/build     -> construye el vault de Inkwell desde el export
 """
 import argparse
 import json
@@ -75,21 +77,42 @@ def patch_config_yaml(updates: dict) -> None:
     text = CONFIG_PATH.read_text(encoding="utf-8-sig")
     lines = text.split("\n")
 
+    def _yaml_val(v):
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if v is None:
+            return "''"
+        return f"'{v}'"
+
+    vistas = set()
+    ultima_de_paths = None
+    en_paths = False
     for i, line in enumerate(lines):
+        if re.match(r"^paths\s*:", line):
+            en_paths = True
+            continue
+        if re.match(r"^[A-Za-z_]+\s*:", line):
+            en_paths = False
         m = re.match(r"^(\s*)([A-Za-z_]+)\s*:", line)
         if not m:
             continue
         indent, key = m.group(1), m.group(2)
+        if en_paths:
+            ultima_de_paths = i
         if key not in updates:
             continue
-        v = updates[key]
-        if isinstance(v, bool):
-            val_str = "true" if v else "false"
-        elif v is None:
-            val_str = "''"
-        else:
-            val_str = f"'{v}'"
-        lines[i] = f"{indent}{key}: {val_str}"
+        vistas.add(key)
+        lines[i] = f"{indent}{key}: {_yaml_val(updates[key])}"
+
+    # Claves que el archivo todavia no tiene. Sin esto la interfaz guardaba
+    # en silencio: el bucle de arriba solo reescribe lineas EXISTENTES, asi
+    # que una ruta nueva (substack_vault en una config anterior a Tintero) se
+    # perdia sin un solo aviso. Se añaden al final del bloque `paths:`, que es
+    # donde viven todas las rutas, preservando el resto del archivo.
+    nuevas = [k for k in updates if k not in vistas and k.endswith(("_vault", "_dir", "_map", "_backup"))]
+    if nuevas and ultima_de_paths is not None:
+        bloque = [f"  {k}: {_yaml_val(updates[k])}" for k in nuevas]
+        lines[ultima_de_paths + 1:ultima_de_paths + 1] = bloque
 
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8", newline="")
 
@@ -314,10 +337,129 @@ def suno_build():
         code, salida = _suno_run("build_suno_vault.py",
                                   ["--backup-dir", str(backup), "--vault-dir", str(vault)])
         if code != 0:
-            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+            return jsonify({"error": salida[-500:] or "failed to build the vault"}), 500
         return jsonify({"ok": True, "salida": salida[-4000:]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
+# API: Inkwell — la otra herramienta hermana.
+#
+# A diferencia de MUSIC·0LOGY, esta NO sale a Internet: Substack SI tiene
+# export, y el zip entra por exports_dir como cualquier otro fichero quieto.
+# Lo que pasa es que el pipeline conversacional lo RECHAZA a proposito (un
+# post no es un dialogo, ver el guard en preflight.validate_export_file) y
+# esta puerta lo recoge. Misma carpeta de entrada, dos puertas distintas.
+# ─────────────────────────────────────────
+
+def _substack_script(nombre: str) -> Path:
+    return HERE / "substack" / nombre
+
+
+def _substack_run(script: str, args: list) -> tuple:
+    # PYTHONIOENCODING a la fuerza: la consola de Windows viene en cp1252 y
+    # los titulos de V0ra llevan acentos y simbolos. Mismo patron que _suno_run.
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(_substack_script(script))] + args,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=1800, env=env,
+    )
+    salida = (result.stdout or "") + (result.stderr or "")
+    return result.returncode, salida.strip()
+
+
+def _stats_csv_en(exports_dir) -> Path:
+    """Localiza el CSV de estadisticas dentro de la carpeta de exports. Se
+    coge el mas reciente por nombre: el fichero lleva la fecha dentro
+    (v0raonline_email_stats_AAAA-MM-DD.csv) y cada descarga sobreescribe la
+    foto anterior, asi que el ultimo es el bueno.
+
+    Se busca por contenido de cabecera, no por nombre a secas: en esa
+    carpeta puede haber otros CSV y meter uno equivocado daria un cruce
+    silencioso de 0 filas, que es peor que no encontrarlo."""
+    if not exports_dir:
+        return None
+    candidatos = []
+    for p in sorted(Path(exports_dir).glob("*.csv"), reverse=True):
+        try:
+            with open(p, "r", encoding="utf-8-sig") as f:
+                cabecera = f.readline()
+        except OSError:
+            continue
+        if "title" in cabecera and "post_date" in cabecera and "section_name" in cabecera:
+            candidatos.append(p)
+    return candidatos[0] if candidatos else None
+
+
+@app.route("/api/substack/verify", methods=["POST"])
+def substack_verify():
+    """Lo que hay, lo que cruza, lo que se ignora y lo que NO viene.
+
+    No lanza subproceso: lee del zip y devuelve numeros, que es lo que la
+    tarjeta necesita. El subproceso se reserva para construir."""
+    try:
+        from config_loader import load_config, get_path
+        from substack_stats import verificar_export
+        cfg = load_config(str(CONFIG_PATH))
+        exports = get_path(cfg, "exports_dir")
+        if not exports:
+            return jsonify({"error": "Configure the exports folder first"}), 400
+        datos = verificar_export(exports, _stats_csv_en(exports))
+        if not datos.get("encontrado"):
+            return jsonify({"error": "No Substack export found in the exports folder. "
+                                     "Download it from your publication settings and drop it there."}), 404
+        return jsonify(datos)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/substack/build", methods=["POST"])
+def substack_build():
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        exports = get_path(cfg, "exports_dir")
+        vault = get_path(cfg, "substack_vault")
+        if not exports:
+            return jsonify({"error": "Configure the exports folder first"}), 400
+        if not vault:
+            return jsonify({"error": "Configure the Inkwell vault first (substack_vault)"}), 400
+        args = ["--exports-dir", str(exports), "--vault-dir", str(vault)]
+        csv_stats = _stats_csv_en(exports)
+        if csv_stats:
+            args += ["--stats", str(csv_stats)]
+        if (request.get_json(silent=True) or {}).get("dry_run"):
+            args.append("--dry-run")
+        code, salida = _substack_run("build_substack_vault.py", args)
+        if code != 0:
+            return jsonify({"error": salida[-500:] or "failed to build the vault"}), 500
+        return jsonify({"ok": True, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _con_substack(stats: dict, cfg: dict) -> dict:
+    """Añade la tarjeta de Inkwell al payload del dashboard.
+
+    Lee del EXPORT, nunca del vault construido: tiene que funcionar justo
+    despues de descargar el zip y antes de construir nada. Si no hay export
+    en la carpeta, la clave no viaja y la tarjeta no se pinta -- no se pinta
+    a cero, misma regla que la de musica.
+    """
+    try:
+        from config_loader import get_path
+        from substack_stats import compute_substack_stats
+        exports = get_path(cfg, "exports_dir")
+        if not exports:
+            return stats
+        datos = compute_substack_stats(exports)
+        if datos:
+            stats = {**stats, "substack": datos}
+    except Exception:
+        pass  # el dashboard entero no puede caerse por una tarjeta
+    return stats
 
 
 def _con_suno(stats: dict, cfg: dict) -> dict:
@@ -370,10 +512,10 @@ def get_stats():
         if request.args.get("refresh") != "1":
             cached = load_cache(Path(base_vault))
             if cached is not None:
-                return jsonify(_con_suno(cached, cfg))
+                return jsonify(_con_substack(_con_suno(cached, cfg), cfg))
         stats = compute_stats(Path(base_vault), prj_name)
         save_cache(Path(base_vault), stats)
-        return jsonify(_con_suno(stats, cfg))
+        return jsonify(_con_substack(_con_suno(stats, cfg), cfg))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

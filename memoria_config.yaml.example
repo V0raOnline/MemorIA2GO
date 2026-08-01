@@ -21,6 +21,13 @@ paths:
   # Separado del vault de conversaciones: es otro pipeline.
   suno_vault: ''
 
+  # 🖋️ Tintero — vault de Obsidian donde se construyen tus posts de Substack.
+  # Separado también: un post no es una conversación.
+  # El export y el CSV de estadísticas NO necesitan ruta propia: viven en
+  # exports_dir, la de siempre. El pipeline de conversaciones los rechaza y
+  # Tintero los recoge — una carpeta, dos puertas.
+  substack_vault: ''
+
 #=============================================
 # ⚙️  Opciones de procesamiento
 #=============================================

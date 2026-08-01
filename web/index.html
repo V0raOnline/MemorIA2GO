@@ -42,9 +42,15 @@
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
       <span>Reconnection</span> <span id="pendientes-count-badge"></span>
     </button>
-    <button class="tab-btn" data-tab="musicology">
+    <div class="nav-sep" aria-hidden="true"></div>
+    <button class="tab-btn tool" data-tab="musicology">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
       <span>MUSIC<span class="brand-ia">·0</span>LOGY</span>
+    </button>
+    <div class="nav-sep" aria-hidden="true"></div>
+    <button class="tab-btn tool" data-tab="substack">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg>
+      <span>Inkwell</span>
     </button>
   </nav>
 
@@ -111,6 +117,14 @@
       <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg><span>MUSIC<span class="brand-ia">·0</span>LOGY</span></h2>
       <div id="dashboard-suno" class="stat-grid"></div>
     </div>
+
+    <!-- Tintero: las cuatro cifras salen del ZIP, no del CSV de estadisticas,
+         para que la tarjeta este completa aunque el CSV no se haya
+         descargado. Solo aparece si hay export de Substack en la carpeta. -->
+    <div class="card" id="card-substack" style="display:none;">
+      <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg><span>Inkwell</span></h2>
+      <div id="dashboard-substack" class="stat-grid"></div>
+    </div>
   </section>
 
   <!-- CONFIGURATION -->
@@ -150,6 +164,11 @@
         <label for="cfg-suno_vault">MUSIC<span class="brand-ia">·0</span>LOGY — music vault</label>
         <input type="text" id="cfg-suno_vault" autocomplete="off">
         <div class="path-suggest" id="suggest-suno_vault"></div>
+      </div>
+      <div class="field">
+        <label for="cfg-substack_vault">Inkwell — publications vault</label>
+        <input type="text" id="cfg-substack_vault" autocomplete="off">
+        <div class="path-suggest" id="suggest-substack_vault"></div>
       </div>
     </div>
 
@@ -432,6 +451,50 @@
       <button class="btn" id="btn-suno-build">Build vault</button>
       <div id="suno-build-msg" class="msg"></div>
       <pre id="suno-build-out" class="log-box" style="display:none;"></pre>
+    </div>
+  </section>
+
+  <!-- TINTERO: la otra herramienta hermana. A diferencia de MUSIC·0LOGY,
+       esta NO sale a Internet: Substack si tiene export y el zip entra por
+       exports_dir. El pipeline conversacional lo rechaza a proposito y esta
+       pantalla lo recoge — una carpeta, dos puertas. -->
+  <section id="panel-substack" class="panel">
+    <div class="panel-header">
+      <div class="panel-header-text">
+        <h1>Inkwell</h1>
+        <p class="panel-header-desc">What you published, kept at home.</p>
+        <p class="panel-header-brand">Your memory. Your context. Ready to think with you.</p>
+      </div>
+      <img src="assets/tintero.png" alt="" class="panel-header-icon"
+           onerror="this.style.display='none'">
+    </div>
+
+    <div class="card">
+      <h2>Verification</h2>
+      <p class="card-help">
+        The export lives in your usual exports folder: the conversation pipeline recognizes
+        it, rejects it, and this screen picks it up. If you also drop the stats CSV you
+        download from your Substack dashboard, it gets matched automatically.
+      </p>
+      <button class="btn" id="btn-substack-verify">Verify the export</button>
+      <div id="substack-verify-msg" class="msg"></div>
+      <div id="substack-verify-out" class="sb-detalle" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Build</h2>
+      <p class="card-help">
+        One note per post. Published ones are filed by year and month; drafts go to their
+        own folder, because they have no date to file them by. None of this touches your
+        conversation vault.
+      </p>
+      <label class="sb-check">
+        <input type="checkbox" id="substack-dry-run">
+        <span>Dry run: count what it would do, without writing anything</span>
+      </label>
+      <button class="btn" id="btn-substack-build">Build the vault</button>
+      <div id="substack-build-msg" class="msg"></div>
+      <pre id="substack-build-out" class="log-box" style="display:none;"></pre>
     </div>
   </section>
 
