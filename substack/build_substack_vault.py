@@ -76,15 +76,7 @@ PLACEHOLDER_PRE = "Text within this block will maintain its original spacing whe
 # no telemetria: la seccion y las etiquetas son taxonomia de la autora y no
 # envejecen. Todo lo demas es una foto de un dia y va al bloque de
 # instantanea, fechado, para que no mienta seis meses despues.
-METRICAS_INSTANTANEA = [
-    ("views", "vistas"),
-    ("likes", "likes"),
-    ("comments", "comentarios"),
-    ("restacks", "restacks"),
-    ("shares", "compartidos"),
-    ("opens", "aperturas"),
-    ("clicks", "clicks"),
-]
+METRICAS_INSTANTANEA = ["views", "likes", "comments", "restacks", "shares", "opens", "clicks"]
 
 # Placeholder de Substack para "esta metrica no aplica". No es vacio ni
 # cero: revienta cualquier int() ingenuo. Mismo genero que la trampa de
@@ -366,10 +358,10 @@ def clasificar_estado(post: dict, tiene_stats: bool) -> str:
     (decision de V0ra 2026-07-31: los dos 'Versos EreKtos' son de estos).
     Un borrador de verdad no tiene ni titulo ni fecha ni metricas."""
     if (post.get("is_published") or "").strip().lower() == "true":
-        return "publicado"
+        return "published"
     if tiene_stats or (post.get("post_date") or "").strip():
-        return "retirado"
-    return "borrador"
+        return "retired"
+    return "draft"
 
 
 def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
@@ -383,17 +375,17 @@ def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
     lineas.append("source: substack_export")
     lineas.append(f"post_id: {yaml_escape(post.get('post_id', '').split('.', 1)[0])}")
     lineas.append(f"slug: {yaml_escape(slug)}")
-    lineas.append(f"estado: {yaml_escape(estado)}")
-    lineas.append(f"tipo: {yaml_escape(post.get('type'))}")
+    lineas.append(f"status: {yaml_escape(estado)}")
+    lineas.append(f"type: {yaml_escape(post.get('type'))}")
     if (post.get("subtitle") or "").strip():
-        lineas.append(f"subtitulo: {yaml_escape(post['subtitle'].strip())}")
-    lineas.append(f"palabras: {palabras}")
+        lineas.append(f"subtitle: {yaml_escape(post['subtitle'].strip())}")
+    lineas.append(f"word_count: {palabras}")
 
     # Seccion y tags son obra, no telemetria: van al frontmatter normal.
     if stats:
         seccion = (stats.get("section_name") or "").strip()
         if seccion:
-            lineas.append(f"seccion: {yaml_escape(seccion)}")
+            lineas.append(f"section: {yaml_escape(seccion)}")
         etiquetas = [t.strip() for t in (stats.get("tags") or "").split(",") if t.strip()]
         if etiquetas:
             lineas.append("tags:")
@@ -403,10 +395,10 @@ def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
     # Las metricas SI envejecen: van fechadas o mienten con aplomo.
     if stats:
         lineas.append(f"stats_snapshot: {fecha_stats}")
-        for col, etiqueta in METRICAS_INSTANTANEA:
+        for col in METRICAS_INSTANTANEA:
             valor = a_numero(stats.get(col))
             if valor is not None:
-                lineas.append(f"{etiqueta}: {valor}")
+                lineas.append(f"{col}: {valor}")
 
     lineas.append("---")
     return "\n".join(lineas)
@@ -422,7 +414,7 @@ def construir_nota(post: dict, stats: dict, cuerpo_md: str, estado: str,
     if (post.get("subtitle") or "").strip():
         partes.append(f"*{post['subtitle'].strip()}*")
 
-    if estado == "retirado":
+    if estado == "retired":
         partes.append("> [!warning] Retirado\n> Este post estuvo publicado y se retiro despues.")
 
     # La perdida se anota en la nota, no en silencio: los podcast del export
@@ -479,7 +471,7 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
             if n.startswith("posts/") and n.endswith(".html"):
                 html_por_id[Path(n).name.split(".")[0]] = n
 
-        cuenta = {"publicado": 0, "retirado": 0, "borrador": 0}
+        cuenta = {"published": 0, "retired": 0, "draft": 0}
         cruzados = 0
         sin_html = []
 
@@ -503,7 +495,7 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
             nota = construir_nota(post, stats, cuerpo, estado, slug, fecha_stats)
 
             fecha = (post.get("post_date") or "")[:10]
-            if estado == "borrador" or not fecha:
+            if estado == "draft" or not fecha:
                 # Los borradores de verdad no tienen fecha: por eso van a su
                 # propia carpeta y no al arbol año/mes. La decision de V0ra
                 # de darles categoria propia disuelve el problema.
@@ -556,8 +548,8 @@ def main():
         print(f"[error] {e}")
         sys.exit(1)
 
-    print(f"[info] publicados: {r['publicado']} | retirados: {r['retirado']} "
-          f"| borradores: {r['borrador']}")
+    print(f"[info] publicados: {r['published']} | retirados: {r['retired']} "
+          f"| borradores: {r['draft']}")
     print(f"[info] cruzados con estadisticas: {r['cruzados']}/{r['posts']}")
     if r["sin_html"]:
         print(f"[aviso] {len(r['sin_html'])} post(s) del indice sin HTML en el zip: {r['sin_html'][:5]}")

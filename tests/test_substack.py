@@ -118,12 +118,12 @@ def test_clasificar_estado():
     """Decision de V0ra (2026-07-31): un post con is_published=false pero CON
     fecha y metricas no es un borrador, es un retirado. En el export real son
     los dos 'Versos EreKtos'."""
-    assert bsv.clasificar_estado({"is_published": "true"}, False) == "publicado"
-    assert bsv.clasificar_estado({"is_published": "false", "post_date": ""}, False) == "borrador"
+    assert bsv.clasificar_estado({"is_published": "true"}, False) == "published"
+    assert bsv.clasificar_estado({"is_published": "false", "post_date": ""}, False) == "draft"
     assert bsv.clasificar_estado(
-        {"is_published": "false", "post_date": "2025-12-06T00:00:00.000Z"}, True) == "retirado"
+        {"is_published": "false", "post_date": "2025-12-06T00:00:00.000Z"}, True) == "retired"
     # Sin fecha pero con stats: tambien estuvo publicado alguna vez.
-    assert bsv.clasificar_estado({"is_published": "false", "post_date": ""}, True) == "retirado"
+    assert bsv.clasificar_estado({"is_published": "false", "post_date": ""}, True) == "retired"
 
 
 # ─────────────────────────────────────────
@@ -166,7 +166,7 @@ def test_punta_a_punta_escribe_y_clasifica(tmp_path):
     r = bsv.construir_vault(_export_sintetico(tmp_path), vault,
                             _stats_sinteticas(tmp_path), log=lambda *a: None)
     assert r["posts"] == 4
-    assert (r["publicado"], r["retirado"], r["borrador"]) == (2, 1, 1)
+    assert (r["published"], r["retired"], r["draft"]) == (2, 1, 1)
     assert r["cruzados"] == 2
     assert r["csv_ignorados"] == 3
 
@@ -178,10 +178,11 @@ def test_punta_a_punta_escribe_y_clasifica(tmp_path):
 
     # Releer del disco, no fiarse de lo que se creyo escribir.
     texto = nota.read_text(encoding="utf-8")
-    assert 'estado: "publicado"' in texto
-    assert 'seccion: "Bitacora Glitch"' in texto
+    assert 'status: "published"' in texto
+    assert 'section: "Bitacora Glitch"' in texto
+    assert 'type: "newsletter"' in texto
     assert "stats_snapshot: 2026-07-31" in texto
-    assert "vistas: 55" in texto
+    assert "views: 55" in texto
     assert "Cuerpo del publicado." in texto
     # `_-` no se escribe como 0 ni como "_-".
     assert "_-" not in texto
@@ -207,7 +208,7 @@ def test_retirado_y_podcast_se_avisan_en_la_nota(tmp_path):
     bsv.construir_vault(_export_sintetico(tmp_path), vault,
                         _stats_sinteticas(tmp_path), log=lambda *a: None)
     retirado = (vault / "Posts" / "2025" / "12" / "2025-12-06_retirado.md").read_text(encoding="utf-8")
-    assert "Retirado" in retirado and 'estado: "retirado"' in retirado
+    assert "Retirado" in retirado and 'status: "retired"' in retirado
     episodio = (vault / "Posts" / "2026" / "02" / "2026-02-20_episodio.md").read_text(encoding="utf-8")
     assert "Audio no incluido" in episodio
 
