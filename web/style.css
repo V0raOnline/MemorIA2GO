@@ -848,3 +848,93 @@ footer {
 }
 
 .footer-right a:hover { opacity: 0.75; }
+
+/* ─── Tintero (Substack) ─── */
+
+/* OJO: `.sidebar nav` es flex column con `gap: 2px`, asi que este separador
+   es un flex item mas y HEREDA ese hueco. Sin margen propio queda pegado al
+   boton de arriba y no se lee como separacion. Misma familia de trampa que
+   la de `.card h2` documentada mas arriba: el gap mordiendo donde no lo
+   esperas. */
+.nav-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 12px;
+  flex: none;
+}
+
+/* Caja alta SOLO en las dos herramientas hermanas (MUSIC·0LOGY y Tintero),
+   no en toda la barra: decision de V0ra 2026-07-31 tras ver las dos
+   variantes maquetadas. Las secciones del pipeline se quedan en caja normal
+   porque "Configuracion", "Verificacion" y "Reconexion" son largas y en
+   mayusculas pierden silueta -- se leen letra a letra justo donde interesa
+   reconocer sin leer. Va por CSS y no escrito en el HTML para que las
+   cadenas sigan siendo traducibles en release/en sin duplicarlas, y para
+   que los acentos salgan correctos. */
+.sidebar nav button.tool {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 12.5px;
+}
+
+.sb-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.sb-detalle { margin-top: 14px; }
+
+.sb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+}
+
+.sb-row .sb-icon { flex: none; width: 17px; height: 17px; }
+.sb-row.ok .sb-icon { color: var(--green); }
+/* Ambar, NO rojo: los datos de suscriptores no son un error ni algo que
+   resolver, son informacion sobre datos de terceros a cargo de V0ra. En
+   rojo pareceria una alarma accionable, y no hay nada que accionar. */
+.sb-row.aviso .sb-icon { color: var(--yellow); }
+
+.sb-row .sb-txt { min-width: 0; }
+.sb-row .sb-titulo {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-row .sb-sub {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.sb-ausencias-label {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin: 14px 0 7px;
+}
+
+.sb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.sb-chip {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+}

@@ -29,6 +29,7 @@ async function loadConfig() {
   document.getElementById("cfg-gizmo_map").value = paths.gizmo_map || "";
   document.getElementById("cfg-suno_backup").value = paths.suno_backup || "";
   document.getElementById("cfg-suno_vault").value = paths.suno_vault || "";
+  document.getElementById("cfg-substack_vault").value = paths.substack_vault || "";
   document.getElementById("cfg-prj_vault_name").value = opts.prj_vault_name || "PRJ_VAULT";
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
   document.getElementById("cfg-by_month").checked = opts.by_month !== false;
@@ -44,6 +45,7 @@ async function saveConfig() {
       gizmo_map: document.getElementById("cfg-gizmo_map").value.trim(),
       suno_backup: document.getElementById("cfg-suno_backup").value.trim(),
       suno_vault: document.getElementById("cfg-suno_vault").value.trim(),
+      substack_vault: document.getElementById("cfg-substack_vault").value.trim(),
     },
     options: {
       prj_vault_name: document.getElementById("cfg-prj_vault_name").value.trim() || "PRJ_VAULT",
@@ -241,6 +243,7 @@ async function loadDashboard(refresh = false) {
 
     renderAssets(stats);
     renderSuno(stats);
+    renderSubstack(stats);
 
     renderEvolution(stats);
     renderTopTemas(stats);
@@ -440,6 +443,136 @@ function renderSuno(stats) {
     statBox("Proyectos", s.proyectos, proyectosSub),
   ].join("");
 }
+
+// Tintero: las cuatro cifras salen del ZIP, nunca del CSV de estadisticas,
+// para que la tarjeta este completa aunque el CSV no se haya descargado. Si
+// no hay export en la carpeta, la clave no viaja y la tarjeta no se pinta --
+// no se pinta a cero, misma regla que la de musica.
+function renderSubstack(stats) {
+  const card = document.getElementById("card-substack");
+  const s = stats.substack;
+  if (!s) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  const retirados = s.retirados ? `${s.retirados} retirados` : "";
+  document.getElementById("dashboard-substack").innerHTML = [
+    statBox("Posts", s.posts, s.export),
+    statBox("Palabras", s.palabras.toLocaleString("es-ES")),
+    statBox("Publicados", s.publicados, retirados),
+    statBox("Borradores", s.borradores),
+  ].join("");
+}
+
+function sbRow(clase, icono, titulo, sub) {
+  return `<div class="sb-row ${clase}">
+    <svg class="sb-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>
+    <div class="sb-txt">
+      <div class="sb-titulo">${titulo}</div>
+      <div class="sb-sub">${sub}</div>
+    </div>
+  </div>`;
+}
+
+const SB_ICONO_ZIP = '<path d="M4 4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /><path d="M14 2v6h6" />';
+const SB_ICONO_CHART = '<path d="M3 3v18h18" /><circle cx="9" cy="12" r="1.5" /><circle cx="14" cy="8" r="1.5" /><circle cx="19" cy="14" r="1.5" />';
+const SB_ICONO_ESCUDO = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12h6" />';
+
+function pintarVerificacion(d) {
+  const e = d.export;
+  const filas = [
+    sbRow("ok", SB_ICONO_ZIP, e.nombre,
+      `${e.posts} posts · ${e.publicados} publicados · ${e.retirados} retirados · ${e.borradores} borradores`),
+  ];
+  if (d.stats) {
+    filas.push(sbRow("ok", SB_ICONO_CHART, d.stats.nombre,
+      `cruza ${d.stats.cruzan}/${d.stats.filas} · aporta ${d.stats.secciones} secciones y etiquetas en ${d.stats.con_tags}`));
+  } else {
+    filas.push(sbRow("aviso", SB_ICONO_CHART, "Sin CSV de estadísticas",
+      "las notas irán sin sección, etiquetas ni métricas — descárgalo del panel de Substack y déjalo junto al export"));
+  }
+  filas.push(sbRow("aviso", SB_ICONO_ESCUDO, `${d.csv_de_terceros} CSV con datos de suscriptores`,
+    "no son tu memoria: no se leen nunca"));
+
+  // Lo que NO viene. Solo se puede decir aqui: una vez construido el vault,
+  // lo que falta no se ve por ninguna parte.
+  const a = d.ausencias || {};
+  const chips = [];
+  if (a.comentarios !== undefined) {
+    chips.push(`${a.comentarios} comentarios en ${a.posts_con_comentarios} posts`);
+  }
+  if (a.podcasts_sin_audio) chips.push(`audio de ${a.podcasts_sin_audio} podcast`);
+  if (a.imagenes) chips.push(`${a.imagenes} imágenes, solo su URL`);
+
+  let html = filas.join("");
+  if (chips.length) {
+    html += `<div class="sb-ausencias-label">Lo que el export no trae</div>
+      <div class="sb-chips">${chips.map((c) => `<span class="sb-chip">${c}</span>`).join("")}</div>`;
+  }
+  return html;
+}
+
+async function substackVerify() {
+  const btn = document.getElementById("btn-substack-verify");
+  const msg = document.getElementById("substack-verify-msg");
+  const out = document.getElementById("substack-verify-out");
+  btn.disabled = true;
+  msg.textContent = "Mirando dentro del export...";
+  msg.className = "msg";
+  out.style.display = "none";
+  try {
+    const res = await fetch("/api/substack/verify", { method: "POST" });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    out.innerHTML = pintarVerificacion(data);
+    out.style.display = "";
+    msg.textContent = "Export reconocido.";
+    msg.className = "msg ok";
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function substackBuild() {
+  const btn = document.getElementById("btn-substack-build");
+  const msg = document.getElementById("substack-build-msg");
+  const out = document.getElementById("substack-build-out");
+  const seco = document.getElementById("substack-dry-run").checked;
+  btn.disabled = true;
+  msg.textContent = seco ? "Simulando..." : "Construyendo el vault...";
+  msg.className = "msg";
+  out.style.display = "none";
+  try {
+    const res = await fetch("/api/substack/build", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dry_run: seco }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.salida) {
+      out.textContent = data.salida;
+      out.style.display = "";
+    }
+    msg.textContent = seco ? "Simulación terminada: no se ha escrito nada."
+                           : "Vault construido. Ábrelo en Obsidian.";
+    msg.className = "msg ok";
+    if (!seco) loadDashboard(true);
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("btn-substack-verify").addEventListener("click", substackVerify);
+document.getElementById("btn-substack-build").addEventListener("click", substackBuild);
 
 function renderTopTemas(stats) {
   const el = document.getElementById("topics-top");
@@ -1114,6 +1247,7 @@ attachPathAutocomplete("cfg-exports_dir", "suggest-exports_dir");
 attachPathAutocomplete("cfg-gizmo_map", "suggest-gizmo_map", "json");
 attachPathAutocomplete("cfg-suno_backup", "suggest-suno_backup");
 attachPathAutocomplete("cfg-suno_vault", "suggest-suno_vault");
+attachPathAutocomplete("cfg-substack_vault", "suggest-substack_vault");
 
 loadConfig();
 loadDashboard();
