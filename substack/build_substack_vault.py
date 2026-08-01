@@ -107,6 +107,26 @@ def yaml_escape(valor) -> str:
     return '"{}"'.format(str(valor).replace('"', '\\"'))
 
 
+def etiqueta_obsidian(t: str) -> str:
+    """Etiqueta de Substack -> etiqueta valida de Obsidian.
+
+    Obsidian NO admite espacios dentro de una etiqueta: la marca en rojo y
+    tachada en el panel de propiedades, y deja de existir para el panel de
+    etiquetas y para el grafo. Verificado por V0ra sobre su vault real
+    (2026-08-01) despues de que la primera version escribiera el texto tal
+    cual: 16 de sus 46 etiquetas estaban muertas.
+
+    Se sustituye por guion en vez de partir o descartar: la transformacion
+    es reversible de un vistazo y no pierde informacion. Los acentos SI se
+    conservan -- Obsidian los admite, y "bitacora" no es lo que ella
+    escribio. Medido: hoy el espacio es el unico caracter que rompe en su
+    vocabulario, pero la limpieza va general para que un punto o dos puntos
+    en una etiqueta futura no vuelvan a colarse en silencio.
+    """
+    limpio = re.sub(r"[^\w/\-]+", "-", (t or "").strip(), flags=re.UNICODE)
+    return re.sub(r"-{2,}", "-", limpio).strip("-")
+
+
 def a_numero(valor):
     """Devuelve int/float, o None si la celda esta vacia o trae el
     placeholder NO_APLICA. Nunca lanza: una metrica ilegible no debe tumbar
@@ -386,7 +406,8 @@ def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
         seccion = (stats.get("section_name") or "").strip()
         if seccion:
             lineas.append(f"section: {yaml_escape(seccion)}")
-        etiquetas = [t.strip() for t in (stats.get("tags") or "").split(",") if t.strip()]
+        etiquetas = [etiqueta_obsidian(t) for t in (stats.get("tags") or "").split(",")]
+        etiquetas = [t for t in etiquetas if t]
         if etiquetas:
             lineas.append("tags:")
             for t in etiquetas:
@@ -437,6 +458,100 @@ def escribir(ruta: Path, contenido: str) -> None:
         f.write(contenido.replace("\r\n", "\n").replace("\r", "\n"))
 
 
+MESES = ["", "January", "February", "March", "April", "May", "June",
+         "July", "August", "September", "October", "November", "December"]
+
+
+def _linea(e: dict) -> str:
+    """Un post en una lista de indice. El wikilink apunta al nombre del
+    fichero sin extension, que es como resuelve Obsidian, y el titulo va
+    fuera del enlace porque los nombres llevan fecha y slug: dentro del
+    corchete se leerian fatal."""
+    marca = " · retired" if e["estado"] == "retired" else ""
+    return f"- [[{e['nombre']}]] — {e['titulo']}{marca}"
+
+
+def construir_indice(entradas: list, palabras: int) -> str:
+    publicados = [e for e in entradas if e["estado"] != "draft"]
+    borradores = [e for e in entradas if e["estado"] == "draft"]
+    retirados = [e for e in entradas if e["estado"] == "retired"]
+    fechas = sorted(e["fecha"] for e in publicados if e["fecha"])
+
+    lineas = ["# Index — Inkwell", ""]
+    resumen = f"{len(entradas)} publications · {palabras:,} words"
+    if fechas:
+        resumen += f" · from {fechas[0]} to {fechas[-1]}"
+    lineas += [resumen, ""]
+
+    secciones = {}
+    for e in publicados:
+        if e["seccion"]:
+            secciones.setdefault(e["seccion"], []).append(e)
+    if secciones:
+        lineas += [f"## Sections ({len(secciones)})", "",
+                   "Each one with its publications in [[_sections]].", ""]
+        for nombre, items in sorted(secciones.items(), key=lambda x: -len(x[1])):
+            lineas.append(f"- {nombre}: {len(items)}")
+        lineas.append("")
+
+    # Cronologia inversa: lo ultimo primero, que es como se mira un archivo
+    # de publicaciones. Sin el CSV de estadisticas esto sigue funcionando
+    # igual -- la fecha viene de posts.csv, no de las metricas.
+    por_anio = {}
+    for e in publicados:
+        if e["fecha"]:
+            por_anio.setdefault(e["fecha"][:4], {}).setdefault(e["fecha"][5:7], []).append(e)
+    for anio in sorted(por_anio, reverse=True):
+        total = sum(len(v) for v in por_anio[anio].values())
+        lineas += [f"## {anio} ({total})", ""]
+        for mes in sorted(por_anio[anio], reverse=True):
+            lineas += [f"### {MESES[int(mes)]}", ""]
+            for e in sorted(por_anio[anio][mes], key=lambda x: x["fecha"], reverse=True):
+                lineas.append(_linea(e))
+            lineas.append("")
+
+    if retirados:
+        lineas += [f"## Retired ({len(retirados)})", "",
+                   "These were published and later taken down. They stay in their year and month.", ""]
+        lineas += [_linea(e) for e in sorted(retirados, key=lambda x: x["fecha"], reverse=True)]
+        lineas.append("")
+
+    if borradores:
+        lineas += [f"## Drafts ({len(borradores)})", "",
+                   "Never published: they have no date, which is why they live apart.", ""]
+        lineas += [f"- [[{e['nombre']}]]" for e in sorted(borradores, key=lambda x: x["nombre"])]
+        lineas.append("")
+
+    return "\n".join(lineas).rstrip() + "\n"
+
+
+def construir_indice_secciones(entradas: list) -> str:
+    """Solo existe si hay secciones, y las secciones solo vienen del CSV de
+    estadisticas. Sin el, este fichero NO se escribe: inventar una seccion
+    "sin clasificar" pintaria como dato lo que en realidad es una fuente
+    que no se descargo."""
+    secciones = {}
+    for e in entradas:
+        if e["seccion"]:
+            secciones.setdefault(e["seccion"], []).append(e)
+    if not secciones:
+        return ""
+    lineas = ["# Sections — Inkwell", "",
+              "The taxonomy is V0ra's, not the pipeline's: it comes from the sections of "
+              "her Substack publication.", ""]
+    for nombre, items in sorted(secciones.items(), key=lambda x: -len(x[1])):
+        lineas += [f"## {nombre} ({len(items)})", ""]
+        for e in sorted(items, key=lambda x: x["fecha"], reverse=True):
+            lineas.append(_linea(e))
+        lineas.append("")
+    sin_seccion = [e for e in entradas if not e["seccion"] and e["estado"] != "draft"]
+    if sin_seccion:
+        lineas += [f"## No section ({len(sin_seccion)})", ""]
+        lineas += [_linea(e) for e in sorted(sin_seccion, key=lambda x: x["fecha"], reverse=True)]
+        lineas.append("")
+    return "\n".join(lineas).rstrip() + "\n"
+
+
 def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = False,
                     log=print) -> dict:
     """Nucleo, separado de main() para poder probarlo de punta a punta y
@@ -474,6 +589,8 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
         cuenta = {"published": 0, "retired": 0, "draft": 0}
         cruzados = 0
         sin_html = []
+        entradas = []      # lo que necesitan los indices, recogido de paso
+        palabras_total = 0
 
         for post in posts:
             pid = (post.get("post_id") or "").split(".", 1)[0]
@@ -506,6 +623,24 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
 
             if not dry_run:
                 escribir(destino, nota)
+
+            palabras_total += len(cuerpo.split())
+            entradas.append({
+                "nombre": destino.stem,
+                "titulo": (post.get("title") or "").strip() or slug.replace("-", " "),
+                "fecha": fecha,
+                "estado": estado,
+                "seccion": (stats.get("section_name") or "").strip(),
+            })
+
+        if not dry_run and entradas:
+            escribir(vault / "_index.md", construir_indice(entradas, palabras_total))
+            secciones = construir_indice_secciones(entradas)
+            if secciones:
+                escribir(vault / "_sections.md", secciones)
+                log("[info] indexes: _index.md and _sections.md")
+            else:
+                log("[info] index: _index.md (no _sections.md: there is no stats CSV)")
 
     return {
         "posts": len(posts),
