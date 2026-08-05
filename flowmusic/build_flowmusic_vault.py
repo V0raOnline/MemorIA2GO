@@ -136,7 +136,17 @@ def cargar_indice(backup_dir: Path) -> dict:
     datos = json.loads(ruta.read_text(encoding="utf-8"))
     if isinstance(datos, list):  # tolerancia por si cambia el formato
         datos = {d["id"]: d for d in datos if d.get("id")}
-    return datos
+
+    # Las borradas no entran. No es una pista que perdimos: en los datos
+    # reales la unica con deleted_at viene sin titulo, sin op_type, sin
+    # letra y sin audio_url — una generacion fallida que Flow descarto. Le
+    # haciamos una nota vacia en el vault. Mismo criterio que
+    # flowmusic_stats.py, para que los dos den el mismo numero.
+    vivas = {cid: m for cid, m in datos.items() if not m.get("deleted_at")}
+    borradas = len(datos) - len(vivas)
+    if borradas:
+        print(f"[info] {borradas} pista(s) borrada(s) en Flow Music, se omiten")
+    return vivas
 
 
 # ---------------------------------------------------------------- linaje
