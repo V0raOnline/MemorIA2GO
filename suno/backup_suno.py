@@ -207,6 +207,52 @@ def extract_metadata(song: dict) -> dict:
     }
 
 
+def _descargar_a_fichero(session, url, destino: Path, debug=False) -> bool:
+    """Descarga a un `.part` y solo lo renombra si el tamano cuadra con
+    Content-Length.
+
+    Antes esto era `if not destino.exists()` + `write_bytes`, y tenia un
+    agujero que no avisa: si el proceso muere a mitad de escritura (token
+    caducado, red, Ctrl+C), queda un fichero truncado que EXISTE. La
+    siguiente pasada lo ve, lo da por bueno y no lo repara jamas -- te
+    quedas con un mp3 cortado y un backup que se cree completo.
+
+    Diagnosticado por agnt_music0logy escribiendo el backup de Flow Music
+    (CONTEXT.md 3l), donde con WAV de 50 MB el fallo deja de ser teorico.
+    Portado aqui porque el bug es el mismo, solo que con ficheros mas
+    pequenos tarda mas en morderte.
+
+    Si el servidor no manda Content-Length no se puede comprobar nada: se
+    acepta lo descargado, que es lo unico honesto que se puede hacer.
+    """
+    if destino.exists():
+        return False
+
+    resp = get_with_retries(session, url, debug=debug)
+    if resp is None:
+        return False
+
+    parcial = destino.with_suffix(destino.suffix + ".part")
+    try:
+        parcial.write_bytes(resp.content)
+        esperado = resp.headers.get("Content-Length")
+        if esperado is not None:
+            try:
+                if parcial.stat().st_size != int(esperado):
+                    print(f"  [warn] incomplete download of {destino.name} "
+                          f"({parcial.stat().st_size} of {esperado} bytes), it will be retried on the next pass")
+                    parcial.unlink(missing_ok=True)
+                    return False
+            except ValueError:
+                pass  # cabecera con basura: se acepta, no se inventa una comprobacion
+        parcial.replace(destino)
+        return True
+    except OSError as e:
+        print(f"  [error] writing {destino.name}: {e}")
+        parcial.unlink(missing_ok=True)
+        return False
+
+
 def download_song(session, song: dict, out_dir: Path, debug=False):
     song_id = song.get("id", "sin_id")
     title = safe_filename(song.get("title"), song_id)
@@ -217,9 +263,7 @@ def download_song(session, song: dict, out_dir: Path, debug=False):
     else:
         audio_path = out_dir / f"{title}_{song_id}.mp3"
         if not audio_path.exists():
-            resp = get_with_retries(session, audio_url, debug=debug)
-            if resp is not None:
-                audio_path.write_bytes(resp.content)
+            if _descargar_a_fichero(session, audio_url, audio_path, debug=debug):
                 print(f"  [ok] audio: {audio_path.name}")
             else:
                 print(f"  [error] could not download audio for '{title}' ({song_id})")
@@ -233,9 +277,7 @@ def download_song(session, song: dict, out_dir: Path, debug=False):
     if image_url:
         img_path = out_dir / f"{title}_{song_id}.jpg"
         if not img_path.exists():
-            resp = get_with_retries(session, image_url, debug=debug)
-            if resp is not None:
-                img_path.write_bytes(resp.content)
+            if _descargar_a_fichero(session, image_url, img_path, debug=debug):
                 print(f"  [ok] cover: {img_path.name}")
             else:
                 print(f"  [warn] could not download the cover for '{title}' ({song_id})")
