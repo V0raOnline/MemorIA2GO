@@ -167,6 +167,16 @@ def listar_conversaciones(session, debug=False):
     return todas
 
 
+CARPETA_CONVERSACIONES = "_conversations"
+
+
+def ruta_conversacion(carpeta: Path, conv: dict) -> Path:
+    """Una conversacion, un fichero. El titulo va delante para poder
+    encontrarla mirando la carpeta, igual que con las pistas."""
+    nombre = nombre_seguro(conv.get("title"), conv["id"])
+    return carpeta / CARPETA_CONVERSACIONES / f"{nombre}_{conv['id']}.json"
+
+
 def recolectar_clip_ids(valor, encontrados=None):
     """Saca todos los ids de clip de una conversacion.
 
@@ -458,9 +468,15 @@ def main():
         json.dumps(conversaciones, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Solo se relee lo que ha cambiado desde la ultima pasada.
+    # Se relee una conversacion si ha cambiado O si no tenemos su JSON
+    # guardado. Lo segundo hace que los backups hechos antes de que
+    # guardaramos conversaciones se completen solos en la siguiente pasada,
+    # sin tener que acordarse de pasar --no-resume.
+    (carpeta / CARPETA_CONVERSACIONES).mkdir(parents=True, exist_ok=True)
     pendientes = [c for c in conversaciones
-                  if estado.get(c["id"]) != c.get("last_message_at")]
-    print(f"[info] {len(conversaciones)} conversaciones, {len(pendientes)} con cambios")
+                  if estado.get(c["id"]) != c.get("last_message_at")
+                  or not ruta_conversacion(carpeta, c).is_file()]
+    print(f"[info] {len(conversaciones)} conversaciones, {len(pendientes)} por leer")
 
     if args.limit:
         pendientes = pendientes[:args.limit]
@@ -480,9 +496,17 @@ def main():
             print("  [aviso] respuesta no-JSON, se salta")
             continue
 
+        # La conversacion entera, no solo los ids. Es la mitad de la
+        # memoria: lo que pediste, lo que respondio el agente y con que
+        # instrucciones acabo generando cada pista. Ya la teniamos pedida
+        # -- guardarla no cuesta ni una llamada mas.
+        ruta_conversacion(carpeta, conv).write_text(
+            json.dumps(detalle, indent=2, ensure_ascii=False), encoding="utf-8")
+
         ids = list(dict.fromkeys(recolectar_clip_ids(detalle)))
         clip_ids_por_conv[conv["id"]] = ids
-        print(f"  [info] {len(ids)} ids de clip")
+        mensajes = len(detalle.get("messages") or [])
+        print(f"  [info] {len(ids)} ids de clip, {mensajes} mensajes guardados")
         estado[conv["id"]] = conv.get("last_message_at")
         time.sleep(ESPERA_LISTADO)
 

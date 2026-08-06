@@ -29,6 +29,7 @@ hacer hoy con build_suno_vault.py).
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -44,9 +45,21 @@ T = {
     "carpeta_canciones": "Canciones",
     "carpeta_audio": "Audio",
     "carpeta_portadas": "Portadas",
+    "carpeta_conversaciones": "Conversaciones",
     "sin_conversacion": "_Sin conversación",
     "fichero_indice": "_index",
     "fichero_linaje": "_linaje",
+
+    "sec_conversacion": "## Conversación",
+    "sec_pistas_salidas": "## Pistas que salieron de aquí",
+    "hab_usuario": "Tú",
+    "hab_agente": "Producer",
+    "hab_herramienta": "usa",
+    "conv_reintento": "reintento",
+    "conv_sin_mensajes": "Sin mensajes guardados.",
+    "conv_no_guardada": "Sin conversación guardada. Vuelve a lanzar el backup: "
+                        "las conversaciones se guardan desde 2026-08-06 y las "
+                        "que falten se completan solas.",
 
     "sec_familia": "## Familia",
     "sec_instruccion": "## Instrucción",
@@ -147,6 +160,143 @@ def cargar_indice(backup_dir: Path) -> dict:
     if borradas:
         print(f"[info] {borradas} pista(s) borrada(s) en Flow Music, se omiten")
     return vivas
+
+
+# --------------------------------------------------------- conversaciones
+
+CARPETA_CONVERSACIONES = "_conversations"
+
+
+def cargar_conversaciones(backup_dir: Path) -> dict:
+    """Lee _conversations/*.json. Devuelve id -> conversacion.
+
+    Puede venir vacio: los backups anteriores al 2026-08-06 no las
+    guardaban. En ese caso el vault se construye igual, sin la mitad
+    conversacional, y las notas de pista lo dicen en vez de callarselo."""
+    carpeta = backup_dir / CARPETA_CONVERSACIONES
+    if not carpeta.is_dir():
+        return {}
+    convs = {}
+    for jf in carpeta.glob("*.json"):
+        try:
+            d = json.loads(jf.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if d.get("id"):
+            convs[d["id"]] = d
+    return convs
+
+
+def nombre_conversacion(conv: dict) -> str:
+    return safe_filename(conv.get("title"), conv["id"])
+
+
+def calcular_nombres_conversacion(convs: dict) -> dict:
+    """Mismo problema que con las pistas: hay conversaciones con el mismo
+    titulo, y en Windows el sistema de ficheros no distingue mayusculas.
+    Se desambigua solo a las que chocan."""
+    propuestas = {}
+    for cid, conv in convs.items():
+        propuestas.setdefault(nombre_conversacion(conv).lower(), []).append(
+            (cid, nombre_conversacion(conv)))
+    nombres = {}
+    for _, entradas in propuestas.items():
+        if len(entradas) == 1:
+            cid, base = entradas[0]
+            nombres[cid] = base
+        else:
+            for cid, base in sorted(entradas,
+                                    key=lambda e: convs[e[0]].get("created_at") or ""):
+                nombres[cid] = f"{base} {cid[:8]}"
+    return nombres
+
+
+def _texto(parte) -> str:
+    c = parte.get("content")
+    return c.strip() if isinstance(c, str) and c.strip() else ""
+
+
+def citar(etiqueta: str, texto: str) -> str:
+    """Mete el turno en una cita y neutraliza el Markdown de dentro.
+
+    Los prompts vienen escritos en Markdown — encabezados con ##, reglas
+    con ---, listas. Interpolados en crudo dejan de ser texto citado y
+    pasan a ser estructura del documento: la nota acababa con secciones
+    que no son suyas, y un --- a principio de linea puede leerse como
+    delimitador de frontmatter. La cita lo contiene, y el # escapado evita
+    que los encabezados se cuelen en el indice del documento.
+
+    Es contenido de V0ra: se conserva entero y literal, solo cambia como
+    se enmarca."""
+    lineas = [f"> **{etiqueta}:**"]
+    for linea in texto.splitlines():
+        if not linea.strip():
+            lineas.append(">")
+            continue
+        limpia = re.sub(r"^(\s*)(#{1,6})(\s)", r"\1\\\2\3", linea)
+        lineas.append(f"> {limpia}")
+    return "\n".join(lineas)
+
+
+def transcribir(conv: dict) -> list:
+    """Convierte los mensajes en un dialogo legible.
+
+    Las llamadas a herramienta se resumen con su nombre en vez de volcar
+    los argumentos: un audio__render_edit trae la receta entera en JSON y
+    llenaria la nota de ruido. Lo que importa de ellas es que ocurrieron y
+    en que punto de la conversacion."""
+    lineas = []
+    for m in conv.get("messages") or []:
+        for p in m.get("parts") or []:
+            clase = p.get("part_kind")
+            if clase == "user-prompt":
+                t = _texto(p)
+                if t:
+                    lineas.append(citar(T["hab_usuario"], t))
+            elif clase == "text":
+                t = _texto(p)
+                if t:
+                    lineas.append(citar(T["hab_agente"], t))
+            elif clase == "retry-prompt":
+                t = _texto(p)
+                if t:
+                    lineas.append(citar(T["conv_reintento"], t))
+            elif clase == "tool-call" and p.get("tool_name"):
+                lineas.append(f"*{T['hab_herramienta']} `{p['tool_name']}`*")
+    return lineas
+
+
+def construir_nota_conversacion(conv: dict, pistas: list, por_id: dict,
+                                nombres: dict) -> str:
+    lineas = ["---"]
+    lineas.append(f"id: {yaml_escape(conv.get('id'))}")
+    lineas.append(f"title: {yaml_escape(conv.get('title'))}")
+    lineas.append(f"created_at: {yaml_escape(conv.get('created_at'))}")
+    lineas.append(f"mensajes: {len(conv.get('messages') or [])}")
+    lineas.append(f"pistas: {len(pistas)}")
+    lineas.append("---")
+    lineas.append("")
+    lineas.append(f"# {conv.get('title') or conv['id']}")
+    lineas.append("")
+
+    if pistas:
+        lineas.append(T["sec_pistas_salidas"])
+        lineas.append("")
+        for cid in sorted(pistas, key=lambda i: por_id[i].get("created_at") or ""):
+            marca = " ❤️" if por_id[cid].get("is_favorite") else ""
+            lineas.append(f"- [[{nombres[cid]}]]{marca}")
+        lineas.append("")
+
+    lineas.append(T["sec_conversacion"])
+    lineas.append("")
+    dialogo = transcribir(conv)
+    if dialogo:
+        for linea in dialogo:
+            lineas.append(linea)
+            lineas.append("")
+    else:
+        lineas.append(T["conv_sin_mensajes"])
+    return "\n".join(lineas).rstrip() + "\n"
 
 
 # ---------------------------------------------------------------- linaje
@@ -282,13 +432,20 @@ def seccion_familia(meta: dict, por_id: dict, nombres: dict, hijos: dict) -> str
 
 
 def construir_nota(meta: dict, por_id: dict, nombres: dict, codigos: dict,
-                   hijos: dict, con_audio: bool) -> str:
+                   hijos: dict, con_audio: bool, nombre_conv: str = None) -> str:
     cid = meta["id"]
     badges = badges_de(meta)
     partes = [frontmatter(meta, codigos.get(cid, "0"), badges), ""]
     partes.append(f"# {meta.get('title') or cid}")
     partes.append("")
     partes.append(seccion_familia(meta, por_id, nombres, hijos))
+    partes.append("")
+
+    # El enlace de vuelta a la conversacion. Sin esto la pista queda
+    # huerfana de su contexto: se ve que existe, no de donde salio.
+    partes.append(T["sec_conversacion"])
+    partes.append("")
+    partes.append(f"[[{nombre_conv}]]" if nombre_conv else T["conv_no_guardada"])
     partes.append("")
 
     partes.append(T["sec_audio"])
@@ -432,7 +589,8 @@ def main():
     canciones_dir = vault_dir / T["carpeta_canciones"]
     audio_dir = vault_dir / T["carpeta_audio"]
     portadas_dir = vault_dir / T["carpeta_portadas"]
-    for d in (canciones_dir, audio_dir, portadas_dir):
+    conversaciones_dir = vault_dir / T["carpeta_conversaciones"]
+    for d in (canciones_dir, audio_dir, portadas_dir, conversaciones_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     print("[info] cargando el indice del backup...")
@@ -445,6 +603,23 @@ def main():
           f"{sum(1 for h in hijos.values() if h)} pistas con descendencia")
 
     nombres = calcular_nombres(por_id, codigos)
+
+    convs = cargar_conversaciones(backup_dir)
+    nombres_conv = calcular_nombres_conversacion(convs)
+    if convs:
+        print(f"[info] {len(convs)} conversaciones cargadas")
+    else:
+        print("[aviso] no hay conversaciones guardadas en el backup — "
+              "relanza el backup para completarlas")
+
+    # Que pistas salieron de cada conversacion. Se saca del propio clip,
+    # que declara su conversation_id, y no de recorrer los mensajes: es la
+    # misma informacion y aqui ya la tenemos.
+    pistas_por_conv = {}
+    for cid, meta in por_id.items():
+        conv_id = meta.get("conversation_id")
+        if conv_id:
+            pistas_por_conv.setdefault(conv_id, []).append(cid)
 
     audio_copiado = audio_ausente = portadas_copiadas = 0
     for cid, meta in por_id.items():
@@ -472,15 +647,24 @@ def main():
         carpeta = canciones_dir / safe_folder_name(meta.get("conversation_title"))
         carpeta.mkdir(parents=True, exist_ok=True)
         nota = construir_nota(meta, por_id, nombres, codigos, hijos,
-                              con_audio=tiene_audio and not args.no_copy_audio)
+                              con_audio=tiene_audio and not args.no_copy_audio,
+                              nombre_conv=nombres_conv.get(meta.get("conversation_id")))
         (carpeta / f"{destino_stem}.md").write_text(nota, encoding="utf-8")
+
+    for conv_id, conv in convs.items():
+        pistas = pistas_por_conv.get(conv_id, [])
+        nota = construir_nota_conversacion(conv, pistas, por_id, nombres)
+        (conversaciones_dir / f"{nombres_conv[conv_id]}.md").write_text(
+            nota, encoding="utf-8")
 
     (vault_dir / f"{T['fichero_indice']}.md").write_text(
         construir_indice(por_id, nombres, hijos, raices), encoding="utf-8")
     (vault_dir / f"{T['fichero_linaje']}.md").write_text(
         construir_linaje(por_id, nombres, hijos, raices), encoding="utf-8")
 
-    print(f"[info] notas escritas: {len(por_id)}")
+    print(f"[info] notas de pista escritas: {len(por_id)}")
+    if convs:
+        print(f"[info] notas de conversacion escritas: {len(convs)}")
     if not args.no_copy_audio:
         print(f"[info] m4a copiados: {audio_copiado} | portadas: {portadas_copiadas}")
     if audio_ausente:
