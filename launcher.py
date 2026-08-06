@@ -344,6 +344,126 @@ def suno_build():
 
 
 # ─────────────────────────────────────────
+# API: MUSIC·0LOGY / Flow Music — la segunda fuente de musica.
+#
+# Mismo pipeline que Suno (capturar, verificar, construir) contra otra API,
+# la de Riffusion. Endpoints separados en vez de un parametro `fuente` en
+# los de Suno: los scripts son distintos, las rutas de configuracion son
+# distintas, y meter un if por proveedor en un endpoint que hoy funciona es
+# como se rompen las cosas que ya iban bien.
+# ─────────────────────────────────────────
+
+def _flowmusic_script(nombre: str) -> Path:
+    return HERE / "flowmusic" / nombre
+
+
+@app.route("/api/flowmusic/backup", methods=["POST"])
+def flowmusic_backup():
+    """Descarga la biblioteca de Flow Music. Igual que la de Suno: POST con
+    streaming porque el token viaja en el cuerpo, y al hijo se le pasa por
+    ENTORNO, nunca por argv (argv se ve en la lista de procesos).
+
+    Flow Music necesita UNA sola cabecera, `Authorization`. Confirmado por
+    ablacion sobre las 16 que manda el navegador. No hay equivalente al
+    browser-token de Suno.
+    """
+    data = request.get_json(force=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "Falta el Bearer token"}), 400
+    # Chrome trunca los valores largos del panel Headers con una elipsis. Si
+    # el token la trae, las cabeceras HTTP (latin-1) revientan dentro de
+    # http.client con un traceback que no dice nada. Mejor atajarlo aqui.
+    if "…" in token:
+        return jsonify({"error": "El token viene cortado (contiene «…»). Copialo "
+                                  "con «Copy as cURL», no del panel Headers."}), 400
+
+    from config_loader import load_config, get_path
+    cfg = load_config(str(CONFIG_PATH))
+    backup = get_path(cfg, "flowmusic_backup")
+    if not backup:
+        return jsonify({"error": "Configura primero la carpeta del backup (flowmusic_backup)"}), 400
+
+    formatos = (data.get("formatos") or "m4a,wav").strip()
+
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+
+    def generate():
+        try:
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "FLOWMUSIC_TOKEN": token}
+            proc = subprocess.Popen(
+                [sys.executable, str(_flowmusic_script("backup_flowmusic.py")),
+                 "--out", str(backup), "--formats", formatos],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", bufsize=1, env=env,
+            )
+            # Misma censura que en Suno: el log va en vivo a la pantalla y de
+            # ahi a una captura compartida hay un paso.
+            for line in proc.stdout:
+                limpia = line.rstrip()
+                if len(token) > 8:
+                    limpia = limpia.replace(token, "[token oculto]")
+                yield limpia + "\n"
+            proc.wait()
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _flowmusic_run(script: str, args: list) -> tuple:
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(_flowmusic_script(script))] + args,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=1800, env=env,
+    )
+    salida = (result.stdout or "") + (result.stderr or "")
+    return result.returncode, salida.strip()
+
+
+@app.route("/api/flowmusic/verify", methods=["POST"])
+def flowmusic_verify():
+    try:
+        from config_loader import load_config, get_path
+        backup = get_path(load_config(str(CONFIG_PATH)), "flowmusic_backup")
+        if not backup:
+            return jsonify({"error": "Configura primero la carpeta del backup (flowmusic_backup)"}), 400
+        code, salida = _flowmusic_run("verify_flowmusic.py", ["--backup-dir", str(backup)])
+        return jsonify({"ok": code == 0, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/flowmusic/build", methods=["POST"])
+def flowmusic_build():
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        backup = get_path(cfg, "flowmusic_backup")
+        vault = get_path(cfg, "flowmusic_vault")
+        if not backup:
+            return jsonify({"error": "Configura primero la carpeta del backup (flowmusic_backup)"}), 400
+        if not vault:
+            return jsonify({"error": "Configura primero el vault de Flow Music (flowmusic_vault)"}), 400
+        code, salida = _flowmusic_run("build_flowmusic_vault.py",
+                                       ["--backup-dir", str(backup), "--vault-dir", str(vault)])
+        if code != 0:
+            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+        return jsonify({"ok": True, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
+
+
+# ─────────────────────────────────────────
 # API: Inkwell — la otra herramienta hermana.
 #
 # A diferencia de MUSIC·0LOGY, esta NO sale a Internet: Substack SI tiene
@@ -494,6 +614,37 @@ def _con_suno(stats: dict, cfg: dict) -> dict:
     return stats
 
 
+def _con_flowmusic(stats: dict, cfg: dict) -> dict:
+    """Añade las stats de Flow Music al payload, misma regla que _con_suno.
+
+    En vivo y fuera del cache por lo mismo: la biblioteca cambia por su
+    cuenta, con otra herramienta y en otro momento. Aquí es aún más barato
+    que en Suno — el _index.json son 174 pistas, no 2094.
+
+    Si no hay ruta o no hay backup, la clave no viaja y la sección no se
+    pinta. No se pinta a cero: eso sería mentir sobre una biblioteca que no
+    se ha descargado.
+    """
+    try:
+        from config_loader import get_path
+        from flowmusic_stats import compute_flowmusic_stats
+        backup = get_path(cfg, "flowmusic_backup")
+        if not backup:
+            return stats
+        flow = compute_flowmusic_stats(backup)
+        if flow:
+            stats = {**stats, "flowmusic": flow}
+    except Exception:
+        pass  # el dashboard entero no puede caerse por una tarjeta
+    return stats
+
+
+def _con_musica(stats: dict, cfg: dict) -> dict:
+    """Las dos fuentes de MUSIC·0LOGY. Envoltorio para no repetir el par en
+    los dos puntos de salida de get_stats()."""
+    return _con_flowmusic(_con_suno(stats, cfg), cfg)
+
+
 @app.route("/api/stats")
 def get_stats():
     try:
@@ -512,10 +663,10 @@ def get_stats():
         if request.args.get("refresh") != "1":
             cached = load_cache(Path(base_vault))
             if cached is not None:
-                return jsonify(_con_substack(_con_suno(cached, cfg), cfg))
+                return jsonify(_con_substack(_con_musica(cached, cfg), cfg))
         stats = compute_stats(Path(base_vault), prj_name)
         save_cache(Path(base_vault), stats)
-        return jsonify(_con_substack(_con_suno(stats, cfg), cfg))
+        return jsonify(_con_substack(_con_musica(stats, cfg), cfg))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

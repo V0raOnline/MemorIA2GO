@@ -47,3 +47,23 @@ desktop.ini
 # el contenido de su biblioteca no.
 suno_backup/
 suno/suno_backup/
+
+# Backup crudo de Flow Music (Riffusion): mismo criterio que el de Suno.
+# 174 pistas (m4a + wav + jpg + json); los wav solos son ~5 GB. Se versiona
+# el codigo, no la biblioteca.
+flowmusic_backup/
+flowmusic/flowmusic_backup/
+
+# Salida de probe_flowmusic.py: respuestas crudas de la API con datos de la
+# cuenta. El script redacta las credenciales, pero no los contenidos.
+flowmusic_probe/
+flowmusic/flowmusic_probe/
+
+# Credenciales. Un Bearer de Flow Music da acceso a la cuenta entera
+# mientras dure, y un 'Copy as cURL' lo lleva dentro. Que un token acabe en
+# el remoto por un `git add -A` es exactamente el incidente que ya paso una
+# vez con otra cosa (CONTEXT.md, seccion 3k).
+token.txt
+curl.txt
+flowmusic/token.txt
+flowmusic/curl.txt

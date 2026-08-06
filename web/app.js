@@ -29,6 +29,8 @@ async function loadConfig() {
   document.getElementById("cfg-gizmo_map").value = paths.gizmo_map || "";
   document.getElementById("cfg-suno_backup").value = paths.suno_backup || "";
   document.getElementById("cfg-suno_vault").value = paths.suno_vault || "";
+  document.getElementById("cfg-flowmusic_backup").value = paths.flowmusic_backup || "";
+  document.getElementById("cfg-flowmusic_vault").value = paths.flowmusic_vault || "";
   document.getElementById("cfg-substack_vault").value = paths.substack_vault || "";
   document.getElementById("cfg-prj_vault_name").value = opts.prj_vault_name || "PRJ_VAULT";
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
@@ -45,6 +47,8 @@ async function saveConfig() {
       gizmo_map: document.getElementById("cfg-gizmo_map").value.trim(),
       suno_backup: document.getElementById("cfg-suno_backup").value.trim(),
       suno_vault: document.getElementById("cfg-suno_vault").value.trim(),
+      flowmusic_backup: document.getElementById("cfg-flowmusic_backup").value.trim(),
+      flowmusic_vault: document.getElementById("cfg-flowmusic_vault").value.trim(),
       substack_vault: document.getElementById("cfg-substack_vault").value.trim(),
     },
     options: {
@@ -242,7 +246,7 @@ async function loadDashboard(refresh = false) {
     }).join("");
 
     renderAssets(stats);
-    renderSuno(stats);
+    renderMusicology(stats);
     renderSubstack(stats);
 
     renderEvolution(stats);
@@ -427,21 +431,62 @@ function renderAssets(stats) {
 // el backend no manda la clave y la caja no se pinta. Deliberadamente NO se
 // pinta a cero -- decir "0 pistas" sobre una biblioteca que no has
 // descargado es mentir, no informar.
-function renderSuno(stats) {
-  const card = document.getElementById("card-suno");
-  const s = stats.suno;
-  if (!s) {
+// Trunca los minutos, no los redondea, para dar el MISMO numero que
+// _legible() en flowmusic_stats.py y _horas() en suno_stats.py. Con
+// redondeo, la misma biblioteca salia con un minuto de diferencia entre el
+// acumulado y el desglose de la misma tarjeta.
+function horasLegibles(segundos) {
+  const h = Math.floor(segundos / 3600);
+  const m = Math.floor((segundos % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+
+// Una tarjeta para las dos bibliotecas: acumulado arriba, desglose por
+// fuente debajo. Mismo patron que renderProviders().
+//
+// La tarjeta se pinta si hay AL MENOS una fuente. Las que no tienen backup
+// configurado no viajan en el payload y no aparecen -- no se pintan a cero,
+// que seria mentir sobre una biblioteca que no se ha descargado.
+function renderMusicology(stats) {
+  const card = document.getElementById("card-musica");
+  const fuentes = [
+    { clave: "suno", nombre: "Suno", s: stats.suno },
+    { clave: "flowmusic", nombre: "Flow Music", s: stats.flowmusic },
+  ].filter((f) => f.s);
+
+  if (fuentes.length === 0) {
     card.style.display = "none";
+    renderFoldSub("fold-suno-sub", null);
+    renderFoldSub("fold-flowmusic-sub", null);
     return;
   }
   card.style.display = "";
-  const proyectosSub = s.sin_proyecto ? `${s.sin_proyecto} sin proyecto` : "";
-  document.getElementById("dashboard-suno").innerHTML = [
-    statBox("Pistas", s.total, s.duracion_legible),
-    statBox("Favoritas", s.favoritas),
-    statBox("Completas", s.completas, "cierres de ciclo"),
-    statBox("Proyectos", s.proyectos, proyectosSub),
+
+  const total = fuentes.reduce((a, f) => a + (f.s.total || 0), 0);
+  const favoritas = fuentes.reduce((a, f) => a + (f.s.favoritas || 0), 0);
+  const segundos = fuentes.reduce((a, f) => a + (f.s.duracion_segundos || 0), 0);
+
+  document.getElementById("dashboard-musica").innerHTML = [
+    statBox("Tracks", total, horasLegibles(segundos)),
+    statBox("Liked", favoritas),
+    statBox("Libraries", fuentes.length),
   ].join("");
+
+  document.getElementById("dashboard-musica-fuentes").innerHTML = fuentes
+    .map((f) => statBox(f.nombre, f.s.total, f.s.duracion_legible))
+    .join("");
+
+  renderFoldSub("fold-suno-sub", stats.suno);
+  renderFoldSub("fold-flowmusic-sub", stats.flowmusic);
+}
+
+function renderFoldSub(id, s) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Sin datos puede significar dos cosas distintas -- que no hay ruta
+  // configurada, o que la ruta apunta a una carpeta sin _index.json -- y
+  // desde aqui no se distinguen. Se dice lo que se sabe y no la causa.
+  el.textContent = s ? `${s.total} tracks · ${s.duracion_legible}` : "no backup yet";
 }
 
 // Tintero: las cuatro cifras salen del ZIP, nunca del CSV de estadisticas,
@@ -1319,6 +1364,8 @@ attachPathAutocomplete("cfg-exports_dir", "suggest-exports_dir");
 attachPathAutocomplete("cfg-gizmo_map", "suggest-gizmo_map", "json");
 attachPathAutocomplete("cfg-suno_backup", "suggest-suno_backup");
 attachPathAutocomplete("cfg-suno_vault", "suggest-suno_vault");
+attachPathAutocomplete("cfg-flowmusic_backup", "suggest-flowmusic_backup");
+attachPathAutocomplete("cfg-flowmusic_vault", "suggest-flowmusic_vault");
 attachPathAutocomplete("cfg-substack_vault", "suggest-substack_vault");
 
 loadConfig();
@@ -1425,7 +1472,98 @@ async function sunoAccion(url, btnId, msgId, outId, textos) {
   }
 }
 
+// Flow Music: mismo pipeline que Suno contra otra API. La descarga se
+// calca de sunoBackup -- POST con streaming, nunca EventSource, porque el
+// token no puede acabar en una query string.
+async function flowmusicBackup() {
+  const btn = document.getElementById("btn-flowmusic-backup");
+  const msg = document.getElementById("flowmusic-backup-msg");
+  const log = document.getElementById("flowmusic-log");
+  const token = document.getElementById("flowmusic-token").value.trim();
+  const formatos = document.getElementById("flowmusic-formats").value;
+
+  if (!token) {
+    msg.textContent = "Paste the Bearer token first.";
+    msg.className = "msg error";
+    return;
+  }
+  // El «…» delata un token copiado del panel Headers, que Chrome trunca.
+  // Se avisa aqui para no gastar una peticion en un token que no vale.
+  if (token.includes("…")) {
+    msg.textContent = "The token is truncated: it contains «…». Copy it with «Copy as cURL», not from the Headers panel.";
+    msg.className = "msg error";
+    return;
+  }
+
+  btn.disabled = true;
+  msg.textContent = "Downloading. The token lasts under an hour: if it stops, get a fresh one and launch it again — it resumes on its own.";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+
+  try {
+    const res = await fetch("/api/flowmusic/backup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, formatos }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let resto = "";
+    let codigo = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resto += decoder.decode(value, { stream: true });
+      const lineas = resto.split("\n");
+      resto = lineas.pop();
+      for (const linea of lineas) {
+        if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
+        if (linea.startsWith("__ERROR__")) { throw new Error(linea.slice(9).trim()); }
+        log.textContent += linea + "\n";
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    if (codigo === 0) {
+      msg.textContent = "Library downloaded. Verify the backup before building.";
+      msg.className = "msg ok";
+      loadDashboard();
+    } else {
+      msg.textContent = "The download finished with errors — check the log. If the token expired, get a fresh one and relaunch: it resumes where it left off.";
+      msg.className = "msg warn";
+    }
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 document.getElementById("btn-suno-backup").addEventListener("click", sunoBackup);
+document.getElementById("btn-flowmusic-backup").addEventListener("click", flowmusicBackup);
+
+document.getElementById("btn-flowmusic-verify").addEventListener("click", () =>
+  sunoAccion("/api/flowmusic/verify", "btn-flowmusic-verify", "flowmusic-verify-msg", "flowmusic-verify-out", {
+    trabajando: "Cross-checking the index against the files...",
+    ok: "Backup intact.",
+    problemas: "There are gaps or damaged files — check the detail.",
+  }));
+
+document.getElementById("btn-flowmusic-build").addEventListener("click", () =>
+  sunoAccion("/api/flowmusic/build", "btn-flowmusic-build", "flowmusic-build-msg", "flowmusic-build-out", {
+    trabajando: "Building the vault...",
+    ok: "Vault built.",
+    problemas: "Finished with warnings — check the detail.",
+  }));
+
 
 document.getElementById("btn-suno-verify").addEventListener("click", () =>
   sunoAccion("/api/suno/verify", "btn-suno-verify", "suno-verify-msg", "suno-verify-out", {

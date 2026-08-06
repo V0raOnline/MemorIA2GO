@@ -145,15 +145,30 @@ def compute_dewey_codes(songs_by_id: dict):
     return codes, children, roots
 
 
+# Separador entre el titulo y el codigo Dewey. NO puede llevar corchetes.
+#
+# Obsidian corta un wikilink en el primer ']]', asi que [[Titulo [0.1]]] se
+# resuelve como "Titulo [0.1" -- un destino que no existe -- y al pulsarlo
+# ofrece crear una nota vacia. Con el formato anterior, PRACTICAMENTE TODOS
+# los enlaces de este vault estaban rotos y el linaje era innavegable, que
+# es justamente la funcion por la que existe. No hay forma de escapar un
+# ']' dentro de un wikilink.
+#
+# Detectado el 2026-08-06 en el vault de Flow Music, que copio este mismo
+# formato. Al cambiarlo hay que RECONSTRUIR el vault entero: las notas
+# viejas se quedan con el nombre antiguo si no se barren.
+SEP_CODIGO = " · "
+
+
 def compute_filenames(songs_by_id: dict, codes: dict):
-    """'Titulo [codigo].md' por defecto; si dos pistas distintas colisionan
+    """'Titulo · codigo.md' por defecto; si dos pistas distintas colisionan
     en titulo+codigo (pasa: hay titulos duplicados reales), se desambigua
     anadiendo los primeros 8 caracteres del id -- solo a las que chocan."""
     proposals = {}
     for sid, song in songs_by_id.items():
         code = codes.get(sid, "0")
         title = safe_filename(song.get("title"), sid)
-        base = f"{title} [{code}]"
+        base = f"{title}{SEP_CODIGO}{code}"
         proposals.setdefault(base, []).append(sid)
 
     filenames = {}
@@ -327,7 +342,7 @@ def build_genealogy_file(songs_by_id: dict, filenames: dict, children: dict, roo
         lines.append("")
 
     if singles:
-        lines.append(f"## Pistas sin variaciones ({len(singles)})")
+        lines.append(f"## Tracks with no variations ({len(singles)})")
         lines.append("")
         for sid in sorted(singles, key=lambda i: songs_by_id[i].get("created_at") or ""):
             song = songs_by_id[sid]
@@ -342,7 +357,7 @@ def build_full_liked_section(songs_by_id: dict, filenames: dict) -> str:
            if s.get("is_liked") and "Full Song" in badges_from(s)]
     if not ids:
         return ""
-    lines = [f"## ✅❤️ Full Song favoritas ({len(ids)})", ""]
+    lines = [f"## ✅❤️ Liked Full Songs ({len(ids)})", ""]
     for sid in sorted(ids, key=lambda i: songs_by_id[i].get("created_at") or ""):
         lines.append(f"- [[{filenames[sid]}]]")
     lines.append("")
@@ -454,6 +469,7 @@ def main():
     audio_copied = 0
     images_copied = 0
 
+    notas_escritas = set()
     for i, (sid, song) in enumerate(songs_by_id.items(), start=1):
         stem = filenames[sid]
         project_folder = safe_folder_name(song.get("project_name"))
@@ -461,6 +477,7 @@ def main():
         note_dir.mkdir(parents=True, exist_ok=True)
         note_path = note_dir / f"{stem}.md"
         note_path.write_text(build_note(song, songs_by_id, filenames, codes), encoding="utf-8")
+        notas_escritas.add(note_path)
 
         if not args.no_copy_audio:
             src_audio = song["_audio_path"]
@@ -482,6 +499,21 @@ def main():
 
         if i % 200 == 0:
             print(f"[info] {i}/{len(songs_by_id)} notes written")
+
+    # Barrido de notas huerfanas. Sin esto, cualquier cambio que renombre
+    # notas -- como el cambio de separador del codigo Dewey del 2026-08-06 --
+    # deja las viejas conviviendo con las nuevas, enlazadas entre ellas y sin
+    # forma de distinguirlas a ojo. Con 2094 pistas eso son 2094 fantasmas.
+    #
+    # Solo se borran .md dentro de Songs/ que esta pasada no haya escrito. Ni
+    # el audio, ni las portadas, ni el backup se tocan.
+    huerfanas = 0
+    for p in canciones_dir.rglob("*.md"):
+        if p not in notas_escritas:
+            p.unlink()
+            huerfanas += 1
+    if huerfanas:
+        print(f"[info] {huerfanas} orphan note(s) from earlier passes, removed")
 
     index_path = vault_dir / "_index_suno.md"
     index_path.write_text(build_index(songs_by_id, filenames, children, roots), encoding="utf-8")
