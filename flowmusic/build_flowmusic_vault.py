@@ -107,6 +107,17 @@ T = {
 }
 
 
+# Separador entre el titulo y el codigo Dewey en el nombre de nota.
+#
+# NO puede llevar corchetes. Obsidian corta un wikilink en el primer ']]'
+# que encuentra, asi que [[Titulo [0.1]]] se resuelve como "Titulo [0.1"
+# -- un destino que no existe -- y al pulsarlo ofrece crear una nota
+# vacia. Con corchetes, 654 de los 666 enlaces del vault estaban rotos y
+# el linaje entero era innavegable. No hay forma de escapar un ']' dentro
+# de un wikilink: la unica salida es que el nombre no lo lleve.
+SEP_CODIGO = " · "
+
+
 # ------------------------------------------------------------- utilidades
 
 def safe_filename(name: str, fallback: str) -> str:
@@ -359,7 +370,7 @@ def calcular_nombres(por_id: dict, codigos: dict):
     eso."""
     propuestas = {}
     for cid, meta in por_id.items():
-        base = f"{safe_filename(meta.get('title'), cid)} [{codigos.get(cid, '0')}]"
+        base = f"{safe_filename(meta.get('title'), cid)}{SEP_CODIGO}{codigos.get(cid, '0')}"
         propuestas.setdefault(base.lower(), []).append((cid, base))
 
     nombres = {}
@@ -604,6 +615,17 @@ def main():
 
     nombres = calcular_nombres(por_id, codigos)
 
+    # Guarda barata contra la regresion que nos costo dos dias: si un
+    # nombre de nota lleva corchetes, sus wikilinks no resuelven y Obsidian
+    # ofrece crear notas vacias. Es facil que vuelva a colarse si alguien
+    # cambia el formato del nombre, y desde fuera no se ve -- el fichero
+    # existe y la cadena del enlace coincide; lo que falla es el parseo.
+    con_corchetes = [n for n in nombres.values() if "[" in n or "]" in n]
+    if con_corchetes:
+        print(f"[error] {len(con_corchetes)} nombres de nota llevan corchetes; "
+              f"sus enlaces no resolveran en Obsidian. Ejemplo: {con_corchetes[0]}")
+        sys.exit(1)
+
     convs = cargar_conversaciones(backup_dir)
     nombres_conv = calcular_nombres_conversacion(convs)
     if convs:
@@ -622,6 +644,8 @@ def main():
             pistas_por_conv.setdefault(conv_id, []).append(cid)
 
     audio_copiado = audio_ausente = portadas_copiadas = 0
+    notas_escritas, notas_conv_escritas = set(), set()
+    audio_escrito, portadas_escritas = set(), set()
     for cid, meta in por_id.items():
         base_backup = f"{safe_filename(meta.get('title'), cid)}_{cid}"
         destino_stem = nombres[cid]
@@ -636,12 +660,14 @@ def main():
                 destino = audio_dir / f"{destino_stem}.m4a"
                 if not destino.exists():
                     shutil.copy2(m4a_origen, destino)
+                audio_escrito.add(destino)
                 audio_copiado += 1
             jpg_origen = backup_dir / f"{base_backup}.jpg"
             if jpg_origen.is_file():
                 destino = portadas_dir / f"{destino_stem}.jpg"
                 if not destino.exists():
                     shutil.copy2(jpg_origen, destino)
+                portadas_escritas.add(destino)
                 portadas_copiadas += 1
 
         carpeta = canciones_dir / safe_folder_name(meta.get("conversation_title"))
@@ -649,18 +675,48 @@ def main():
         nota = construir_nota(meta, por_id, nombres, codigos, hijos,
                               con_audio=tiene_audio and not args.no_copy_audio,
                               nombre_conv=nombres_conv.get(meta.get("conversation_id")))
-        (carpeta / f"{destino_stem}.md").write_text(nota, encoding="utf-8")
+        destino_nota = carpeta / f"{destino_stem}.md"
+        destino_nota.write_text(nota, encoding="utf-8")
+        notas_escritas.add(destino_nota)
 
     for conv_id, conv in convs.items():
         pistas = pistas_por_conv.get(conv_id, [])
         nota = construir_nota_conversacion(conv, pistas, por_id, nombres)
-        (conversaciones_dir / f"{nombres_conv[conv_id]}.md").write_text(
-            nota, encoding="utf-8")
+        destino_nota = conversaciones_dir / f"{nombres_conv[conv_id]}.md"
+        destino_nota.write_text(nota, encoding="utf-8")
+        notas_conv_escritas.add(destino_nota)
 
     (vault_dir / f"{T['fichero_indice']}.md").write_text(
         construir_indice(por_id, nombres, hijos, raices), encoding="utf-8")
     (vault_dir / f"{T['fichero_linaje']}.md").write_text(
         construir_linaje(por_id, nombres, hijos, raices), encoding="utf-8")
+
+    # Barrido de huerfanos. El vault se anuncia como "se regenera entero en
+    # cada pasada", pero hasta ahora solo se escribia encima: cualquier
+    # cambio que renombre notas dejaba las viejas ahi, con sus enlaces
+    # apuntandose entre ellas. Al cambiar el separador del codigo Dewey
+    # quedaron 174 notas fantasma y 106 enlaces rotos que parecian un fallo
+    # del arreglo y eran basura de la pasada anterior.
+    #
+    # Solo se borra dentro de las carpetas que genera este script, y solo
+    # lo que esta pasada no ha escrito. El backup no se toca.
+    def barrer(carpeta: Path, escritos: set, sufijos: tuple):
+        if not carpeta.is_dir():
+            return 0
+        fuera = 0
+        for p in carpeta.rglob("*"):
+            if p.is_file() and p.suffix.lower() in sufijos and p not in escritos:
+                p.unlink()
+                fuera += 1
+        return fuera
+
+    huerfanos = barrer(canciones_dir, notas_escritas, (".md",))
+    huerfanos += barrer(conversaciones_dir, notas_conv_escritas, (".md",))
+    if not args.no_copy_audio:
+        huerfanos += barrer(audio_dir, audio_escrito, (".m4a",))
+        huerfanos += barrer(portadas_dir, portadas_escritas, (".jpg",))
+    if huerfanos:
+        print(f"[info] {huerfanos} fichero(s) huerfano(s) de pasadas anteriores, eliminados")
 
     print(f"[info] notas de pista escritas: {len(por_id)}")
     if convs:
