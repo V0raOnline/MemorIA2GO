@@ -21,6 +21,19 @@ paths:
   # Separado del vault de conversaciones: es otro pipeline.
   suno_vault: ''
 
+  # 🎵 MUSIC·0LOGY — carpeta del backup de Flow Music (la que contiene
+  # _index.json). La segunda fuente de música, con la API de Riffusion.
+  # Opcional, igual que la de Suno: sin esto, su sección no aparece.
+  #
+  # Puede apuntar FUERA del repo, y de hecho conviene: el backup con los
+  # wav pasa de los 6 GB. Los scripts no asumen que esté al lado del
+  # código.
+  flowmusic_backup: ''
+
+  # 🎵 MUSIC·0LOGY — vault de Obsidian de Flow Music. Separado del de Suno:
+  # son dos bibliotecas distintas y mezclarlas haría ilegible el linaje.
+  flowmusic_vault: ''
+
   # 🖋️ Tintero — vault de Obsidian donde se construyen tus posts de Substack.
   # Separado también: un post no es una conversación.
   # El export y el CSV de estadísticas NO necesitan ruta propia: viven en

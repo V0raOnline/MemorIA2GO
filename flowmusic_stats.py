@@ -111,7 +111,9 @@ def compute_flowmusic_stats(backup_dir) -> Optional[dict]:
         "con_linaje": con_linaje,
         "con_letra": con_letra,
         "conversaciones": len(conversaciones),
-        "segundos": round(segundos),
+        # Mismo nombre que en suno_stats.py: el Observatorio suma las dos
+        # bibliotecas y no tiene por que saberse dos vocabularios.
+        "duracion_segundos": round(segundos),
         "duracion_legible": _legible(segundos),
         # Se expone para poder decir "8,5 h (15 sin medir)" en vez de dar
         # un total que parece completo y no lo es.

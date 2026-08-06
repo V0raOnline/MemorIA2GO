@@ -43,6 +43,15 @@ if not indice_path.is_file():
 
 indice = json.loads(indice_path.read_text(encoding="utf-8"))
 
+# Las borradas en Flow Music no se comprueban: el backup no les descarga
+# ficheros, asi que contarlas aqui daria huecos falsos. Mismo criterio que
+# build_flowmusic_vault.py y flowmusic_stats.py — si los tres no filtran
+# igual, la interfaz acaba enseñando dos totales distintos de la misma
+# biblioteca, que es justo lo que pasaba.
+_borradas = sum(1 for m in indice.values() if m.get("deleted_at"))
+if _borradas:
+    indice = {c: m for c, m in indice.items() if not m.get("deleted_at")}
+
 # Formatos que el CDN no tiene (404), anotados por el backup. Un wav_url en
 # la metadata NO prueba que el fichero exista: la API lo construye a partir
 # del id del clip. Los stems, por ejemplo, solo se renderizan en m4a.
@@ -61,6 +70,8 @@ if malos:
     sys.exit(1)
 
 print(f"Total en indice: {len(indice)} pistas")
+if _borradas:
+    print(f"Borradas en Flow Music, no se comprueban: {_borradas}")
 print(f"Formatos comprobados: {', '.join(formatos)}")
 print()
 

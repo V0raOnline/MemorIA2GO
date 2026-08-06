@@ -112,10 +112,14 @@
     </div>
 
     <!-- MUSIC·0LOGY: herramienta hermana, pipeline propio, misma casa.
-         Solo aparece si hay backup de Suno configurado. -->
-    <div class="card" id="card-suno" style="display:none;">
+         Una sola tarjeta para las dos bibliotecas, con el acumulado arriba
+         y el desglose por fuente debajo -- mismo patron que la tarjeta de
+         proveedores del pipeline conversacional. Solo aparece si hay al
+         menos un backup configurado. -->
+    <div class="card" id="card-musica" style="display:none;">
       <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg><span>MUSIC<span class="brand-ia">·0</span>LOGY</span></h2>
-      <div id="dashboard-suno" class="stat-grid"></div>
+      <div id="dashboard-musica" class="stat-grid"></div>
+      <div id="dashboard-musica-fuentes" class="stat-grid"></div>
     </div>
 
     <!-- Tintero: las cuatro cifras salen del ZIP, no del CSV de estadisticas,
@@ -164,6 +168,16 @@
         <label for="cfg-suno_vault">MUSIC<span class="brand-ia">·0</span>LOGY — vault de música</label>
         <input type="text" id="cfg-suno_vault" autocomplete="off">
         <div class="path-suggest" id="suggest-suno_vault"></div>
+      </div>
+      <div class="field">
+        <label for="cfg-flowmusic_backup">MUSIC<span class="brand-ia">·0</span>LOGY — carpeta del backup de Flow Music</label>
+        <input type="text" id="cfg-flowmusic_backup" autocomplete="off">
+        <div class="path-suggest" id="suggest-flowmusic_backup"></div>
+      </div>
+      <div class="field">
+        <label for="cfg-flowmusic_vault">MUSIC<span class="brand-ia">·0</span>LOGY — vault de Flow Music</label>
+        <input type="text" id="cfg-flowmusic_vault" autocomplete="off">
+        <div class="path-suggest" id="suggest-flowmusic_vault"></div>
       </div>
       <div class="field">
         <label for="cfg-substack_vault">Tintero — vault de publicaciones</label>
@@ -319,12 +333,21 @@
     <div class="panel-header">
       <div class="panel-header-text">
         <h1>MUSIC<span class="brand-ia">·0</span>LOGY</h1>
-        <p class="panel-header-desc">Rescata tu biblioteca de Suno y ponla en orden.</p>
+        <p class="panel-header-desc">Rescata tus bibliotecas de música y ponlas en orden.</p>
         <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
       </div>
       <img src="assets/musicology.png" alt="" class="panel-header-icon"
            onerror="this.style.display='none'">
     </div>
+
+    <!-- Dos fuentes, una casa. Cada una pliega sus tres tarjetas
+         (capturar, verificar, construir) y las dos empiezan cerradas: la
+         linea de resumen deja elegir cual abrir sin abrirlas. -->
+    <details class="source-fold" id="fold-suno">
+      <summary>
+        <span class="source-name">Suno</span>
+        <span class="source-sub" id="fold-suno-sub"></span>
+      </summary>
 
     <div class="card">
       <h2>Captura</h2>
@@ -452,6 +475,99 @@
       <div id="suno-build-msg" class="msg"></div>
       <pre id="suno-build-out" class="log-box" style="display:none;"></pre>
     </div>
+    </details>
+
+    <details class="source-fold" id="fold-flowmusic">
+      <summary>
+        <span class="source-name">Flow Music</span>
+        <span class="source-sub" id="fold-flowmusic-sub"></span>
+      </summary>
+
+      <div class="card">
+        <h2>Captura</h2>
+        <p class="card-help">
+          Flow Music tampoco tiene export. Se pide a su API con un token del navegador
+          que caduca en menos de una hora — por eso este paso también es manual. Por
+          debajo es Riffusion, aunque la web se presente como Google Flow Music.
+        </p>
+
+        <div class="metro">
+          <div class="metro-stop">
+            <div class="metro-dot">1</div>
+            <div class="metro-label">flowmusic.app</div>
+            <div class="metro-sub">abre tu biblioteca<br>con la sesión iniciada</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">2</div>
+            <div class="metro-label">F12 → Network</div>
+            <div class="metro-sub">filtra por «__api»<br>y refresca</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">3</div>
+            <div class="metro-label">Copy as cURL</div>
+            <div class="metro-sub">clic derecho sobre<br>cualquier petición</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">4</div>
+            <div class="metro-label">Copia el JWT</div>
+            <div class="metro-sub">lo que va después<br>de «Bearer »</div>
+          </div>
+        </div>
+
+        <p class="card-help">
+          <strong>Cópialo del cURL, no del panel Headers.</strong> Chrome corta ahí los
+          valores largos y los pinta con puntos suspensivos: te llevarías medio token con
+          un «…» dentro, y falla con un error que no explica nada.
+        </p>
+        <p class="card-help">
+          Este token es la prueba de que tu navegador ya inició sesión. Mientras dure,
+          quien lo tenga puede pedirle cosas a Flow Music como si fueras tú — no lo pegues
+          en ningún otro sitio.
+        </p>
+
+        <label for="flowmusic-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
+        <input type="password" id="flowmusic-token" autocomplete="off" spellcheck="false"
+               placeholder="eyJhbGciOiJI...">
+
+        <label for="flowmusic-formats">Formatos de audio</label>
+        <select id="flowmusic-formats">
+          <option value="m4a,wav">m4a y wav — archivo completo, pesa varios GB</option>
+          <option value="m4a">solo m4a — ligero, suficiente para escuchar</option>
+          <option value="wav">solo wav — sin pérdida, sin copia comprimida</option>
+        </select>
+
+        <button class="btn" id="btn-flowmusic-backup">Descargar biblioteca</button>
+        <div id="flowmusic-backup-msg" class="msg"></div>
+        <pre id="flowmusic-log" class="log-box" style="display:none;"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Verificación</h2>
+        <p class="card-help">
+          Cruza los identificadores del índice contra los ficheros en disco. Distingue lo
+          que falta por un fallo de lo que Flow Music no ofrece: los stems, por ejemplo,
+          solo existen en m4a aunque la API anuncie un wav.
+        </p>
+        <button class="btn" id="btn-flowmusic-verify">Verificar backup</button>
+        <div id="flowmusic-verify-msg" class="msg"></div>
+        <pre id="flowmusic-verify-out" class="log-box" style="display:none;"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Construir el vault</h2>
+        <p class="card-help">
+          Convierte el backup en notas de Obsidian, una por pista, con el linaje entre
+          ediciones, remezclas y stems resuelto como enlaces. Al vault solo va el m4a: el
+          wav se queda en el backup y la nota dice dónde.
+        </p>
+        <button class="btn" id="btn-flowmusic-build">Construir vault</button>
+        <div id="flowmusic-build-msg" class="msg"></div>
+        <pre id="flowmusic-build-out" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
   </section>
 
   <!-- TINTERO: la otra herramienta hermana. A diferencia de MUSIC·0LOGY,

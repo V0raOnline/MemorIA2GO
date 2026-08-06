@@ -729,6 +729,54 @@ button.btn.secondary:hover {
 
 .card-fold summary:hover h2 { color: var(--text); }
 
+/* Plegado de SECCION, no de tarjeta: card-fold vive dentro de una .card y
+   pliega su contenido; source-fold envuelve varias .card enteras. Se usa
+   en MUSIC·0LOGY, donde cada fuente (Suno, Flow Music) agrupa sus tres
+   tarjetas de capturar, verificar y construir. */
+.source-fold {
+  margin-bottom: 16px;
+}
+
+.source-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.source-fold > summary::-webkit-details-marker { display: none; }
+
+.source-fold > summary::before {
+  content: "▸";
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.source-fold[open] > summary::before { content: "▾"; color: var(--cyan); }
+
+.source-fold[open] > summary { margin-bottom: 14px; }
+
+.source-fold > summary:hover { border-color: var(--cyan); }
+
+.source-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Resumen de la fuente en la cabecera plegada: sirve para elegir cual
+   abrir sin abrirlas. Si no hay backup configurado se queda vacio en vez
+   de decir cero, misma regla que las tarjetas del Observatorio. */
+.source-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 .card-help {
   color: var(--text-dim);
   font-size: 13px;
