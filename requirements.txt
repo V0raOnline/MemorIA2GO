@@ -4,3 +4,10 @@ lxml>=4.9.0
 rich>=13.0.0
 pyyaml>=6.0
 flask>=3.0.0
+
+# MUSIC·0LOGY: lo usan los backups de Suno y de Flow Music, que son lo unico
+# del proyecto que sale a Internet. Estuvo sin declarar desde que existe
+# suno/backup_suno.py, asi que una instalacion limpia reventaba con
+# ModuleNotFoundError justo al pulsar "Descargar biblioteca" -- funcionaba
+# solo en maquinas que ya lo tenian por otra cosa.
+requests>=2.32.0
