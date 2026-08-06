@@ -142,7 +142,7 @@ python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
 - `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
 - `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed.
 - `substack_vault` (in `memoria_config.yaml`) — where the Inkwell vault gets built. It's the **only** path it needs: the Substack export and its stats CSV live in your usual exports folder, because the conversation pipeline rejects them and Inkwell picks them up from there. One folder, two doors.
-- `suno_backup` and `suno_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's two paths: where the raw Suno backup lives, and where its Obsidian vault is built. Both optional: without `suno_backup` the Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
+- `suno_backup` / `suno_vault` and `flowmusic_backup` / `flowmusic_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's paths, one pair per source: where the raw backup lives, and where its Obsidian vault is built. All four optional and independent: use one source, both, or neither. With no backup path configured, that source's Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
 
 Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
 

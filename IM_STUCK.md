@@ -86,7 +86,7 @@ Both work the same way: an `Authorization: Bearer …` header you pull out of yo
 
 That proof is the **token**: a temporary pass your browser has held since you signed in. It lives a few minutes and expires on its own. There's nothing to store, no credentials to put in a config file — which is why the step isn't automated, and why you do it yourself each time.
 
-Worth saying plainly: **while it lasts, that token stands in for you.** Whoever holds it can ask Suno for the same things you can. Don't paste it anywhere that isn't this app, don't send it over chat, and don't publish it in a screenshot. It expires fast, which is the good news.
+Worth saying plainly: **while it lasts, that token stands in for you.** Whoever holds it can ask the service for the same things you can. Don't paste it anywhere that isn't this app, don't send it over chat, and don't publish it in a screenshot. It expires fast, which is the good news.
 
 M3M0R·IA treats it accordingly: it travels in the request body and not in the address bar, it's handed to the process through its environment and not on the command line, it's redacted from the log before it reaches your screen, and it isn't stored anywhere. It leaves with you when you close the tab.
 
@@ -99,7 +99,7 @@ Go to [suno.com](https://suno.com) or [flowmusic.app](https://flowmusic.app) sig
 Press `F12`. If your keyboard has an `Fn` key, it may be `Fn`+`F12`. A panel opens, at the side or the bottom, full of tabs: it's the console every browser ships with. Looking around breaks nothing.
 
 **3. Go to the «Network» tab.**
-Some browsers call it «Net». It will be empty: it only records what happens *while* it's open. So **refresh the page** (`F5`) without closing the panel. A list fills up — each line is one request your browser makes to Suno.
+Some browsers call it «Net». It will be empty: it only records what happens *while* it's open. So **refresh the page** (`F5`) without closing the panel. A list fills up — each line is one request your browser makes to the site.
 
 **4. Search with the magnifying glass.**
 That same tab has a **magnifier** icon. Open it and type `bearer`. This search looks *inside* the requests, not just at their names, which is exactly what you need: the token is inside. It will flag the lines carrying it.

@@ -52,21 +52,29 @@ What they have in common is the part that matters: **discarded branches stay out
 
 ## The sister tools
 
-Neither Suno nor Substack goes through the four steps above, and in each case for a different reason. They're worth reading together, because the boundary got drawn twice with criteria that don't resemble each other.
+Neither the music nor Substack goes through the four steps above, and in each case for a different reason. They're worth reading together, because the boundary got drawn twice with criteria that don't resemble each other.
 
 ### MUSIC·0LOGY — the music
 
-Suno sits apart from the four steps above, and deliberately so. It has **no export**: the only way to get your library out is to ask its API, signed in, with a token you copy from your browser and that expires within minutes. M3M0R·IA's pipeline never reaches out to the internet on its own — so Suno gets its own tab, its own pipeline, and its own manual step, rather than being bent into a provider it isn't.
-
-What it does: downloads your library (audio, cover art and metadata), verifies the backup is intact, and builds a separate Obsidian vault with one note per track — including the **real lineage** between covers, remixes and mashups, resolved as links. Trees of 60+ variants are normal; Dewey-decimal codes keep them navigable, and the `Full Song` badge marks which one is the finished version.
-
-It also surfaces in the Observatory: tracks, total duration, favorites, finished songs and projects.
+MUSIC·0LOGY has **two sources, Suno and Flow Music**, and both sit apart from the four steps above for the same reason: they have **no export**. The only way to get your library out is to ask their API, signed in, with a token you copy from your browser and that expires within minutes. M3M0R·IA's pipeline never reaches out to the internet on its own — so the music gets its own tab, its own pipelines and its own manual step, rather than being bent into a provider it isn't.
 
 The rule that governs it is worth stating precisely, because the short version ("the pipeline never makes outbound requests") would forbid this and shouldn't: **the app never reaches out on its own initiative — it reaches out when you hand it a token and press the button.** See [the token guide](IM_STUCK.md) if any of that sounds like cryptography.
 
+What both do, with the same three buttons: download your library (audio, cover art and metadata), verify the backup is intact, and build **one Obsidian vault per source** with a note per track, including the **real lineage** between versions resolved as links. Trees of dozens of variants are normal, and Dewey-decimal codes keep them navigable. Downloads go to a `.part` file that's only renamed once its size matches the `Content-Length`, so a connection dropped halfway never leaves a truncated audio file passing itself off as complete. Both surface in the Observatory, each with its own card.
+
+That's where the resemblance ends. They're two pipelines and not one with an `if` because the two APIs differ in the things that matter:
+
+**Suno** has a flat library feed: you page through it and that's that. It groups by **projects**, lineage comes from `cover_clip_id` and the mashup field, and the `Full Song` badge marks which version is the finished one.
+
+**Flow Music has no library at all.** It's a chat product, and tracks hang off conversations: enumerating them means walking the conversations. What actually groups them is the conversation they were generated in — `project_id` comes back `null` on every single track, so grouping by project would have produced one giant pile. Lineage comes from `source_clip_ids`, and badges are derived from `op_type` (`audio__create_song`, `audio__render_edit`, `audio__split_stems`…), which says more than Suno's `task`; an `op_type` that isn't in the map is labelled *Other* rather than passed over in silence. It downloads m4a **and** wav, but only the m4a is copied into the vault: the wav is for archival and runs to ~5 GB, the vault is for listening and browsing, and the note says where the wav ended up.
+
+They resume differently, and that matters when your token expires mid-download: Suno resumes by page number, Flow Music stores the `last_message_at` of every conversation it has already walked and only re-reads the ones that changed. That's the right call for its model — if you reorder or add tracks, counting pages stops adding up.
+
+And one difference you can see in the Observatory: 15 of Flow Music's 174 real tracks have no duration, because Flow never computed it (`duration_status: "not_requested"`). They aren't counted as zero: they're left out of the average but counted as tracks. Saying "0:00" about something that exists is a lie, just as painting "0 tracks" over a library you haven't downloaded yet is.
+
 ### Inkwell — what you published
 
-Substack **does have an export**, unlike Suno: a ZIP you download from the dashboard. So the obstacle here wasn't acquisition, it was the model — **a post is not a conversation**. Before Inkwell existed, that ZIP went through the four steps and came out as fake dialogue: all 109 posts were read as *one* conversation of 108 messages alternating "user" and "assistant" with the paragraphs of a single article, and the other 108 posts vanished without a sound. Now the pipeline recognizes it and **rejects it out loud**, and Inkwell picks it up through its own door. One input folder, two different doors.
+Substack **does have an export**, unlike the music: a ZIP you download from the dashboard. So the obstacle here wasn't acquisition, it was the model — **a post is not a conversation**. Before Inkwell existed, that ZIP went through the four steps and came out as fake dialogue: all 109 posts were read as *one* conversation of 108 messages alternating "user" and "assistant" with the paragraphs of a single article, and the other 108 posts vanished without a sound. Now the pipeline recognizes it and **rejects it out loud**, and Inkwell picks it up through its own door. One input folder, two different doors.
 
 What it does: turns each post into an Obsidian note with the body in Markdown, and tells apart **published, retired and draft** — because a draft with a date and metrics isn't a draft, it's something you published and later took down. If you hand it the stats CSV you download separately, it also recovers two things the export does **not** carry: each post's **section** and **tags**, which are what make the graph sort itself out.
 
