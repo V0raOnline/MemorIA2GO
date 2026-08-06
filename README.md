@@ -4,20 +4,30 @@
   <img src="assets/M3M0R-IA.png" alt="M3M0R·IA" width="180">
 </p>
 
-> Convierte tu historial de conversaciones con IAs — ChatGPT, Claude, Grok — en un vault de Obsidian estructurado y listo para MCP. Tu contexto, local y tuyo.
+> **Nuestra memoria ya no vive en un solo sitio.**
+>
+> Está repartida entre las conversaciones en las que pensamos algo, los textos que publicamos y la música que compusimos — en servidores que no son nuestros, que pueden cerrar, cambiar de dueño o dejar de guardarla.
+>
+> **M3M0R·IA la trae de vuelta.** A tu disco, en Markdown, tuya.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 ---
 
-## Ediciones por idioma
+## Lo que trae de vuelta
 
-M3M0R·IA se mantiene como dos líneas de producto en paralelo mientras se completa la localización al inglés:
+Tres herramientas conviviendo en la misma casa. Cada una recoge una parte de lo que dejaste repartido:
 
-- **`release/es` (esta rama) — edición española.** La aplicación original, completamente funcional: interfaz web, mensajes en tiempo de ejecución y contenido generado en el vault, todo en español. Recibe correcciones de errores mientras dura el esfuerzo de localización.
-- **`release/en` — edición inglesa.** La interfaz web ya está traducida por completo (hito `i18n-web`); los mensajes en tiempo de ejecución y el contenido generado en el vault siguen en español hasta que aterricen las fases de localización 2 (`i18n-runtime`) y 3 (`i18n-content`).
-- **`main`** está congelada en el último estado común (v2.8.0) como referencia inmutable hasta que ambas ediciones alcancen paridad de funcionalidades.
+| Lo que tienes fuera | De dónde | A dónde llega |
+|---|---|---|
+| **Tus conversaciones** | ChatGPT · Claude · Grok | un vault navegable en Obsidian, organizado por proyecto y fecha, listo para servir de contexto vía MCP |
+| **Lo que publicaste** | Substack | **Tintero** — tu archivo editorial, distinguiendo publicado, retirado y borrador |
+| **Lo que compusiste** | Suno · Flow Music | **MUSIC·0LOGY** — con el linaje entre versiones, covers y remezclas resuelto como enlaces |
+
+No hace falta usarlas todas. Cada una funciona sola, y la que no configuras ni aparece.
+
+*Por qué son tres herramientas y no un único pipeline —y qué decisión hay detrás de cada frontera— está en **[ARCHITECTURE.md](ARCHITECTURE.md)**.*
 
 ---
 
@@ -41,11 +51,21 @@ Todos los proveedores conviven en un único vault fusionado (MERGED). Cada nota 
 
 ---
 
+## Ediciones por idioma
+
+M3M0R·IA se mantiene como dos líneas de producto en paralelo, una por idioma. Las dos están completas y son equivalentes — elige rama al clonar:
+
+- **`release/es` (esta rama) — edición española.** Interfaz, mensajes de ejecución y contenido del vault, todo en español.
+- **`release/en` — edición inglesa.** Completa y equivalente: interfaz (`i18n-web`), mensajes de ejecución (`i18n-runtime`) y contenido escrito en el vault, nombres de carpeta incluidos (`i18n-content`).
+- **`main`** está congelada en el último estado común (v2.8.0) como referencia inmutable. Las correcciones entran por `release/es` y se llevan a `release/en`, así que las dos líneas avanzan a la par.
+
+---
+
 ## Requisitos
 
 - Python **3.10+**
 - Dependencias: `pip install -r requirements.txt`
-  (beautifulsoup4, lxml, rich, pyyaml, flask)
+  (beautifulsoup4, lxml, rich, pyyaml, flask, requests)
 - Obsidian (para navegar el resultado) y opcionalmente Claude Desktop con un servidor MCP de filesystem (para usarlo como contexto vivo)
 - Opcional, para correr el suite de tests: `pip install -r requirements-dev.txt && python -m pytest tests/`
 
@@ -55,7 +75,7 @@ Desarrollado y probado a fondo en Windows; el pipeline en sí es multiplataforma
 
 ## Arranque rápido (interfaz web)
 
-M3M0R·IA viene con una interfaz web local — dashboard, configuración, verificación previa, lanzador del pipeline con log en vivo, y curación de proyectos huérfanos.
+M3M0R·IA viene con una interfaz web local de siete secciones: Observatorio, Configuración, Verificación, Construcción, Cartografía, Reconexión y MUSIC·0LOGY, más la de Tintero.
 
 ```bash
 git clone <este repo>
@@ -125,7 +145,6 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 - Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
 - Extracción de assets para los adjuntos `.dat` del export fragmentado de ChatGPT 2026+ (un formato binario distinto al ya soportado)
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
-- Un tipo de tool-call `image_group` de ChatGPT que el parser aún no reconoce y se cuela en crudo en el texto de la nota — hace falta una muestra real de export para fijar la ruta de código exacta antes de arreglarlo
 
 ---
 
