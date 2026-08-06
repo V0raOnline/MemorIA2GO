@@ -32,9 +32,29 @@ Construye `PRJ_VAULT` como una vista de proyecto/año/mes de MERGED. Se refresca
 
 ---
 
+## Los adaptadores, proveedor a proveedor
+
+Cada proveedor exporta a su manera y cada uno esconde su propia trampa. Lo que sigue es lo que hay que saber para tocar un adaptador — vive aquí y no en el README porque responde "cómo funciona", no "qué es".
+
+**Proveedores soportados** (detección por estructura interna del JSON, nunca por nombre de archivo):
+
+| Proveedor | Formato del export | Gestión de ramas | Adjuntos |
+|----------|--------------|-----------------|-------------|
+| ChatGPT  | zip / json / html | recorrido del árbol por `current_node` | imágenes generadas por IA y subidas del usuario extraídas a bancos separados (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
+| Claude   | zip (puede llegar en partes `batch-NNNN`) | reconstrucción por la hoja más reciente (el export no trae `current_node`) | texto extraído citado inline; los binarios subidos no vienen en el export; los **Artefactos generados** (documentos, código, HTML...) se extraen a `CLAUDE/ARTEFACTOS`, un fichero por artefacto, clasificados por tipo — solo la versión final, el historial de revisiones se descarta |
+| Grok     | zip (estructura `ttl/30d/...`) | `leaf_response_id` cuando existe, si no la hoja más reciente | adjuntos extraídos a `GROK/ADJUNTOS`; las generaciones de Imagine (imagen y vídeo) se extraen a `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` cuando el export trae el binario, si no se registran como lista de pendientes de descarga (prompt + enlace), nunca se descargan solas |
+
+Todos los proveedores conviven en un único vault fusionado (MERGED). Cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Cada banco de assets tiene su propio índice navegable, mismo patrón que el índice de imágenes clásico.
+
+Los tres tienen en común lo que de verdad importa: **las ramas descartadas se quedan fuera.** Cuando regeneras una respuesta, el export conserva el árbol entero; el adaptador camina hasta la hoja vigente y descarta el resto, así que el vault refleja la conversación que de verdad tuviste y no todos los intentos.
+
+---
+
 ## Las herramientas hermanas
 
-## MUSIC·0LOGY — una herramienta hermana compartiendo casa
+Ni Suno ni Substack pasan por los cuatro pasos de arriba, y en cada caso por un motivo distinto. Merece la pena leer los dos juntos, porque la frontera se trazó dos veces con criterios que no se parecen.
+
+### MUSIC·0LOGY — la música
 
 Suno vive aparte de los cuatro pasos de arriba, y a propósito. **No tiene export**: la única forma de sacar tu biblioteca es pedírsela a su API, con la sesión iniciada, con un token que copias del navegador y que caduca en minutos. El pipeline de M3M0R·IA no sale a Internet por su cuenta — así que Suno tiene su propia pestaña, su propio pipeline y su propio paso manual, en vez de forzarlo a ser un proveedor que no es.
 
@@ -44,7 +64,7 @@ También asoma al Observatorio: pistas, duración total, favoritas, canciones co
 
 La regla que lo gobierna merece enunciarse con precisión, porque la versión corta ("el pipeline nunca hace peticiones salientes") prohibiría esto y no debería: **la aplicación nunca sale a Internet por iniciativa propia — sale cuando le pones un token en la mano y pulsas.** Si algo de esto te suena a criptología, ve a [la guía del token](ME_HE_ATASCADO.md).
 
-## Tintero — el archivo de lo que publicaste
+### Tintero — lo que publicaste
 
 Substack **sí tiene export**, a diferencia de Suno: un zip que te descargas del panel. Así que aquí el obstáculo no fue la adquisición, fue el modelo — **un post no es una conversación**. Antes de que existiera Tintero, ese zip entraba por los cuatro pasos y salía convertido en un diálogo falso: los 109 posts se leían como *una* conversación de 108 mensajes alternando "usuario" y "asistente" con los párrafos de un solo artículo, y los otros 108 posts desaparecían sin hacer ruido. Ahora el pipeline lo reconoce y lo **rechaza en voz alta**, y Tintero lo recoge por su propia puerta. Misma carpeta de entrada, dos puertas distintas.
 

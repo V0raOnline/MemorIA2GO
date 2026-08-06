@@ -15,9 +15,11 @@
 
 ---
 
-## Lo que trae de vuelta
+## ¿Qué es M3M0R·IA?
 
-Tres herramientas conviviendo en la misma casa. Cada una recoge una parte de lo que dejaste repartido:
+No es un conversor de exports. Es el sitio donde vuelve a estar junto lo que fuiste dejando repartido.
+
+Son **tres herramientas conviviendo en la misma casa**, con pipelines distintos a propósito: una conversación, un artículo y una canción no son la misma cosa, y tratarlas igual las estropea a las tres.
 
 | Lo que tienes fuera | De dónde | A dónde llega |
 |---|---|---|
@@ -27,27 +29,11 @@ Tres herramientas conviviendo en la misma casa. Cada una recoge una parte de lo 
 
 No hace falta usarlas todas. Cada una funciona sola, y la que no configuras ni aparece.
 
-*Por qué son tres herramientas y no un único pipeline —y qué decisión hay detrás de cada frontera— está en **[ARCHITECTURE.md](ARCHITECTURE.md)**.*
+A diferencia de las herramientas genéricas de migración, que solo transfieren memorias guardadas, M3M0R·IA trae **el historial completo**: deduplicado, fusionado, con las imágenes y los adjuntos extraídos a sus bancos, y con índices de navegación generados. Los proveedores se reconocen por la estructura interna de su export, nunca por el nombre del archivo.
 
----
+Las conversaciones de los tres proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Tintero y MUSIC·0LOGY construyen vaults aparte: son otra clase de material.
 
-## ¿Qué es M3M0R·IA?
-
-M3M0R·IA convierte los exports nativos de tus proveedores de chat con IA en un vault limpio de notas Markdown, organizado por proyectos, listo para navegarse en Obsidian y para servir de contexto vivo a Claude Desktop vía MCP (Model Context Protocol).
-
-A diferencia de las herramientas genéricas de migración que solo transfieren memorias guardadas, M3M0R·IA trae tu **historial completo de conversaciones** — deduplicado, fusionado, organizado por proyecto y fecha, con imágenes extraídas e índices de navegación generados.
-
-**Proveedores soportados** (detección por estructura interna del JSON, nunca por nombre de archivo):
-
-| Proveedor | Formato del export | Gestión de ramas | Adjuntos |
-|----------|--------------|-----------------|-------------|
-| ChatGPT  | zip / json / html | recorrido del árbol por `current_node` | imágenes generadas por IA y subidas del usuario extraídas a bancos separados (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
-| Claude   | zip (puede llegar en partes `batch-NNNN`) | reconstrucción por la hoja más reciente (el export no trae `current_node`) | texto extraído citado inline; los binarios subidos no vienen en el export; los **Artefactos generados** (documentos, código, HTML...) se extraen a `CLAUDE/ARTEFACTOS`, un fichero por artefacto, clasificados por tipo — solo la versión final, el historial de revisiones se descarta |
-| Grok     | zip (estructura `ttl/30d/...`) | `leaf_response_id` cuando existe, si no la hoja más reciente | adjuntos extraídos a `GROK/ADJUNTOS`; las generaciones de Imagine (imagen y vídeo) se extraen a `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` cuando el export trae el binario, si no se registran como lista de pendientes de descarga (prompt + enlace), nunca se descargan solas |
-
-Todos los proveedores conviven en un único vault fusionado (MERGED). Cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Cada banco de assets tiene su propio índice navegable, mismo patrón que el índice de imágenes clásico.
-
-*El detalle de cómo funciona por dentro —los cuatro pasos, los adaptadores, las herramientas hermanas— está en **[ARCHITECTURE.md](ARCHITECTURE.md)**.*
+*Cómo funciona cada pipeline por dentro, qué hace cada adaptador y por qué las hermanas no son "un proveedor más" está en **[ARCHITECTURE.md](ARCHITECTURE.md)**.*
 
 ---
 
