@@ -32,9 +32,29 @@ Navigation indexes (project/year/month), attachment usage index, image index, an
 
 ---
 
+## The adapters, provider by provider
+
+Every provider exports its own way, and every one hides its own trap. What follows is what you need to know before touching an adapter — it lives here and not in the README because it answers "how does it work", not "what is it".
+
+**Supported providers** (detected by internal JSON structure, never by filename):
+
+| Provider | Export format | Branch handling | Attachments |
+|----------|--------------|-----------------|-------------|
+| ChatGPT  | zip / json / html | `current_node` tree walk | AI-generated images and user uploads extracted to separate banks (`CHATGPT/GENERATED`, `CHATGPT/ATTACHMENTS`) |
+| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; uploaded binaries not shipped by the export; **generated Artifacts** (documents, code, HTML...) extracted to `CLAUDE/ARTIFACTS`, one file per artifact, sorted by type — only the final version, revision history is discarded |
+| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | file attachments extracted to `GROK/ATTACHMENTS`; Imagine generations (images and video) extracted to `GROK/GENERATED_IMAGE`/`GROK/GENERATED_VIDEO` when the export ships the binary, otherwise logged as a pending-download list (prompt + link), never auto-downloaded |
+
+All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin. Every asset bank gets its own navigable index, same pattern as the classic image index.
+
+What they have in common is the part that matters: **discarded branches stay out.** When you regenerate an answer, the export keeps the whole tree; the adapter walks to the live leaf and drops the rest, so the vault reflects the conversation you actually had and not every attempt at it.
+
+---
+
 ## The sister tools
 
-## MUSIC·0LOGY — a sister tool sharing the house
+Neither Suno nor Substack goes through the four steps above, and in each case for a different reason. They're worth reading together, because the boundary got drawn twice with criteria that don't resemble each other.
+
+### MUSIC·0LOGY — the music
 
 Suno sits apart from the four steps above, and deliberately so. It has **no export**: the only way to get your library out is to ask its API, signed in, with a token you copy from your browser and that expires within minutes. M3M0R·IA's pipeline never reaches out to the internet on its own — so Suno gets its own tab, its own pipeline, and its own manual step, rather than being bent into a provider it isn't.
 
@@ -44,7 +64,7 @@ It also surfaces in the Observatory: tracks, total duration, favorites, finished
 
 The rule that governs it is worth stating precisely, because the short version ("the pipeline never makes outbound requests") would forbid this and shouldn't: **the app never reaches out on its own initiative — it reaches out when you hand it a token and press the button.** See [the token guide](IM_STUCK.md) if any of that sounds like cryptography.
 
-## Inkwell — the archive of what you published
+### Inkwell — what you published
 
 Substack **does have an export**, unlike Suno: a ZIP you download from the dashboard. So the obstacle here wasn't acquisition, it was the model — **a post is not a conversation**. Before Inkwell existed, that ZIP went through the four steps and came out as fake dialogue: all 109 posts were read as *one* conversation of 108 messages alternating "user" and "assistant" with the paragraphs of a single article, and the other 108 posts vanished without a sound. Now the pipeline recognizes it and **rejects it out loud**, and Inkwell picks it up through its own door. One input folder, two different doors.
 

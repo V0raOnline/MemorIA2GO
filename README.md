@@ -4,10 +4,38 @@
   <img src="assets/M3M0R-IA.png" alt="M3M0R·IA" width="180">
 </p>
 
-> Turn your AI conversation history — ChatGPT, Claude, Grok — into a structured, MCP-ready Obsidian vault. Your context, local and yours.
+> **Memory doesn't live in one place any more.**
+>
+> It's scattered across the conversations where we thought out loud, the pieces we published, the music we made — on servers that aren't ours, that can shut down, change hands, or quietly stop keeping it.
+>
+> **M3M0R·IA brings it back.** To your disk, in Markdown, yours.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+---
+
+## What is M3M0R·IA?
+
+It isn't just an export converter. It's the place where the knowledge and the things you made come back together after being left scattered.
+
+Three **tools sharing one house**, with deliberately separate pipelines: a conversation, an article and a song are not the same thing, and treating them alike ruins all three.
+
+The pact is the same for all three: **nothing is lost.** Nothing is ever deleted, the originals outrank anything generated from them, and whatever the tool can't read it says out loud instead of making it up.
+
+| What you have out there | From | Where it lands |
+|---|---|---|
+| **Your conversations** | ChatGPT · Claude · Grok | a browsable Obsidian vault, organized by project and date, ready to serve as context over MCP or to trace connections |
+| **What you published** | Substack | **Inkwell** — your editorial archive, telling published, retired and draft apart |
+| **What you composed** | Suno · Flow Music | **MUSIC·0LOGY** — with the lineage between versions, covers and remixes resolved as links |
+
+You don't have to use them all. Each one works on its own, and the ones you don't configure never show up.
+
+Unlike generic migration tools that only transfer saved memories, M3M0R·IA brings **the full history**: deduplicated, merged, with images and attachments extracted to their own banks, and navigation indexes generated. Providers are recognized by the internal structure of their export, never by filename.
+
+The conversations from all three providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell and MUSIC·0LOGY build vaults of their own: it made no sense to treat an editorial archive the same as a music library.
+
+Want to know how each flow works inside, what each adapter does, and why the sister tools aren't "just another provider"? It's all in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
@@ -23,31 +51,11 @@ M3M0R·IA is maintained as two parallel product lines, one per language. Both ar
 
 ---
 
-## What is M3M0R·IA?
-
-M3M0R·IA converts the native exports of your AI chat providers into a clean, project-organized vault of Markdown notes, ready to be browsed in Obsidian and consumed as live context by Claude Desktop via MCP (Model Context Protocol).
-
-Unlike generic migration tools that only transfer saved memories, M3M0R·IA brings your **full conversation history** — deduplicated, merged, organized by project and date, with images extracted and navigation indexes generated.
-
-**Supported providers** (detected by internal JSON structure, never by filename):
-
-| Provider | Export format | Branch handling | Attachments |
-|----------|--------------|-----------------|-------------|
-| ChatGPT  | zip / json / html | `current_node` tree walk | AI-generated images and user uploads extracted to separate banks (`CHATGPT/GENERATED`, `CHATGPT/ATTACHMENTS`) |
-| Claude   | zip (may arrive in `batch-NNNN` parts) | most-recent-leaf reconstruction (no current_node in export) | extracted text quoted inline; uploaded binaries not shipped by the export; **generated Artifacts** (documents, code, HTML...) extracted to `CLAUDE/ARTIFACTS`, one file per artifact, sorted by type — only the final version, revision history is discarded |
-| Grok     | zip (`ttl/30d/...` layout) | `leaf_response_id` when present, most-recent-leaf otherwise | file attachments extracted to `GROK/ATTACHMENTS`; Imagine generations (images and video) extracted to `GROK/GENERATED_IMAGE`/`GROK/GENERATED_VIDEO` when the export ships the binary, otherwise logged as a pending-download list (prompt + link), never auto-downloaded |
-
-All providers coexist in a single MERGED vault. Every note carries `provider` and `source` in its frontmatter, so you can filter, color and index by origin. Every asset bank gets its own navigable index, same pattern as the classic image index.
-
-*The detail of how it works inside — the four steps, the adapters, the sister tools — is in **[ARCHITECTURE.md](ARCHITECTURE.md)**.*
-
----
-
 ## Requirements
 
 - Python **3.10+**
 - Dependencies: `pip install -r requirements.txt`
-  (beautifulsoup4, lxml, rich, pyyaml, flask)
+  (beautifulsoup4, lxml, rich, pyyaml, flask, requests)
 - Obsidian (to browse the result) and optionally Claude Desktop with an MCP filesystem server (to use it as live context)
 - Optional, for running the test suite: `pip install -r requirements-dev.txt && python -m pytest tests/`
 
@@ -57,7 +65,28 @@ Developed and battle-tested on Windows; the pipeline itself is cross-platform.
 
 ## Quick start (web UI)
 
-M3M0R·IA ships with a local web interface — dashboard, configuration, pre-flight verification, pipeline runner with live log, and orphan-project curation.
+M3M0R·IA ships with a local web interface of seven sections: Observatory, Configuration, Verification, Construction, Cartography and Reconnection for the conversations, plus MUSIC·0LOGY and Inkwell as tools with a life of their own, inside the same house.
+
+### Step 0: get your material
+
+This starts **outside** the tool, and it's the one thing it can't do for you. You only need to bring the sources you're actually going to use:
+
+| Where from | How to get it |
+|---|---|
+| **ChatGPT** | Settings → Data controls → Export data. A ZIP arrives by email |
+| **Claude** | Settings → Privacy → Export data. Arrives by email, sometimes as several ZIPs |
+| **Grok** | Settings → Data → Download your data |
+| **Substack** | Dashboard → Settings → Import/Export |
+| **Substack**, stats *(optional)* | Dashboard → Stats → Posts → Show, **ticking every column**, then download the CSV |
+| **Suno · Flow Music** | There's no export: the library is downloaded from inside the tool through their API, with a token you copy from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
+
+The ZIPs go in **exactly as they are, without unzipping**, into whatever folder you set as `exports_dir`. The Substack one goes into that same folder: the conversation pipeline recognizes it and turns it away, and Inkwell picks it up from there. One folder, two doors.
+
+**Don't delete the zips** — we're always finding new things to pull out of them, and if you keep them you'll be able to reprocess and grow your m3m0rIA later.
+
+The stats CSV is optional, but it's the only source carrying each post's **section** and **tags** — without it Inkwell still builds a working vault, just with no taxonomy. **You have to tick every column when you request it:** downloaded with the defaults, those two fields don't travel.
+
+### Installation
 
 ```bash
 git clone <this repo>
@@ -74,17 +103,27 @@ python launcher.py     # on Linux, depending on your distro: python3 launcher.py
 
 Your browser opens at `http://127.0.0.1:8765`. The server binds to localhost only — it has no authentication and can run the pipeline, so keep it that way.
 
-Options:
+#### Pretty URL (optional)
 
-```bash
-python launcher.py --port 80 --no-browser   # for a persistent local server
+If typing the address with the port gets old, add this line to your hosts file (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, with `sudo`):
+
+```
+127.0.0.1  m3m0ria
 ```
 
-Optional pretty URL: add `127.0.0.1  m3m0ria` to your hosts file (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, with `sudo`) and run on port 80 → `http://m3m0ria/`. On Windows you can register a logon Scheduled Task running `pythonw launcher.py --port 80 --no-browser` from the repo folder; on Linux, a systemd user service or an autostart entry running `python3 launcher.py --port 8765 --no-browser` does the same job (port 80 on Linux needs privileges: stay on 8765 or put a proxy in front).
+And start it on port 80:
+
+```bash
+python launcher.py --port 80 --no-browser
+```
+
+Now you can get in by typing `http://m3m0ria/`. The `--no-browser` is there because in this mode you normally leave it running in the background: on Windows, with a logon Scheduled Task launching `pythonw launcher.py --port 80 --no-browser`; on Linux, with a systemd user service. Careful: on Linux port 80 needs privileges — stay on 8765 or put a proxy in front.
 
 First dashboard load computes statistics once and caches them next to your vault (`.m3m0ria_stats.json`); after that, loads are instant. The pipeline refreshes the cache at the end of step 4, and the dashboard offers a manual *recalcular* link.
 
 ### CLI (no web)
+
+You can run everything from a terminal. No web server.
 
 ```bash
 python MemorIA2GO.py                  # interactive, full pipeline
@@ -95,7 +134,7 @@ python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
 
 > ### Are you stuck?
 >
-> If you've never used a terminal, or they're asking you for a Suno token and you don't know what that is, don't keep fighting it: **[IM_STUCK.md](IM_STUCK.md)** explains it from scratch, taking nothing for granted.
+> If you've never used a terminal, or you don't know what a token is, keep reading here: **[IM_STUCK.md](IM_STUCK.md)** tells it from scratch, taking nothing for granted.
 
 ## Configuration
 

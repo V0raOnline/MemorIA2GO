@@ -8,7 +8,7 @@ M3M0R·IA takes two things for granted that not everyone has a reason to know: u
 You don't need to read it all. Go to yours:
 
 - [I've never used a terminal in my life](#ive-never-used-a-terminal-in-my-life) — install Python and start the app.
-- [They're asking for a Suno token and I don't know what that is](#theyre-asking-for-a-suno-token-and-i-dont-know-what-that-is) — get it from your browser, step by step.
+- [They're asking for a music token and I don't know what that is](#theyre-asking-for-a-music-token-and-i-dont-know-what-that-is) — get it from your browser, step by step. Works the same for Suno and for Flow Music.
 
 ---
 
@@ -74,13 +74,15 @@ Your browser opens with the interface. From here on, everything is clicks: **Con
 
 ---
 
-## They're asking for a Suno token and I don't know what that is
+## They're asking for a music token and I don't know what that is
 
 Token, F12, headers? This section is for you. No programming needed: it's copying a long piece of text from one screen to another. The odd part is where it's hidden.
 
 ### Why this step is manual
 
-The other providers give you an "export my data" button and a ZIP. **Suno doesn't.** Your library can only be asked for through its API, and the API wants proof that you're you.
+The other providers give you an "export my data" button and a ZIP. **Suno and Flow Music don't.** Your library can only be asked for through their API, and the API wants proof that you're you.
+
+Both work the same way: an `Authorization: Bearer …` header you pull out of your browser exactly alike. What follows works for either one — the site you start from changes, and little else.
 
 That proof is the **token**: a temporary pass your browser has held since you signed in. It lives a few minutes and expires on its own. There's nothing to store, no credentials to put in a config file — which is why the step isn't automated, and why you do it yourself each time.
 
@@ -90,8 +92,8 @@ M3M0R·IA treats it accordingly: it travels in the request body and not in the a
 
 ### Getting it, step by step
 
-**1. Open your library on Suno.**
-Go to [suno.com](https://suno.com) signed in, to the screen where you see your songs.
+**1. Open your library.**
+Go to [suno.com](https://suno.com) or [flowmusic.app](https://flowmusic.app) signed in, to the screen where you see your songs.
 
 **2. Open the developer tools.**
 Press `F12`. If your keyboard has an `Fn` key, it may be `Fn`+`F12`. A panel opens, at the side or the bottom, full of tabs: it's the console every browser ships with. Looking around breaks nothing.
@@ -105,15 +107,22 @@ That same tab has a **magnifier** icon. Open it and type `bearer`. This search l
 **5. Switch to the «Headers» view.**
 Click one of the results. A detail panel opens with its own tabs: **Headers**, Payload, Response... **You have to be on Headers.** The token doesn't appear in the other views, and this is where most people get stuck.
 
-**6. Copy the token.**
+**6. Copy the token — and watch out, this is where the browser plays a trick on you.**
 Find the line `Authorization: Bearer eyJ...` and copy **only what comes after the word «Bearer»**: a very long string of letters and numbers starting with `eyJ`. Without the word «Bearer», without quotes, without leading spaces.
+
+The token is so long that **both browsers cut it short when displaying it**, each in its own way, and if you copy what you see you walk away with half a token and no idea:
+
+- **In Firefox** — tick **«raw»** in the headers view. Without it you copy a trimmed version.
+- **In Chrome** — it paints an ellipsis `…` in the middle. If you see one, don't copy from there: right-click the request → Copy → **Copy as cURL**, and pull the token out of the text you get.
+
+It's the most common failure and the one that warns you worst: it doesn't say "truncated token", it says odd things or simply blows up.
 
 **7. Paste it into the MUSIC·0LOGY tab** and press "Download library".
 
 ### If something doesn't add up
 
 - **I can't find any line with `Authorization`.** Refresh the page with the panel open. If the list is still empty, check you're on Network and not on Console.
-- **I pasted it and it says it's invalid.** You may have copied the word «Bearer» along with it, or a space. You may also have picked a request to `clerk.suno.com`: those carry a token but won't work. The good ones go to `studio-api`.
+- **I pasted it and it says it's invalid.** Most likely it's truncated — go back to step 6. You may also have copied the word «Bearer» along with it, or a space. And on Suno there are requests to `clerk.suno.com` that carry a token but won't work: the good ones go to `studio-api`.
 - **The download stopped halfway.** Almost always the token expiring. Get a fresh one by repeating these steps and launch it again: it **resumes where it left off**, it doesn't start over.
 - **I've forgotten all of this.** It's inside the app too: in the MUSIC·0LOGY tab, the fold labelled «Does this sound like cryptography? Open me».
 
