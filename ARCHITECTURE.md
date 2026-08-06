@@ -52,21 +52,29 @@ Los tres tienen en común lo que de verdad importa: **las ramas descartadas se q
 
 ## Las herramientas hermanas
 
-Ni Suno ni Substack pasan por los cuatro pasos de arriba, y en cada caso por un motivo distinto. Merece la pena leer los dos juntos, porque la frontera se trazó dos veces con criterios que no se parecen.
+Ni la música ni Substack pasan por los cuatro pasos de arriba, y en cada caso por un motivo distinto. Merece la pena leer los dos juntos, porque la frontera se trazó dos veces con criterios que no se parecen.
 
 ### MUSIC·0LOGY — la música
 
-Suno vive aparte de los cuatro pasos de arriba, y a propósito. **No tiene export**: la única forma de sacar tu biblioteca es pedírsela a su API, con la sesión iniciada, con un token que copias del navegador y que caduca en minutos. El pipeline de M3M0R·IA no sale a Internet por su cuenta — así que Suno tiene su propia pestaña, su propio pipeline y su propio paso manual, en vez de forzarlo a ser un proveedor que no es.
-
-Qué hace: descarga tu biblioteca (audio, portadas y metadatos), verifica que el backup está íntegro, y construye un vault de Obsidian aparte con una nota por pista — incluyendo el **linaje real** entre covers, remixes y mashups, resuelto como enlaces. Los árboles de 60+ variantes son normales; los códigos Dewey los mantienen navegables, y el badge `Full Song` marca cuál es la versión terminada.
-
-También asoma al Observatorio: pistas, duración total, favoritas, canciones completas y proyectos.
+MUSIC·0LOGY tiene **dos fuentes, Suno y Flow Music**, y las dos viven aparte de los cuatro pasos de arriba por el mismo motivo: **no tienen export**. La única forma de sacar tu biblioteca es pedírsela a su API, con la sesión iniciada, con un token que copias del navegador y que caduca en minutos. El pipeline de M3M0R·IA no sale a Internet por su cuenta — así que la música tiene su propia pestaña, sus propios pipelines y su propio paso manual, en vez de forzarla a ser un proveedor que no es.
 
 La regla que lo gobierna merece enunciarse con precisión, porque la versión corta ("el pipeline nunca hace peticiones salientes") prohibiría esto y no debería: **la aplicación nunca sale a Internet por iniciativa propia — sale cuando le pones un token en la mano y pulsas.** Si algo de esto te suena a criptología, ve a [la guía del token](ME_HE_ATASCADO.md).
 
+Lo que hacen las dos, con los mismos tres botones: descargan tu biblioteca (audio, portadas y metadatos), verifican que el backup está íntegro, y construyen **un vault de Obsidian por fuente** con una nota por pista, incluyendo el **linaje real** entre versiones resuelto como enlaces. Los árboles de decenas de variantes son normales, y los códigos Dewey los mantienen navegables. Las descargas van a un `.part` que solo se renombra cuando el tamaño cuadra con el `Content-Length`, así que un corte a mitad no deja un audio truncado haciéndose pasar por completo. Las dos asoman al Observatorio con su propia tarjeta.
+
+Ahí se acaba el parecido. Son dos pipelines y no uno con un `if` porque las dos APIs no se parecen en lo que importa:
+
+**Suno** tiene un feed plano de biblioteca: se pagina y ya está. Agrupa por **proyectos**, el linaje sale de `cover_clip_id` y del mashup, y el badge `Full Song` marca cuál es la versión terminada.
+
+**Flow Music no tiene biblioteca.** Es un producto de chat, y las pistas cuelgan de las conversaciones: para enumerarlas hay que recorrer conversaciones. Lo que agrupa de verdad es la conversación en la que se generaron — `project_id` viene a `null` en todas las pistas, así que agrupar por proyecto habría dado un montón único. El linaje sale de `source_clip_ids`, y los badges se derivan de `op_type` (`audio__create_song`, `audio__render_edit`, `audio__split_stems`…), que dice más que el `task` de Suno; un `op_type` que no esté en el mapa se etiqueta *Otro* en vez de callarse. Descarga m4a **y** wav, pero al vault solo se copia el m4a: el wav es archivo y son ~5 GB, el vault está para escuchar y navegar, y la nota dice dónde quedó el wav.
+
+Se retoman distinto, y eso importa cuando el token te caduca a mitad de una descarga larga: Suno reanuda por número de página, Flow Music guarda el `last_message_at` de cada conversación ya recorrida y solo vuelve a leer las que cambiaron. Es lo correcto para su modelo — si reordenas o añades pistas, seguir contando páginas deja de cuadrar.
+
+Y una diferencia que se nota en el Observatorio: 15 de las 174 pistas reales de Flow Music no tienen duración, porque Flow nunca la calculó (`duration_status: "not_requested"`). No se cuentan como cero: se ignoran para la media, pero cuentan como pistas. Decir "0:00" de algo que existe es mentir, igual que pintar "0 pistas" sobre una biblioteca que todavía no has descargado.
+
 ### Tintero — lo que publicaste
 
-Substack **sí tiene export**, a diferencia de Suno: un zip que te descargas del panel. Así que aquí el obstáculo no fue la adquisición, fue el modelo — **un post no es una conversación**. Antes de que existiera Tintero, ese zip entraba por los cuatro pasos y salía convertido en un diálogo falso: los 109 posts se leían como *una* conversación de 108 mensajes alternando "usuario" y "asistente" con los párrafos de un solo artículo, y los otros 108 posts desaparecían sin hacer ruido. Ahora el pipeline lo reconoce y lo **rechaza en voz alta**, y Tintero lo recoge por su propia puerta. Misma carpeta de entrada, dos puertas distintas.
+Substack **sí tiene export**, a diferencia de la música: un zip que te descargas del panel. Así que aquí el obstáculo no fue la adquisición, fue el modelo — **un post no es una conversación**. Antes de que existiera Tintero, ese zip entraba por los cuatro pasos y salía convertido en un diálogo falso: los 109 posts se leían como *una* conversación de 108 mensajes alternando "usuario" y "asistente" con los párrafos de un solo artículo, y los otros 108 posts desaparecían sin hacer ruido. Ahora el pipeline lo reconoce y lo **rechaza en voz alta**, y Tintero lo recoge por su propia puerta. Misma carpeta de entrada, dos puertas distintas.
 
 Qué hace: convierte cada post en una nota de Obsidian con el cuerpo en Markdown, y distingue **publicados, retirados y borradores** — porque un borrador con fecha y métricas no es un borrador, es algo que publicaste y luego bajaste. Si le pasas el CSV de estadísticas que se descarga aparte, recupera además dos cosas que el export **no** trae: la **sección** y las **etiquetas** de cada post, que son las que hacen que el grafo se ordene solo.
 

@@ -99,7 +99,7 @@ Ve a [suno.com](https://suno.com) o a [flowmusic.app](https://flowmusic.app) con
 Pulsa `F12`. Si tu teclado tiene tecla `Fn`, quizá sea `Fn`+`F12`. Se abre un panel, al lado o debajo, lleno de pestañas: es la consola que trae de fábrica cualquier navegador. Mirar no rompe nada.
 
 **3. Ve a la pestaña «Network».**
-En algunos navegadores se llama «Red». Estará vacía: solo registra lo que pasa *mientras* está abierta. Así que **refresca la página** (`F5`) sin cerrar el panel. Verás llenarse una lista — cada línea es una petición que tu navegador le hace a Suno.
+En algunos navegadores se llama «Red». Estará vacía: solo registra lo que pasa *mientras* está abierta. Así que **refresca la página** (`F5`) sin cerrar el panel. Verás llenarse una lista — cada línea es una petición que tu navegador le hace a la web.
 
 **4. Busca con la lupa.**
 En esa misma pestaña hay un icono de **lupa**. Ábrelo y escribe `bearer`. Esta búsqueda mira *dentro* de las peticiones, no solo en sus nombres, que es exactamente lo que hace falta: el token va dentro. Te señalará las líneas que lo llevan.
