@@ -63,6 +63,25 @@ Desarrollado y probado a fondo en Windows; el pipeline en sí es multiplataforma
 
 M3M0R·IA viene con una interfaz web local de siete secciones: Observatorio, Configuración, Verificación, Construcción, Cartografía, Reconexión y MUSIC·0LOGY, más la de Tintero.
 
+### Paso 0: consigue tu material
+
+Esto pasa **fuera** de la herramienta, y es lo único que no puede hacer por ti. Solo necesitas lo de las fuentes que vayas a usar:
+
+| De dónde | Cómo se consigue |
+|---|---|
+| **ChatGPT** | Configuración → Controles de datos → Exportar datos. Llega un ZIP por email |
+| **Claude** | Configuración → Privacidad → Exportar datos. Llega por email, a veces en varios ZIP |
+| **Grok** | Configuración → Datos → Descarga tus datos |
+| **Substack** | Panel de control → Configuración → Importar/exportar |
+| **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV |
+| **Suno · Flow Music** | No hay export: la biblioteca se pide a su API con un token que copias del navegador — ver **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** |
+
+Los ZIP se sueltan **tal cual, sin descomprimir**, en la carpeta que configures como `exports_dir`. El de Substack va a esa misma carpeta: el pipeline de conversaciones lo reconoce y lo rechaza, y Tintero lo recoge de ahí. Una carpeta, dos puertas.
+
+El CSV de estadísticas es opcional, pero es lo único que trae la **sección** y las **etiquetas** de cada post — sin él Tintero construye el vault igual, solo que sin taxonomía. Y hay que marcar todas las columnas al pedirlo: si se descarga con las de por defecto, esos dos campos no vienen.
+
+### Instalación
+
 ```bash
 git clone <este repo>
 cd MemorIA2GO

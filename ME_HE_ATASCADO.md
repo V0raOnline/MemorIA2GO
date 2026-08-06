@@ -8,7 +8,7 @@ M3M0R·IA da por sabidas dos cosas que no tiene por qué saber todo el mundo: us
 No hace falta leerlo entero. Ve a lo tuyo:
 
 - [No he usado una terminal en mi vida](#no-he-usado-una-terminal-en-mi-vida) — instalar Python y arrancar la aplicación.
-- [Me piden un token de Suno y no sé qué es eso](#me-piden-un-token-de-suno-y-no-sé-qué-es-eso) — sacarlo del navegador, paso a paso.
+- [Me piden un token de música y no sé qué es eso](#me-piden-un-token-de-música-y-no-sé-qué-es-eso) — sacarlo del navegador, paso a paso. Vale igual para Suno y para Flow Music.
 
 ---
 
@@ -74,24 +74,26 @@ Tu navegador se abre con la interfaz. A partir de aquí, todo son clics: pestañ
 
 ---
 
-## Me piden un token de Suno y no sé qué es eso
+## Me piden un token de música y no sé qué es eso
 
 ¿Token, F12, cabeceras? Esta sección es para ti. No hace falta saber programar: es copiar un texto largo de una pantalla a otra. Lo raro es dónde está escondido.
 
 ### Por qué este paso es manual
 
-Los demás proveedores te dan un botón de "exportar mis datos" y un ZIP. **Suno no.** Tu biblioteca solo se puede pedir a su API, y la API quiere una prueba de que eres tú.
+Los demás proveedores te dan un botón de "exportar mis datos" y un ZIP. **Suno y Flow Music no.** Tu biblioteca solo se puede pedir a su API, y la API quiere una prueba de que eres tú.
+
+Los dos funcionan igual: una cabecera `Authorization: Bearer …` que se saca del navegador de la misma forma. Lo que sigue sirve para cualquiera de los dos — cambia la web por la que empiezas y poco más.
 
 Esa prueba es el **token**: un pase temporal que tu navegador ya tiene desde que iniciaste sesión. Vive unos minutos y caduca solo. No hay nada que guardar, ni credenciales que meter en un archivo de configuración — por eso el paso no se automatiza, y por eso lo haces tú cada vez.
 
-Conviene decirlo claro: **mientras dura, ese token vale por ti**. Quien lo tenga puede pedirle a Suno lo mismo que tú. No lo pegues en ningún sitio que no sea esta aplicación, no lo mandes por chat y no lo publiques en una captura de pantalla. Caduca rápido, que es la buena noticia.
+Conviene decirlo claro: **mientras dura, ese token vale por ti**. Quien lo tenga puede pedir lo mismo que tú. No lo pegues en ningún sitio que no sea esta aplicación, no lo mandes por chat y no lo publiques en una captura de pantalla. Caduca rápido, que es la buena noticia.
 
 M3M0R·IA lo trata en consecuencia: viaja en el cuerpo de la petición y no por la barra de direcciones, se le pasa al proceso por su entorno y no por la línea de comandos, se censura del log antes de que llegue a tu pantalla, y no se guarda en ningún sitio. Se va contigo al cerrar la pestaña.
 
 ### Sacarlo, paso a paso
 
-**1. Abre tu biblioteca en Suno.**
-Ve a [suno.com](https://suno.com) con tu sesión iniciada, a la pantalla donde ves tus canciones.
+**1. Abre tu biblioteca.**
+Ve a [suno.com](https://suno.com) o a [flowmusic.app](https://flowmusic.app) con tu sesión iniciada, a la pantalla donde ves tus canciones.
 
 **2. Abre las herramientas de desarrollo.**
 Pulsa `F12`. Si tu teclado tiene tecla `Fn`, quizá sea `Fn`+`F12`. Se abre un panel, al lado o debajo, lleno de pestañas: es la consola que trae de fábrica cualquier navegador. Mirar no rompe nada.
@@ -105,15 +107,22 @@ En esa misma pestaña hay un icono de **lupa**. Ábrelo y escribe `bearer`. Esta
 **5. Ponte en la vista «Headers».**
 Haz clic en uno de los resultados. Se abre un panel de detalle con sus propias pestañas: **Headers** (o «Cabeceras»), Payload, Response... **Tienes que estar en Headers.** En las otras vistas el token no aparece, y es donde más gente se atasca.
 
-**6. Copia el token.**
+**6. Copia el token — y ojo, que aquí el navegador te la juega.**
 Busca la línea `Authorization: Bearer eyJ...` y copia **solo lo que va después de la palabra «Bearer»**: una tira larguísima de letras y números que empieza por `eyJ`. Sin la palabra «Bearer», sin comillas y sin espacios al principio.
+
+El token es tan largo que **los dos navegadores lo cortan al mostrarlo**, cada uno a su manera, y si copias lo que ves te llevas medio token sin enterarte:
+
+- **En Firefox** — marca **«sin procesar»** (*raw*) en la vista de cabeceras. Sin eso copias una versión recortada.
+- **En Chrome** — lo pinta con unos puntos suspensivos `…` en medio. Si los ves, no lo copies de ahí: usa **clic derecho sobre la petición → Copy → Copy as cURL** y saca el token del texto que salga.
+
+Es el fallo más común y el que peor avisa: no dice "token cortado", dice cosas raras o directamente revienta.
 
 **7. Pégalo en la pestaña MUSIC·0LOGY** y pulsa «Descargar biblioteca».
 
 ### Si algo no cuadra
 
 - **No encuentro ninguna línea con `Authorization`.** Refresca la página con el panel abierto. Si la lista sigue vacía, comprueba que estás en Network y no en Console.
-- **Lo pegué y dice que no vale.** Puede que hayas copiado la palabra «Bearer» delante, o un espacio. También puede que hayas cogido una petición a `clerk.suno.com`: esas llevan token pero no sirven. Las buenas van a `studio-api`.
+- **Lo pegué y dice que no vale.** Lo más probable es que esté cortado — vuelve al paso 6. También puede que hayas copiado la palabra «Bearer» delante, o un espacio. Y en Suno hay peticiones a `clerk.suno.com` que llevan token pero no sirven: las buenas van a `studio-api`.
 - **La descarga se cortó a la mitad.** Casi siempre es que el token caducó. Saca uno nuevo repitiendo estos pasos y vuelve a lanzarla: **retoma donde se quedó**, no empieza de cero.
 - **Se me ha olvidado todo esto.** Está también dentro de la aplicación: en la pestaña MUSIC·0LOGY, el desplegable «¿Esto te suena a criptología? Ábreme».
 
