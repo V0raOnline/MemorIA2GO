@@ -5,9 +5,9 @@
 </p>
 
 > **Nuestra memoria ya no vive en un solo sitio.**
->
-> Está repartida entre las conversaciones en las que pensamos algo, los textos que publicamos y la música que compusimos — en servidores que no son nuestros, que pueden cerrar, cambiar de dueño o dejar de guardarla.
->
+> 
+> Está repartida entre las conversaciones en las que pensamos, los textos que publicamos y la música que compusimos — en servidores que no son nuestros, que pueden cerrar, cambiar de dueño o dejar de guardarla.
+> 
 > **M3M0R·IA la trae de vuelta.** A tu disco, en Markdown, tuya.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -17,23 +17,25 @@
 
 ## ¿Qué es M3M0R·IA?
 
-No es un conversor de exports. Es el sitio donde vuelve a estar junto lo que fuiste dejando repartido.
+No es simplemente un conversor de exports. Es el lugar donde recuperas el conocimiento y creaciones que dejaste repartidas.
 
 Son **tres herramientas conviviendo en la misma casa**, con pipelines distintos a propósito: una conversación, un artículo y una canción no son la misma cosa, y tratarlas igual las estropea a las tres.
 
-| Lo que tienes fuera | De dónde | A dónde llega |
-|---|---|---|
-| **Tus conversaciones** | ChatGPT · Claude · Grok | un vault navegable en Obsidian, organizado por proyecto y fecha, listo para servir de contexto vía MCP |
-| **Lo que publicaste** | Substack | **Tintero** — tu archivo editorial, distinguiendo publicado, retirado y borrador |
-| **Lo que compusiste** | Suno · Flow Music | **MUSIC·0LOGY** — con el linaje entre versiones, covers y remezclas resuelto como enlaces |
+El pacto es el mismo para las tres: **nada se pierde.** Nunca se borra nada, los originales mandan sobre lo que se genera, y lo que la herramienta no sabe leer lo dice en voz alta en vez de inventárselo.
 
-No hace falta usarlas todas. Cada una funciona sola, y la que no configuras ni aparece.
+| Lo que tienes fuera    | De dónde                | A dónde llega                                                                                                              |
+| ---------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Tus conversaciones** | ChatGPT · Claude · Grok | un vault navegable en Obsidian, organizado por proyecto y fecha, listo para servir de contexto vía MCP o trazar conexiones |
+| **Lo que publicaste**  | Substack                | **Tintero** — tu archivo editorial, distingue publicado, retirado y borrador                                               |
+| **Lo que compusiste**  | Suno · Flow Music       | **MUSIC·0LOGY** — con el linaje entre versiones, covers y remezclas resuelto como enlaces                                  |
 
-A diferencia de las herramientas genéricas de migración, que solo transfieren memorias guardadas, M3M0R·IA trae **el historial completo**: deduplicado, fusionado, con las imágenes y los adjuntos extraídos a sus bancos, y con índices de navegación generados. Los proveedores se reconocen por la estructura interna de su export, nunca por el nombre del archivo.
+No hace falta usarlas todas. Cada una funciona por separado, y sin configuración no aparecen.
 
-Las conversaciones de los tres proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Tintero y MUSIC·0LOGY construyen vaults aparte: son otra clase de material.
+A diferencia de las herramientas genéricas de migración, que solo transfieren memorias guardadas, M3M0R·IA trae **el historial completo**: deduplicado, fusionado, con las imágenes y los adjuntos extraídos a sus propios bancos, y con índices de navegación generados. Los proveedores se reconocen por la estructura interna de su export, nunca por el nombre del archivo.
 
-*Cómo funciona cada pipeline por dentro, qué hace cada adaptador y por qué las hermanas no son "un proveedor más" está en **[ARCHITECTURE.md](ARCHITECTURE.md)**.*
+Las conversaciones de los tres proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen y recorrer un hilo de pensamiento completo. Tintero y MUSIC·0LOGY construyen sus propios vaults: no tenía sentido tratar igual un archivo editorial que una biblioteca musical.
+
+¿Quieres saber cómo funciona cada flujo por dentro, qué hace cada adaptador y por qué las hermanas no son "un proveedor más"? Está todo en **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
@@ -61,24 +63,26 @@ Desarrollado y probado a fondo en Windows; el pipeline en sí es multiplataforma
 
 ## Arranque rápido (interfaz web)
 
-M3M0R·IA viene con una interfaz web local de siete secciones: Observatorio, Configuración, Verificación, Construcción, Cartografía, Reconexión y MUSIC·0LOGY, más la de Tintero.
+M3M0R·IA viene con una interfaz web local de siete secciones: Observatorio, Configuración, Verificación, Construcción, Cartografía, Reconexión para las conversaciones, MUSIC·0LOGY y Tintero como herramientas con entidad propia, dentro de la misma casa.
 
 ### Paso 0: consigue tu material
 
-Esto pasa **fuera** de la herramienta, y es lo único que no puede hacer por ti. Solo necesitas lo de las fuentes que vayas a usar:
+Esto empieza **fuera** de la herramienta, y es lo único que no puede hacer por ti. Solo necesitas traer las fuentes que vayas a usar:
 
-| De dónde | Cómo se consigue |
-|---|---|
-| **ChatGPT** | Configuración → Controles de datos → Exportar datos. Llega un ZIP por email |
-| **Claude** | Configuración → Privacidad → Exportar datos. Llega por email, a veces en varios ZIP |
-| **Grok** | Configuración → Datos → Descarga tus datos |
-| **Substack** | Panel de control → Configuración → Importar/exportar |
-| **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV |
-| **Suno · Flow Music** | No hay export: la biblioteca se pide a su API con un token que copias del navegador — ver **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** |
+| De dónde                                | Cómo se consigue                                                                                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ChatGPT**                             | Configuración → Controles de datos → Exportar datos. Llega un ZIP por email                                                                                             |
+| **Claude**                              | Configuración → Privacidad → Exportar datos. Llega por email, a veces en varios ZIP                                                                                     |
+| **Grok**                                | Configuración → Datos → Descarga tus datos                                                                                                                              |
+| **Substack**                            | Panel de control → Configuración → Importar/exportar                                                                                                                    |
+| **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV                                                          |
+| **Suno · Flow Music**                   | No hay export: la biblioteca se descarga desde la herramienta a través de su API con un token que copias del navegador — ver **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** |
 
 Los ZIP se sueltan **tal cual, sin descomprimir**, en la carpeta que configures como `exports_dir`. El de Substack va a esa misma carpeta: el pipeline de conversaciones lo reconoce y lo rechaza, y Tintero lo recoge de ahí. Una carpeta, dos puertas.
 
-El CSV de estadísticas es opcional, pero es lo único que trae la **sección** y las **etiquetas** de cada post — sin él Tintero construye el vault igual, solo que sin taxonomía. Y hay que marcar todas las columnas al pedirlo: si se descarga con las de por defecto, esos dos campos no vienen.
+**No borres los zip**, siempre estamos buscando como extraer más información de ellos y si los conservas podrás reprocesarlos para ampliar tu m3m0rIA.
+
+El CSV de estadísticas es opcional, pero es la única fuente en la que están la **sección** y las **etiquetas** de cada post — sin él Tintero construye el vault funcional, solo que sin taxonomía. **Hay que marcar todas las columnas al pedirlo:** si se descarga solo con las de por defecto, esos dos campos no viajan.
 
 ### Instalación
 
@@ -97,17 +101,27 @@ python launcher.py     # en Linux, según tu distro: python3 launcher.py
 
 Tu navegador se abre en `http://127.0.0.1:8765`. El servidor solo escucha en localhost — no tiene autenticación y puede lanzar el pipeline, así que déjalo así.
 
-Opciones:
+#### URL bonita (opcional)
 
-```bash
-python launcher.py --port 80 --no-browser   # para un servidor local persistente
+Si te cansa escribir la dirección con el puerto, añade esta línea a tu fichero hosts (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, con `sudo`):
+
+```
+127.0.0.1  m3m0ria
 ```
 
-URL bonita opcional: añade `127.0.0.1  m3m0ria` a tu fichero hosts (Windows: `C:\Windows\System32\drivers\etc\hosts`; Linux/macOS: `/etc/hosts`, con `sudo`) y arranca en el puerto 80 → `http://m3m0ria/`. En Windows puedes registrar una tarea programada de inicio de sesión que lance `pythonw launcher.py --port 80 --no-browser` desde la carpeta del repo; en Linux, un servicio de usuario de systemd o una entrada de autoarranque lanzando `python3 launcher.py --port 8765 --no-browser` hace el mismo trabajo (el puerto 80 en Linux necesita privilegios: quédate en el 8765 o pon un proxy delante).
+Y arranca en el puerto 80:
 
-La primera carga del dashboard calcula las estadísticas una vez y las cachea junto a tu vault (`.m3m0ria_stats.json`); después de eso, las cargas son instantáneas. El pipeline refresca la caché al final del paso 4, y el dashboard ofrece un enlace manual de *recalcular*.
+```bash
+python launcher.py --port 80 --no-browser
+```
+
+Ya puedes entrar escribiendo `http://m3m0ria/`. El `--no-browser` está ahí porque en este modo lo normal es dejarlo corriendo de fondo: en Windows, con una tarea programada de inicio de sesión que lance `pythonw launcher.py --port 80 --no-browser`; en Linux, con un servicio de usuario de systemd. Ojo: en Linux el puerto 80 pide privilegios — quédate en el 8765 o pon un proxy delante.
+
+La primera carga del dashboard calcula las estadísticas y las cachea junto a tu vault (`.m3m0ria_stats.json`); después de eso, las cargas son instantáneas. El pipeline refresca la caché al final del paso 4, y el dashboard ofrece un enlace manual de *recalcular*.
 
 ### CLI (sin web)
+
+Puedes ejecutar todo desde una terminal de comandos. Sin servidor web.
 
 ```bash
 python MemorIA2GO.py                  # interactivo, pipeline completo
@@ -117,8 +131,8 @@ python MemorIA2GO.py --reprocess-all  # re-parsea todos los exports válidos des
 ---
 
 > ### ¿Te has atascado?
->
-> Si nunca has usado una terminal, o te piden un token de Suno y no sabes qué es eso, no sigas peleándote con esto: **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** lo cuenta desde cero, sin dar nada por sabido.
+> 
+> Si nunca has usado una terminal, o no sabes lo que es un token, sigue aquí: **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** lo cuenta desde cero, sin dar nada por sabido.
 
 ## Configuración
 
@@ -136,12 +150,12 @@ Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas s
 
 Cada documento responde **una** pregunta. Si buscas algo que no está aquí, probablemente esté en otro:
 
-| | Responde |
-|---|---|
-| **README** (estás aquí) | ¿Qué es y cómo lo arranco? |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | ¿Cómo funciona por dentro y por qué así? |
-| **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** | ¿Y si no sé nada de esto? |
-| **[DEVLOG.md](DEVLOG.md)** | ¿Qué aprendimos construyéndolo? |
+|                                            | Responde                                 |
+| ------------------------------------------ | ---------------------------------------- |
+| **README** (estás aquí)                    | ¿Qué es y cómo lo arranco?               |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)**     | ¿Cómo funciona por dentro y por qué así? |
+| **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** | ¿Y si no sé nada de esto?                |
+| **[DEVLOG.md](DEVLOG.md)**                 | ¿Qué aprendimos construyéndolo?          |
 
 ---
 
