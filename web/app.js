@@ -225,7 +225,7 @@ async function loadDashboard(refresh = false) {
     if (stats.error) {
       summaryEl.innerHTML = `<div class="empty-note">${stats.error} — configura la carpeta base en la pestaña Configuración.</div>`;
       document.getElementById("evolution-chart").innerHTML = `<div class="empty-note">Sin datos.</div>`;
-      document.getElementById("projects-top").innerHTML = `<div class="empty-note">Sin datos.</div>`;
+      document.getElementById("topics-top").innerHTML = `<div class="empty-note">Sin datos.</div>`;
       return;
     }
 
@@ -659,31 +659,6 @@ function renderTopTemas(stats) {
   if (typeof pend === "number") linea += ` · ${pend} pendientes de cartografiar`;
   if (anom > 0) linea += ` · ⚠ ${anom} sin ningún tema (anomalías)`;
   cov.textContent = linea;
-}
-
-function renderProjects(stats) {
-  const el = document.getElementById("projects-top");
-  const prjKey = Object.keys(stats.vaults || {}).find(k => k !== "RAW_VAULT" && k !== "MERGED_VAULT");
-  const pp = (prjKey && stats.vaults[prjKey].notas_por_proyecto) || {};
-  const entries = Object.entries(pp).sort((a, b) => b[1] - a[1]);
-  if (entries.length === 0) {
-    el.innerHTML = `<div class="empty-note">No hay proyectos todavía.</div>`;
-    return;
-  }
-  const top = entries.slice(0, 5);
-  const resto = entries.slice(5);
-  if (resto.length > 0) {
-    top.push([`Otros (${resto.length} proyectos)`, resto.reduce((s, e) => s + e[1], 0)]);
-  }
-  const maxN = Math.max(...top.map(e => e[1]));
-  el.innerHTML = top.map(par => {
-    const label = par[0] === "none" ? "Sin proyecto" : par[0];
-    return `<div class="prj-row">
-      <div class="prj-name" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
-      <div class="prj-bar"><div class="prj-fill" style="width:${((100 * par[1]) / maxN).toFixed(1)}%"></div></div>
-      <div class="prj-count">${par[1]}</div>
-    </div>`;
-  }).join("");
 }
 
 // ─────────────────────────────────────────

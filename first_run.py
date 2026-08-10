@@ -95,7 +95,14 @@ def main() -> int:
     # runpy en vez de import: launcher.py define su propio main() bajo
     # __name__ == "__main__" y asi se ejecuta igual que si lo hubieras
     # llamado a mano, sin duplicar aqui su arranque.
-    sys.argv = [str(AQUI / "launcher.py")]
+    #
+    # Los argumentos se dejan pasar tal cual. Sin doble clic no hay ninguno
+    # y arranca en el puerto de siempre abriendo el navegador, que es el
+    # caso para el que existe esto; pero asi `first_run.py --no-browser
+    # --port 80` sigue valiendo -- lo necesita quien quiera dejarlo de fondo
+    # (README, "URL bonita"), y lo necesitamos nosotros para poder probar el
+    # paquete construido sin abrirle una pestana a nadie.
+    sys.argv = [str(AQUI / "launcher.py")] + sys.argv[1:]
     runpy.run_path(str(AQUI / "launcher.py"), run_name="__main__")
     return 0
 
