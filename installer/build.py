@@ -51,10 +51,25 @@ PY_VERSION = "3.11.9"
 PY_ZIP = f"python-{PY_VERSION}-embed-amd64.zip"
 PY_URL = f"https://www.python.org/ftp/python/{PY_VERSION}/{PY_ZIP}"
 
-# SHA-256 publicado en https://www.python.org/downloads/release/python-3119/
-# PENDIENTE: copiar de la pagina oficial antes de la primera construccion.
-# Se deja vacio a proposito -- ver la nota de arriba sobre no inventarlo.
-PY_SHA256 = ""
+# Lo que python.org publica para este fichero es un MD5, y solo eso: en la
+# pagina de la version no hay SHA-256 (comprobado 2026-08-10). Se comprueban
+# los dos, y cada uno responde a una pregunta distinta:
+#
+#   PY_MD5    es el valor PUBLICADO. Es la unica cifra que viene de fuera y
+#             la unica capaz de decir 'esto no es lo que python.org sirve'.
+#             MD5 es debil frente a un atacante con recursos; es lo que hay
+#             publicado, y descartarlo por debil seria quedarse sin ninguna.
+#   PY_SHA256 se calculo aqui, sobre el fichero que YA habia pasado el MD5.
+#             No aporta procedencia: aporta que los bytes son exactamente los
+#             mismos con los que se probo, y cierra el hueco teorico de una
+#             colision de MD5.
+#
+# La cadena de confianza fuerte de verdad seria la firma GPG (.asc, con la
+# clave del release manager de Python). No esta implementada: pide gpg en la
+# maquina que construye. Queda dicho para que nadie crea que esto es mas de
+# lo que es.
+PY_MD5 = "6d9aa08531d48fcc261ba667e2df17c4"
+PY_SHA256 = "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b"
 
 NOMBRE = "M3M0R-IA"
 REQUISITOS = REPO / "requirements.txt"
@@ -70,16 +85,25 @@ def descargar(url: str, destino: Path) -> Path:
     return destino
 
 
-def verificar(fichero: Path, sha256_esperado: str) -> None:
-    h = hashlib.sha256(fichero.read_bytes()).hexdigest()
-    if h != sha256_esperado.lower().strip():
-        raise SystemExit(
-            f"\nERROR: el hash de {fichero.name} no coincide.\n"
-            f"  esperado: {sha256_esperado}\n"
-            f"  obtenido: {h}\n"
-            "No se construye nada con esto."
-        )
-    print(f"  hash verificado: {h[:16]}...")
+def verificar(fichero: Path) -> None:
+    """Comprueba el fichero descargado contra los dos hashes fijados.
+
+    Se para en el primero que falle y no construye nada. Lo que entre por
+    aqui acaba ejecutandose en el ordenador de otra persona.
+    """
+    datos = fichero.read_bytes()
+    for nombre, esperado, obtenido in (
+        ("MD5 (publicado por python.org)", PY_MD5, hashlib.md5(datos).hexdigest()),
+        ("SHA-256 (fijado al construir)", PY_SHA256, hashlib.sha256(datos).hexdigest()),
+    ):
+        if obtenido != esperado.lower().strip():
+            raise SystemExit(
+                f"\nERROR: {nombre} no coincide en {fichero.name}.\n"
+                f"  esperado: {esperado}\n"
+                f"  obtenido: {obtenido}\n"
+                "No se construye nada con esto."
+            )
+    print(f"  verificado ({len(datos):,} bytes, MD5 y SHA-256 correctos)")
 
 
 def python_embebido(destino: Path, cache: Path) -> None:
@@ -91,7 +115,7 @@ def python_embebido(destino: Path, cache: Path) -> None:
     dice que no encuentra flask sin mas explicacion.
     """
     zip_py = descargar(PY_URL, cache / PY_ZIP)
-    verificar(zip_py, PY_SHA256)
+    verificar(zip_py)
 
     destino.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_py) as z:
@@ -208,13 +232,6 @@ def main() -> int:
     ap.add_argument("--salida", default=str(REPO / "dist"), help="Carpeta de salida")
     ap.add_argument("--sin-zip", action="store_true", help="Deja la carpeta sin comprimir")
     args = ap.parse_args()
-
-    if not PY_SHA256:
-        raise SystemExit(
-            "ERROR: PY_SHA256 esta vacio.\n"
-            f"Copialo de https://www.python.org/downloads/release/python-{PY_VERSION.replace('.','')}/\n"
-            f"(el fichero {PY_ZIP}) y vuelve a lanzar. No se construye a ciegas."
-        )
 
     salida = Path(args.salida).resolve()
     raiz = salida / NOMBRE
