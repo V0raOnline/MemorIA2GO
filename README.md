@@ -51,11 +51,11 @@ M3M0R·IA se mantiene como dos líneas de producto en paralelo, una por idioma. 
 
 ## Requisitos
 
-- Python **3.10+**
-- Dependencias: `pip install -r requirements.txt`
-  (beautifulsoup4, lxml, rich, pyyaml, flask, requests)
-- Obsidian (para navegar el resultado) y opcionalmente Claude Desktop con un servidor MCP de filesystem (para usarlo como contexto vivo)
-- Opcional, para correr el suite de tests: `pip install -r requirements-dev.txt && python -m pytest tests/`
+**Si usas el paquete de Windows, ninguno.** Lleva su propio Python dentro.
+
+- **Obsidian**, para navegar el resultado. Y opcionalmente Claude Desktop con un servidor MCP de filesystem, si quieres usar tu vault como contexto vivo.
+
+Si prefieres correrlo desde el código, entonces sí: Python **3.10+** y `pip install -r requirements.txt` (beautifulsoup4, lxml, rich, pyyaml, flask, requests). Para el suite de tests, `pip install -r requirements-dev.txt && python -m pytest tests/`.
 
 Desarrollado y probado a fondo en Windows; el pipeline en sí es multiplataforma.
 
@@ -84,7 +84,25 @@ Los ZIP se sueltan **tal cual, sin descomprimir**, en la carpeta que configures 
 
 El CSV de estadísticas es opcional, pero es la única fuente en la que están la **sección** y las **etiquetas** de cada post — sin él Tintero construye el vault funcional, solo que sin taxonomía. **Hay que marcar todas las columnas al pedirlo:** si se descarga solo con las de por defecto, esos dos campos no viajan.
 
-### Instalación
+### Instalación — el paquete de Windows
+
+**Si no has abierto una consola en tu vida, este es tu camino.** Descarga el
+zip, descomprímelo donde quieras y haz doble clic en **`M3M0R-IA.bat`**. Ya
+está: se abre tu navegador con M3M0R·IA dentro.
+
+Lleva su propio Python, así que **no instala nada en tu sistema** — no puede
+romperte nada que ya tuvieras funcionando, no te pide permisos de
+administrador, y se desinstala arrastrando la carpeta a la papelera. Al
+arrancar por primera vez se crea un acceso directo con icono al lado, para
+que puedas anclarlo o llevártelo al escritorio.
+
+La primera pantalla te dirá que falta configurar la carpeta base. Eso se
+hace en la pestaña **Configuración**, con un explorador de rutas; no hay que
+editar ningún fichero a mano.
+
+### Instalación — desde el código
+
+Para quien vaya a tocarlo, o no esté en Windows:
 
 ```bash
 git clone <este repo>
@@ -118,6 +136,24 @@ python launcher.py --port 80 --no-browser
 Ya puedes entrar escribiendo `http://m3m0ria/`. El `--no-browser` está ahí porque en este modo lo normal es dejarlo corriendo de fondo: en Windows, con una tarea programada de inicio de sesión que lance `pythonw launcher.py --port 80 --no-browser`; en Linux, con un servicio de usuario de systemd. Ojo: en Linux el puerto 80 pide privilegios — quédate en el 8765 o pon un proxy delante.
 
 La primera carga del dashboard calcula las estadísticas y las cachea junto a tu vault (`.m3m0ria_stats.json`); después de eso, las cargas son instantáneas. El pipeline refresca la caché al final del paso 4, y el dashboard ofrece un enlace manual de *recalcular*.
+
+### Construir el paquete (solo si mantienes esto)
+
+```bash
+python installer/build.py
+```
+
+Descarga el Python embebido de python.org y comprueba **su MD5 publicado y un SHA-256 fijado** antes de descomprimirlo: lo que entra ahí acaba ejecutándose en el ordenador de otra persona. Antes de comprimir barre el
+resultado y se planta si encuentra rutas de la máquina que construye — un
+paquete con rutas absolutas dentro no arranca en ningún otro sitio, y eso ya
+pasó una vez.
+
+Hay dos bancos de pruebas para lo que solo falla en una instalación nueva:
+
+```bash
+python installer/prueba_instalacion_nueva.py   # la API en los 4 estados de arranque
+python installer/prueba_botones.py             # los POST con cuerpos vacíos y rotos
+```
 
 ### CLI (sin web)
 
