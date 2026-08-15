@@ -25,9 +25,18 @@ en una instalación recién hecha son una trampa: parecen rutas de verdad ya
 configuradas, y quien no distingue un marcador de posición de una ruta real
 no sabe que tiene que cambiarlas. Vacías, la Verificación dice "No
 configurado" en todos los campos a la vez y no hay ambigüedad.
+EL ACCESO DIRECTO NACE AQUI, NO EN LA MAQUINA DE QUIEN CONSTRUYE. Un `.lnk`
+guarda rutas ABSOLUTAS, asi que no puede viajar dentro de un zip: el que se
+empaquetaba apuntaba a la carpeta de construccion y en cualquier otro
+ordenador no llevaba a ninguna parte. Lo caso V0ra probandolo en un equipo
+limpio el 2026-08-11 -- es de las cosas que solo se ven fuera de la maquina
+donde se hizo. El punto de entrada real es `M3M0R-IA.bat`, tres lineas y
+todo relativo a si mismo; el `.lnk` bonito se crea (o se rehace) aqui, con
+las rutas de esta maquina, la primera vez que arranca.
 """
 import re
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 
@@ -79,6 +88,51 @@ def preparar_config(config: Path = CONFIG, plantilla: Path = PLANTILLA) -> str:
     return "creada"
 
 
+def asegurar_acceso_directo() -> str:
+    """Crea junto a la carpeta el .lnk con icono, si falta o si esta rancio.
+
+    Es puramente cosmetico -- sirve para tener icono propio y para poder
+    anclarlo a la barra de tareas. Por eso NADA de lo que pase aqui puede
+    impedir que la aplicacion arranque: si falla, se dice y se sigue.
+
+    'Rancio' = el .lnk no menciona el python.exe de AHORA. Pasa si alguien
+    mueve la carpeta despues de haber arrancado una vez. Se detecta mirando
+    los bytes (un .lnk guarda las rutas en UTF-16) en vez de parsear el
+    formato: para decidir si hay que rehacerlo, basta.
+    """
+    destino = AQUI / "python" / "python.exe"
+    if not destino.exists():          # arranque desde el repo, sin empaquetar
+        return "no_aplica"
+
+    lnk = AQUI.parent / "M3M0R-IA.lnk"
+    if lnk.exists():
+        try:
+            if str(destino).encode("utf-16-le") in lnk.read_bytes():
+                return "ya_correcto"
+        except OSError:
+            pass
+
+    icono = AQUI / "assets" / "M3M0R-IA.ico"
+    ps = (
+        "$w = New-Object -ComObject WScript.Shell; "
+        f"$s = $w.CreateShortcut('{lnk}'); "
+        f"$s.TargetPath = '{destino}'; "
+        "$s.Arguments = 'first_run.py'; "
+        f"$s.WorkingDirectory = '{AQUI}'; "
+        "$s.Description = 'M3M0R.IA - tu memoria, en tu disco'; "
+        + (f"$s.IconLocation = '{icono}'; " if icono.exists() else "")
+        + "$s.Save()"
+    )
+    try:
+        subprocess.run(["powershell", "-NonInteractive", "-Command", ps],
+                       check=True, capture_output=True, timeout=30)
+        return "creado"
+    except Exception:
+        # Sin PowerShell, sin permisos, o carpeta de solo lectura. El .bat
+        # sigue funcionando: esto solo era el icono.
+        return "fallo"
+
+
 def main() -> int:
     estado = preparar_config()
     if estado == "sin_plantilla":
@@ -91,6 +145,9 @@ def main() -> int:
         return 1
     if estado == "creada":
         print("Configuracion creada. Rellena tus rutas en la pestana Configuracion.")
+
+    if asegurar_acceso_directo() == "creado":
+        print("Acceso directo M3M0R-IA.lnk creado; puedes anclarlo o copiarlo al escritorio.")
 
     # runpy en vez de import: launcher.py define su propio main() bajo
     # __name__ == "__main__" y asi se ejecuta igual que si lo hubieras

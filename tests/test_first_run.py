@@ -139,3 +139,63 @@ def test_solo_se_vacian_los_marcadores(linea, esperado):
     salida, _ = first_run.vaciar_marcadores(linea + "\n")
 
     assert salida == esperado + "\n"
+
+
+# ── El acceso directo, tras el fallo del 2026-08-11 ──────────────────────
+#
+# V0ra probo el paquete en un equipo limpio y no arrancaba: el `.lnk` que se
+# empaquetaba llevaba dentro las rutas ABSOLUTAS de la maquina donde se
+# construyo. Un acceso directo de Windows no puede viajar en un zip. Ahora
+# el punto de entrada es un `.bat` relativo y el `.lnk` se crea aqui, en la
+# maquina del usuario, la primera vez que arranca.
+#
+# Es cosmetico -- da icono propio y permite anclarlo -- asi que la propiedad
+# que de verdad hay que proteger es que NUNCA impida arrancar.
+
+def test_sin_python_embebido_no_hace_nada(tmp_path, monkeypatch):
+    """Arrancando desde el repo (sin paquete) no hay nada que crear."""
+    monkeypatch.setattr(first_run, "AQUI", tmp_path)
+
+    assert first_run.asegurar_acceso_directo() == "no_aplica"
+
+
+def test_reconoce_un_acceso_directo_que_ya_apunta_bien(tmp_path, monkeypatch):
+    app = tmp_path / "app"
+    (app / "python").mkdir(parents=True)
+    destino = app / "python" / "python.exe"
+    destino.write_bytes(b"")
+    monkeypatch.setattr(first_run, "AQUI", app)
+    # Un .lnk de verdad guarda las rutas en UTF-16; se imita solo eso
+    (tmp_path / "M3M0R-IA.lnk").write_bytes(b"L\x00" + str(destino).encode("utf-16-le"))
+
+    assert first_run.asegurar_acceso_directo() == "ya_correcto"
+
+
+def test_un_acceso_directo_de_otra_maquina_se_considera_rancio(tmp_path, monkeypatch):
+    """EL BUG, en forma de test: el .lnk viene del zip apuntando a la carpeta
+    de quien construyo. No menciona el python.exe de aqui, asi que hay que
+    rehacerlo en vez de dejarlo roto."""
+    app = tmp_path / "app"
+    (app / "python").mkdir(parents=True)
+    (app / "python" / "python.exe").write_bytes(b"")
+    monkeypatch.setattr(first_run, "AQUI", app)
+    ajeno = r"C:\Users\OtraPersona\build\M3M0R-IA\app\python\python.exe"
+    (tmp_path / "M3M0R-IA.lnk").write_bytes(b"L\x00" + ajeno.encode("utf-16-le"))
+
+    assert first_run.asegurar_acceso_directo() != "ya_correcto"
+
+
+def test_si_falla_no_revienta_el_arranque(tmp_path, monkeypatch):
+    """La propiedad que importa. Sin PowerShell, sin permisos o en una
+    carpeta de solo lectura, la aplicacion tiene que arrancar igual: esto
+    solo era el icono."""
+    app = tmp_path / "app"
+    (app / "python").mkdir(parents=True)
+    (app / "python" / "python.exe").write_bytes(b"")
+    monkeypatch.setattr(first_run, "AQUI", app)
+
+    def revienta(*a, **k):
+        raise OSError("no hay powershell aqui")
+    monkeypatch.setattr(first_run.subprocess, "run", revienta)
+
+    assert first_run.asegurar_acceso_directo() == "fallo"   # y no una excepcion

@@ -1178,8 +1178,8 @@ loadTopics();
 // Autocompletado de rutas: estilo "Ejecutar" de Windows, con un dropdown
 // propio en vez de <datalist> nativo -- el datalist del navegador trunca
 // rutas largas sin forma de verlas completas (ni scroll ni wrap), y las
-// rutas reales de V0ra ("G:\GHU Codexsphere\01 GitHub repos\...") son
-// justo el caso que rompía. Cada input tiene un <div class="path-suggest">
+// rutas reales de Windows (unidad, espacios y varios niveles) son justo
+// el caso que rompía. Cada input tiene un <div class="path-suggest">
 // hermano que se posiciona debajo via CSS; las opciones envuelven en vez
 // de truncarse. Debounce para no martillar el disco con cada tecla.
 // ─────────────────────────────────────────

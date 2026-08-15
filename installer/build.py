@@ -71,6 +71,14 @@ PY_URL = f"https://www.python.org/ftp/python/{PY_VERSION}/{PY_ZIP}"
 PY_MD5 = "6d9aa08531d48fcc261ba667e2df17c4"
 PY_SHA256 = "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b"
 
+CONTENIDO_BAT = (
+    '@echo off\r\n'
+    'rem Punto de entrada de M3M0R.IA. Todo relativo a este fichero, asi que\r\n'
+    'rem la carpeta se puede mover, copiar a otro equipo o llevar en un USB.\r\n'
+    'cd /d "%~dp0app"\r\n'
+    'python\\python.exe first_run.py %*\r\n'
+)
+
 NOMBRE = "M3M0R-IA"
 REQUISITOS = REPO / "requirements.txt"
 
@@ -143,11 +151,20 @@ def dependencias(python_dir: Path) -> None:
         [sys.executable, "-m", "pip", "install",
          "--target", str(sitio),
          "--only-binary", ":all:",
+         # Sin .pyc: los compila el Python de ESTA maquina y cada uno guarda
+         # dentro la ruta de su fuente, asi que el paquete acabaria repartiendo
+         # el arbol de carpetas de quien construye. Se compilan solos, en el
+         # ordenador del usuario, la primera vez que se importan.
+         "--no-compile",
          "--python-version", ".".join(PY_VERSION.split(".")[:2]),
          "--platform", "win_amd64",
          "-r", str(REQUISITOS)],
         check=True,
     )
+    # Los lanzadores de consola (flask.exe, pygmentize.exe...) llevan dentro
+    # la ruta del interprete que los genero. No los usa nadie aqui: la
+    # aplicacion arranca por first_run.py, nunca por un entry point.
+    shutil.rmtree(sitio / "bin", ignore_errors=True)
 
 
 def copiar_aplicacion(destino: Path) -> None:
@@ -201,30 +218,68 @@ def hacer_icono(png: Path, ico: Path, lado: int = 256) -> Path:
     return ico
 
 
-def acceso_directo(raiz: Path, app: Path) -> None:
-    """Crea el .lnk que se pulsa. Se apunta a python.exe, NO a pythonw.exe.
+def punto_de_entrada(raiz: Path, app: Path) -> None:
+    """Escribe el .bat que se pulsa, y el .ico que usara el acceso directo.
 
-    Deliberado: pythonw no deja consola, y si algo peta al arrancar el
-    usuario no ve absolutamente nada -- un fallo silencioso, que es justo lo
-    que este proyecto se niega a producir. Con consola, ve el mensaje
-    'M3M0R.IA corriendo en http://127.0.0.1:8765', ve el error si lo hay, y
-    ademas tiene una forma evidente de cerrar el programa. Es mas feo y es
-    mas honesto.
+    NO se crea aqui ningun .lnk, y esa es la correccion del 2026-08-11. Un
+    acceso directo de Windows guarda rutas ABSOLUTAS: el que se empaquetaba
+    apuntaba a esta carpeta de construccion, asi que en el ordenador de
+    cualquier otra persona no llevaba a ninguna parte. Lo caso V0ra
+    probandolo en un equipo limpio. Desde la maquina donde se construye el
+    fallo es invisible, porque aqui esas rutas si existen.
+
+    El punto de entrada es un .bat: `%~dp0` es la carpeta del propio fichero,
+    asi que funciona se descomprima donde se descomprima. El .lnk con icono
+    lo crea `first_run.py` en el primer arranque, ya en la maquina del
+    usuario, que es el unico sitio donde puede escribirse correcto.
+
+    Llama a python.exe y no a pythonw.exe por lo de siempre: si algo peta,
+    que se vea. Un fallo silencioso al arrancar es lo peor que le puede
+    pasar a alguien que no sabe donde mirar.
     """
-    lnk = raiz / f"{NOMBRE}.lnk"
-    icono = hacer_icono(app / "assets" / "M3M0R-IA_Small.png", app / "assets" / "M3M0R-IA.ico")
-    ps = (
-        "$w = New-Object -ComObject WScript.Shell; "
-        f"$s = $w.CreateShortcut('{lnk}'); "
-        f"$s.TargetPath = '{app / 'python' / 'python.exe'}'; "
-        f"$s.Arguments = 'first_run.py'; "
-        f"$s.WorkingDirectory = '{app}'; "
-        f"$s.Description = 'M3M0R.IA - tu memoria, en tu disco'; "
-        f"$s.IconLocation = '{icono}'; "
-        "$s.Save()"
-    )
-    subprocess.run(["powershell", "-NonInteractive", "-Command", ps], check=True)
-    print(f"  acceso directo: {lnk.name} con icono {icono.name}")
+    hacer_icono(app / "assets" / "M3M0R-IA_Small.png", app / "assets" / "M3M0R-IA.ico")
+
+    bat = raiz / f"{NOMBRE}.bat"
+    bat.write_text(CONTENIDO_BAT, encoding="utf-8", newline="")
+    print(f"  punto de entrada: {bat.name} (rutas relativas) + icono para el acceso directo")
+
+
+def sin_rutas_de_esta_maquina(raiz: Path) -> None:
+    """Se planta si el paquete lleva dentro rutas de quien lo construye.
+
+    Existe por dos fallos del mismo dia (2026-08-11): el .lnk empaquetado
+    apuntaba a la carpeta de construccion -- lo caso V0ra probando en un
+    equipo limpio, porque aqui esas rutas SI existen y no se nota -- y al
+    ir a arreglarlo aparecieron 807 .pyc y cinco .exe de pip con lo mismo
+    dentro. Lo segundo no rompe nada, pero reparte el arbol de carpetas y
+    el nombre de usuario de quien construye a todo el que reciba el zip.
+
+    Se busca por lo que ES esta maquina (home y repo), no por una lista de
+    cadenas sospechosas: asi vale para cualquiera que construya.
+    """
+    agujas = {str(Path.home()), str(REPO), str(REPO.drive) + "\\GHU"}
+    agujas = {a for a in agujas if len(a) > 3}
+    sospechosos = []
+    for f in raiz.rglob("*"):
+        if not f.is_file():
+            continue
+        datos = f.read_bytes()
+        for cod in ("utf-8", "utf-16-le", "latin-1"):
+            try:
+                texto = datos.decode(cod)
+            except (UnicodeDecodeError, LookupError):
+                continue
+            if any(a in texto for a in agujas):
+                sospechosos.append(f.relative_to(raiz).as_posix())
+                break
+    if sospechosos:
+        raise SystemExit(
+            "\nERROR: el paquete lleva rutas de esta maquina dentro:\n"
+            + "\n".join(f"  {x}" for x in sospechosos[:15])
+            + (f"\n  ... y {len(sospechosos) - 15} mas" if len(sospechosos) > 15 else "")
+            + "\nNo se empaqueta: eso no funciona en otro ordenador y ademas se reparte."
+        )
+    print("  sin rutas de esta maquina")
 
 
 def main() -> int:
@@ -245,8 +300,11 @@ def main() -> int:
     python_embebido(app / "python", salida / "_cache")
     print("3/4 dependencias")
     dependencias(app / "python")
-    print("4/4 acceso directo")
-    acceso_directo(raiz, app)
+    print("4/4 punto de entrada")
+    punto_de_entrada(raiz, app)
+
+    print("comprobando que no se cuele nada de esta maquina")
+    sin_rutas_de_esta_maquina(raiz)
 
     if not args.sin_zip:
         print("comprimiendo...")
