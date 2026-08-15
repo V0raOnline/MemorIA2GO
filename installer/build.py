@@ -134,8 +134,18 @@ def python_embebido(destino: Path, cache: Path) -> None:
         raise SystemExit("ERROR: el Python embebido no trae fichero ._pth")
     texto = pth.read_text(encoding="utf-8")
     if "\n#import site" in texto or texto.startswith("#import site"):
-        pth.write_text(texto.replace("#import site", "import site"), encoding="utf-8")
-        print("  site-packages habilitado en ._pth")
+        texto = texto.replace("#import site", "import site")
+
+    # Y la carpeta de la aplicacion, que es la trampa gorda de esta tecnica.
+    # Con un `._pth`, Python NO anade a sys.path ni el directorio del script
+    # ni el actual: la ruta sale entera de este fichero, y su `.` apunta al
+    # directorio de python.exe, no al de la aplicacion. Resultado: ningun
+    # subproceso podia importar config_loader. El launcher se libraba porque
+    # first_run lo arranca con runpy.run_path, que si mete su carpeta.
+    if "\n..\n" not in "\n" + texto:
+        texto = texto.replace("\n.\n", "\n.\n..\n", 1)
+    pth.write_text(texto, encoding="utf-8")
+    print("  ._pth: site-packages y la carpeta de la aplicacion")
 
 
 def dependencias(python_dir: Path) -> None:
