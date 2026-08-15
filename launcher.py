@@ -1131,9 +1131,9 @@ def reindex():
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
         result = subprocess.run(
             [sys.executable, str(HERE / "MemorIA2GO.py"),
-             "--config", str(CONFIG_PATH), "--yes", "--reindex-only"],
+             "--config", str(CONFIG_PATH), "--yes", "--no-wizard", "--reindex-only"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=600, env=env,
+            timeout=600, env=env, stdin=subprocess.DEVNULL,
         )
         if result.returncode != 0:
             detalle = (result.stderr or result.stdout or "").strip()[-500:] or "index rebuild failed (no output)"
@@ -1187,8 +1187,12 @@ def run_pipeline():
 
     def generate():
         try:
+            # --no-wizard y stdin cerrado: nada lanzado desde aqui puede
+            # quedarse esperando a que alguien escriba en una consola que no
+            # existe. Con DEVNULL un input() perdido da EOF y muere; sin el,
+            # se cuelga para siempre y la web solo muestra un log parado.
             cmd = [sys.executable, str(HERE / "MemorIA2GO.py"),
-                   "--config", str(CONFIG_PATH), "--yes"]
+                   "--config", str(CONFIG_PATH), "--yes", "--no-wizard"]
             if from_merge:
                 cmd.append("--from-merge")
             if reprocess_all:
@@ -1197,6 +1201,7 @@ def run_pipeline():
             env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
                 text=True, encoding="utf-8", errors="replace", bufsize=1, env=env,
             )
             for line in proc.stdout:

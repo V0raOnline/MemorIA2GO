@@ -261,7 +261,18 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
         base_vault = get_path(cfg, "base_vault")
         gizmo_map = get_path(cfg, "gizmo_map")
 
-        if not exports_dir or not exports_dir.is_dir() or not base_vault:
+        # Se dice EN VOZ ALTA que falta, no se devuelve None a secas: quien
+        # lanza esto desde la web solo veia el proceso quedarse quieto.
+        problemas = []
+        if not exports_dir:
+            problemas.append("'exports_dir' is not configured")
+        elif not exports_dir.is_dir():
+            problemas.append(f"the exports folder does not exist: {exports_dir}")
+        if not base_vault:
+            problemas.append("'base_vault' is not configured")
+        if problemas:
+            for x in problemas:
+                warn(x)
             return None
 
         return {
@@ -525,7 +536,8 @@ def main():
         description="MemorIA2GO — Migrate your ChatGPT history into an MCP-ready vault."
     )
     ap.add_argument("--config", default=None, help="Path to memoria_config.yaml (optional)")
-    ap.add_argument("--no-wizard", action="store_true", help="Force use of the YAML config, no wizard")
+    ap.add_argument("--no-wizard", action="store_true",
+                    help="Never prompt: if the YAML config is unusable, exit with an error")
     ap.add_argument("--from-merge", action="store_true",
                     help="Skip step 1 (import) and start at step 2, reusing the existing "
                          "RAW_VAULT. Meant for relaunching after fixing orphan gizmos with "
@@ -561,9 +573,10 @@ def main():
     log_path = init_logger()
     log(log_path, "Session started")
 
-    params = None
-    if not args.no_wizard:
-        params = load_from_yaml(args.config)
+    # El YAML se intenta SIEMPRE. Antes esto colgaba de --no-wizard, que
+    # invertia el sentido del flag: pedirle "sin asistente" hacia que ni
+    # siquiera leyera la configuracion, y acabara justo en el asistente.
+    params = load_from_yaml(args.config)
 
     if params:
         if USE_RICH:
@@ -584,7 +597,22 @@ def main():
             params = None
 
     if not params:
-        params = wizard()
+        if args.no_wizard:
+            error("No usable configuration, and I can't ask you for one.")
+            error("Check the paths in the Configuration tab and run it again.")
+            sys.exit(2)
+
+        # Red para cuando nadie se acuerde de pasar --no-wizard: si al otro
+        # lado no hay nadie, el primer input() devuelve EOF y ahi se sabe
+        # seguro. NO se usa sys.stdin.isatty() para adivinarlo antes: en
+        # Windows devuelve True incluso con stdin=DEVNULL, porque NUL es un
+        # dispositivo de caracteres. Medido el 2026-08-11.
+        try:
+            params = wizard()
+        except EOFError:
+            error("No usable configuration, and nobody answered the wizard.")
+            error("Check the paths in the Configuration tab and run it again.")
+            sys.exit(2)
 
     log(log_path, f"Exports: {params['exports_dir']}")
     log(log_path, f"Vault:  {params['vault_path']}")
