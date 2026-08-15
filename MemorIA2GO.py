@@ -252,7 +252,11 @@ def wizard() -> dict:
 # Carga de config desde YAML (si existe)
 # ─────────────────────────────────────────
 
-def load_from_yaml(config_path: str | None = None) -> dict | None:
+def load_from_yaml(config_path: str | None = None,
+                   problemas: list | None = None) -> dict | None:
+    """Carga la config del YAML. Si no sirve, devuelve None y deja en
+    `problemas` (si se pasa una lista) el motivo concreto, para que quien
+    llama pueda decirlo junto al error y no en una linea suelta."""
     if not HAS_CONFIG_LOADER:
         return None
     try:
@@ -263,16 +267,16 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
 
         # Se dice EN VOZ ALTA que falta, no se devuelve None a secas: quien
         # lanza esto desde la web solo veia el proceso quedarse quieto.
-        problemas = []
+        fallos = []
         if not exports_dir:
-            problemas.append("'exports_dir' is not configured")
+            fallos.append("'exports_dir' is not configured")
         elif not exports_dir.is_dir():
-            problemas.append(f"the exports folder does not exist: {exports_dir}")
+            fallos.append(f"the exports folder does not exist: {exports_dir}")
         if not base_vault:
-            problemas.append("'base_vault' is not configured")
-        if problemas:
-            for x in problemas:
-                warn(x)
+            fallos.append("'base_vault' is not configured")
+        if fallos:
+            if problemas is not None:
+                problemas.extend(fallos)
             return None
 
         return {
@@ -286,7 +290,12 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
             "keep_hashes": get_opt(cfg, "keep_hashes", False),
         }
     except Exception as e:
-        warn(f"Could not load YAML config: {e}")
+        # Se dice el motivo Y se devuelve al que llama: si esto solo avisa,
+        # el error de arriba sale sin causa y parece que no hay config.
+        motivo = f"could not read the configuration: {e}"
+        warn(motivo)
+        if problemas is not None:
+            problemas.append(motivo)
         return None
 
 # ─────────────────────────────────────────
@@ -576,7 +585,8 @@ def main():
     # El YAML se intenta SIEMPRE. Antes esto colgaba de --no-wizard, que
     # invertia el sentido del flag: pedirle "sin asistente" hacia que ni
     # siquiera leyera la configuracion, y acabara justo en el asistente.
-    params = load_from_yaml(args.config)
+    problemas: list[str] = []
+    params = load_from_yaml(args.config, problemas)
 
     if params:
         if USE_RICH:
@@ -598,8 +608,10 @@ def main():
 
     if not params:
         if args.no_wizard:
-            error("No usable configuration, and I can't ask you for one.")
-            error("Check the paths in the Configuration tab and run it again.")
+            error("I can't start with this configuration:")
+            for x in problemas or ["no valid paths found in the YAML"]:
+                error(f"    {x}")
+            error("Fix it in the Configuration tab, save, and press again.")
             sys.exit(2)
 
         # Red para cuando nadie se acuerde de pasar --no-wizard: si al otro
@@ -610,8 +622,10 @@ def main():
         try:
             params = wizard()
         except EOFError:
-            error("No usable configuration, and nobody answered the wizard.")
-            error("Check the paths in the Configuration tab and run it again.")
+            error("I can't start with this configuration, and nobody answers:")
+            for x in problemas or ["no valid paths found in the YAML"]:
+                error(f"    {x}")
+            error("Fix it in the Configuration tab, save, and press again.")
             sys.exit(2)
 
     log(log_path, f"Exports: {params['exports_dir']}")

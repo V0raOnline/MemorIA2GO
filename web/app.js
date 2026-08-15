@@ -1082,6 +1082,13 @@ function runPipeline(mode) {
   });
 
   currentSource.onerror = () => {
+    // Un EventSource no da el codigo HTTP: si el servidor responde 409
+    // ("ya hay una ejecucion en curso") esto salta sin datos y, tal como
+    // estaba, no se pintaba nada. Pulsabas y no pasaba nada.
+    if (!logBox.textContent.trim()) {
+      appendLog("Could not start. There may be a run in progress: "
+                + "wait for it to finish or restart M3M0R\u00b7IA.", "err");
+    }
     setRunning(false);
     if (currentSource) currentSource.close();
   };

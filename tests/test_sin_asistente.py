@@ -64,7 +64,7 @@ def test_con_config_incompleta_termina_y_no_se_cuelga(tmp_path, caso, exports, v
 
     assert r.returncode != 0, f"[{caso}] deberia fallar, no seguir como si nada"
     salida = r.stdout + r.stderr
-    assert "can't ask you" in salida.lower(), \
+    assert "'t start with this configuration" in salida.lower(), \
         f"[{caso}] no dice por que se para; salida: {salida[-300:]}"
 
 
@@ -85,7 +85,7 @@ def test_sin_el_flag_tampoco_pregunta_si_no_hay_consola(tmp_path):
     r = _lanzar(_config(tmp_path, "C:/tampoco_existe", "C:/vault"))
 
     assert r.returncode != 0
-    assert "nobody answered" in (r.stdout + r.stderr).lower()
+    assert "nobody answers" in (r.stdout + r.stderr).lower()
 
 
 def test_el_launcher_lanza_el_pipeline_sin_asistente_y_sin_entrada():

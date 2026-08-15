@@ -25,9 +25,24 @@ def load_config(config_path: str | None = None) -> dict:
     else:
         cfg = yaml.safe_load(cfg_file.read_text(encoding="utf-8"))
 
-    # Asegurar estructura básica
-    cfg.setdefault("paths", {})
-    cfg.setdefault("options", {})
+    # Asegurar estructura básica.
+    #
+    # setdefault NO basta, y esto costó una tarde de depuración con V0ra
+    # (2026-08-11): en YAML, una clave suelta sin nada debajo
+    #
+    #     options:
+    #
+    # se carga como options: None, no como clave ausente. setdefault solo
+    # actúa si la clave FALTA, así que el None sobrevivía y el primer
+    # get_opt() reventaba con "'NoneType' object has no attribute 'get'".
+    # El síntoma era desconcertante: Verificación en verde -- solo mira
+    # 'paths' -- y el pipeline negándose a arrancar diciendo que no había
+    # configuración. Un fichero entero vacío deja cfg en None, igual.
+    if not isinstance(cfg, dict):
+        cfg = {}
+    for bloque in ("paths", "options"):
+        if not isinstance(cfg.get(bloque), dict):
+            cfg[bloque] = {}
     return cfg
 
 

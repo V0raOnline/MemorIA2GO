@@ -33,6 +33,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -206,7 +207,10 @@ def get_config():
 
 @app.route("/api/config", methods=["POST"])
 def set_config():
-    data = request.get_json(force=True) or {}
+    # silent=True: sin el, un cuerpo vacio o un JSON roto lanzaba y salia
+    # por el except generico como 500. Con el, llega {} y lo rechaza la
+    # validacion de cada endpoint con su mensaje.
+    data = request.get_json(force=True, silent=True) or {}
     updates = {}
     updates.update(data.get("paths", {}))
     updates.update(data.get("options", {}))
@@ -244,7 +248,7 @@ def suno_backup():
     da acceso a la cuenta entera mientras dura, y argv es visible en la
     lista de procesos del sistema para cualquiera que mire.
     """
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True) or {}
     token = (data.get("token") or "").strip()
     # browser-token: la API de Suno lo pedia cuando se escribio el script,
     # pero en la practica (verificado por V0ra sobre su biblioteca entera) el
@@ -253,16 +257,16 @@ def suno_backup():
     # sigue soportando por CLI, como via de escape si Suno vuelve a exigirlo.
     browser_token = (data.get("browser_token") or "").strip()
     if not token:
-        return jsonify({"error": "Falta el Bearer token"}), 400
+        return jsonify({"error": "Bearer token missing"}), 400
 
     from config_loader import load_config, get_path
     cfg = load_config(str(CONFIG_PATH))
     backup = get_path(cfg, "suno_backup")
     if not backup:
-        return jsonify({"error": "Configura primero la carpeta del backup (suno_backup)"}), 400
+        return jsonify({"error": "Set the backup folder first (suno_backup)"}), 400
 
     if not run_lock.acquire(blocking=False):
-        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+        return jsonify({"error": "A run is already in progress"}), 409
 
     def generate():
         try:
@@ -316,7 +320,7 @@ def suno_verify():
         from config_loader import load_config, get_path
         backup = get_path(load_config(str(CONFIG_PATH)), "suno_backup")
         if not backup:
-            return jsonify({"error": "Configura primero la carpeta del backup (suno_backup)"}), 400
+            return jsonify({"error": "Set the backup folder first (suno_backup)"}), 400
         code, salida = _suno_run("verify_backup.py", ["--backup-dir", str(backup)])
         return jsonify({"ok": code == 0, "salida": salida[-4000:]})
     except Exception as e:
@@ -331,9 +335,9 @@ def suno_build():
         backup = get_path(cfg, "suno_backup")
         vault = get_path(cfg, "suno_vault")
         if not backup:
-            return jsonify({"error": "Configura primero la carpeta del backup (suno_backup)"}), 400
+            return jsonify({"error": "Set the backup folder first (suno_backup)"}), 400
         if not vault:
-            return jsonify({"error": "Configura primero el vault de musica (suno_vault)"}), 400
+            return jsonify({"error": "Set the music vault first (suno_vault)"}), 400
         code, salida = _suno_run("build_suno_vault.py",
                                   ["--backup-dir", str(backup), "--vault-dir", str(vault)])
         if code != 0:
@@ -367,10 +371,10 @@ def flowmusic_backup():
     ablacion sobre las 16 que manda el navegador. No hay equivalente al
     browser-token de Suno.
     """
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True) or {}
     token = (data.get("token") or "").strip()
     if not token:
-        return jsonify({"error": "Falta el Bearer token"}), 400
+        return jsonify({"error": "Bearer token missing"}), 400
     # Chrome trunca los valores largos del panel Headers con una elipsis. Si
     # el token la trae, las cabeceras HTTP (latin-1) revientan dentro de
     # http.client con un traceback que no dice nada. Mejor atajarlo aqui.
@@ -382,12 +386,12 @@ def flowmusic_backup():
     cfg = load_config(str(CONFIG_PATH))
     backup = get_path(cfg, "flowmusic_backup")
     if not backup:
-        return jsonify({"error": "Configura primero la carpeta del backup (flowmusic_backup)"}), 400
+        return jsonify({"error": "Set the backup folder first (flowmusic_backup)"}), 400
 
     formatos = (data.get("formatos") or "m4a,wav").strip()
 
     if not run_lock.acquire(blocking=False):
-        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+        return jsonify({"error": "A run is already in progress"}), 409
 
     def generate():
         try:
@@ -433,7 +437,7 @@ def flowmusic_verify():
         from config_loader import load_config, get_path
         backup = get_path(load_config(str(CONFIG_PATH)), "flowmusic_backup")
         if not backup:
-            return jsonify({"error": "Configura primero la carpeta del backup (flowmusic_backup)"}), 400
+            return jsonify({"error": "Set the backup folder first (flowmusic_backup)"}), 400
         code, salida = _flowmusic_run("verify_flowmusic.py", ["--backup-dir", str(backup)])
         return jsonify({"ok": code == 0, "salida": salida[-4000:]})
     except Exception as e:
@@ -448,9 +452,9 @@ def flowmusic_build():
         backup = get_path(cfg, "flowmusic_backup")
         vault = get_path(cfg, "flowmusic_vault")
         if not backup:
-            return jsonify({"error": "Configura primero la carpeta del backup (flowmusic_backup)"}), 400
+            return jsonify({"error": "Set the backup folder first (flowmusic_backup)"}), 400
         if not vault:
-            return jsonify({"error": "Configura primero el vault de Flow Music (flowmusic_vault)"}), 400
+            return jsonify({"error": "Set the Flow Music vault first (flowmusic_vault)"}), 400
         code, salida = _flowmusic_run("build_flowmusic_vault.py",
                                        ["--backup-dir", str(backup), "--vault-dir", str(vault)])
         if code != 0:
@@ -654,6 +658,11 @@ def get_stats():
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({"error": "base_vault is not configured"}), 400
+        # Configurado pero inexistente NO es lo mismo que sin configurar, y
+        # hasta hoy se notaba en que este endpoint reventaba con un 500 y un
+        # errno crudo: el calculo escribe su cache DENTRO del vault.
+        if not Path(base_vault).is_dir():
+            return jsonify({"error": f"the base folder does not exist: {base_vault}"}), 400
         prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
 
         # Cache primero: lo escribe el paso 4 del pipeline. ?refresh=1 fuerza
@@ -727,7 +736,12 @@ def get_topics():
 @app.route("/api/topics", methods=["POST"])
 def save_topics():
     try:
-        data = request.get_json(force=True) or {}
+        data = request.get_json(force=True, silent=True) or {}
+        # La clave tiene que venir. Sin esto, un POST malformado -- o un
+        # cuerpo vacio -- escribia {} y se llevaba por delante todos los
+        # temas curados a mano, respondiendo "ok".
+        if "temas" not in data:
+            return jsonify({"error": "'temas' missing from the request"}), 400
         temas = data.get("temas") or {}
         limpio = {
             str(k).strip(): [str(w).strip() for w in v if str(w).strip()]
@@ -735,6 +749,13 @@ def save_topics():
             if isinstance(v, list) and str(k).strip()
         }
         p = HERE / "topic_map.json"
+        # Copia antes de pisar. Este fichero es curaduria pura y no lo
+        # reconstruye ningun reproceso: si se pierde, se perdio.
+        if p.exists():
+            try:
+                shutil.copy2(p, p.with_name(p.name + ".bak"))
+            except OSError:
+                pass
         tmp = p.with_name(p.name + ".tmp")
         tmp.write_text(json.dumps(limpio, ensure_ascii=False, indent=2),
                        encoding="utf-8", newline="\n")
@@ -798,7 +819,7 @@ def post_gizmos():
     rellen\u00f3), actualiza gizmo_map.json y parchea RAW_VAULT in-place.
     No relanza el pipeline aqui -- eso lo hace el front llamando a
     /api/run?from_merge=1 despues, para que el log en vivo sea uno solo."""
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True) or {}
     filled = {gid: name.strip() for gid, name in data.items() if name and name.strip()}
     if not filled:
         return jsonify({"ok": True, "patched": 0, "note": "nothing to save"})
@@ -906,7 +927,7 @@ def descartar_pendiente():
     no resultados de busqueda ajenos, y el descarte se diseño para el ruido
     de estos ultimos."""
     try:
-        datos_req = request.get_json(force=True) or {}
+        datos_req = request.get_json(force=True, silent=True) or {}
         url = (datos_req.get("url") or "").strip()
         if not url:
             return jsonify({"error": "missing url"}), 400
