@@ -649,6 +649,14 @@ def get_stats():
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({"error": "base_vault no configurado"}), 400
+        # Configurado pero inexistente NO es lo mismo que sin configurar, y
+        # hasta hoy se notaba en que este endpoint reventaba con un 500 y un
+        # errno crudo: el calculo de estadisticas intenta escribir su cache
+        # DENTRO del vault. Quien acaba de instalar y aun no ha creado la
+        # carpeta, o la escribio mal, veia "[Errno 2] No such file or
+        # directory: ...\.m3m0ria_stats.json.tmp" en el Observatorio.
+        if not Path(base_vault).is_dir():
+            return jsonify({"error": f"la carpeta base no existe: {base_vault}"}), 400
         prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
 
         # Cache primero: lo escribe el paso 4 del pipeline. ?refresh=1 fuerza

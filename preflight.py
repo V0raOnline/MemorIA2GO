@@ -19,6 +19,7 @@ TODOS los exports validos pendientes, llevando un registro de los ya
 importados para que sea incremental por defecto.
 """
 import json
+import sys
 import re
 import zipfile
 from pathlib import Path
@@ -344,7 +345,13 @@ def load_registry(raw_vault) -> dict:
     try:
         with open(path, "r", encoding="utf-8-sig") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        # Este fichero es la memoria de que exports ya entraron. Leerlo como
+        # vacio equivale a decir "aqui no se ha importado nada nunca", y eso
+        # dispara un reproceso completo sin que nadie lo haya pedido. Que se
+        # oiga.
+        print(f"[aviso] registro de importaciones ilegible ({path}): {e}", file=sys.stderr)
+        print("[aviso] se tratara como si no hubiera nada importado", file=sys.stderr)
         return {}
 
 

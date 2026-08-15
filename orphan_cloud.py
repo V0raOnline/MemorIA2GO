@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import sys
 import re
 import unicodedata
 import zipfile
@@ -303,7 +304,13 @@ def load_topic_map(path: Path) -> Dict[str, List[str]]:
             for k, v in raw.items()
             if isinstance(v, list) and str(k).strip()
         }
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        # En voz alta: si este fichero esta roto, la Cartografia se queda sin
+        # UN SOLO tema y el vault sale sin indices tematicos. Callarselo hace
+        # parecer que no habia temas configurados. Se cura a mano, asi que
+        # basta una coma de mas.
+        print(f"[aviso] no pude leer {path}: {e}", file=sys.stderr)
+        print("[aviso] se sigue SIN NINGUN tema; revisa el JSON", file=sys.stderr)
         return {}
 
 
