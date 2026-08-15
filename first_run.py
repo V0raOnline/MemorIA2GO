@@ -44,6 +44,12 @@ AQUI = Path(__file__).resolve().parent
 CONFIG = AQUI / "memoria_config.yaml"
 PLANTILLA = AQUI / "memoria_config.yaml.example"
 
+# Los otros dos ficheros que la aplicacion espera encontrar. Viajan como
+# `.example` y hasta hoy nadie los renombraba, asi que el pipeline salia
+# a buscar un topic_map.json que no existia. Idea de V0ra, probando en
+# limpio: si el instalador renombra uno, que renombre los tres.
+MAPAS = ("topic_map.json", "gizmo_map.json")
+
 # Un valor es marcador de posición si contiene "ruta\a" o "ruta/a": es lo que
 # usa la plantilla para decir "esto lo rellenas tú". Se detecta por patrón y
 # no por lista de campos, para que un marcador nuevo en la plantilla quede
@@ -133,8 +139,29 @@ def asegurar_acceso_directo() -> str:
         return "fallo"
 
 
+def preparar_mapas() -> list:
+    """Crea topic_map.json y gizmo_map.json desde su plantilla si faltan.
+
+    Misma regla que la configuracion: **nunca se pisa lo que ya hay.** Estos
+    dos son curaduria del usuario -- los temas, sobre todo, no los
+    reconstruye ningun reproceso.
+    """
+    creados = []
+    for nombre in MAPAS:
+        destino = AQUI / nombre
+        plantilla = AQUI / f"{nombre}.example"
+        if destino.exists() or not plantilla.exists():
+            continue
+        destino.write_text(plantilla.read_text(encoding="utf-8"),
+                           encoding="utf-8", newline="")
+        creados.append(nombre)
+    return creados
+
+
 def main() -> int:
     estado = preparar_config()
+    for nombre in preparar_mapas():
+        print(f"Creado {nombre} desde su plantilla.")
     if estado == "sin_plantilla":
         # Sin plantilla no se inventa una configuración: se dice en voz alta.
         # Un YAML generado a ciegas aquí seria una suposición sobre el disco

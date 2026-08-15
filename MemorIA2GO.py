@@ -258,6 +258,15 @@ def load_from_yaml(config_path: str | None = None,
     `problemas` (si se pasa una lista) el motivo concreto, para que quien
     llama pueda decirlo junto al error y no en una linea suelta."""
     if not HAS_CONFIG_LOADER:
+        # Silencioso hasta hoy, y por eso el mensaje de arriba salia
+        # generico: en el paquete portable esto pasaba SIEMPRE, porque el
+        # `._pth` del Python embebido dejaba la carpeta de la aplicacion
+        # fuera de sys.path.
+        motivo = ("no pude importar config_loader: el interprete no ve la "
+                  "carpeta de la aplicacion")
+        warn(motivo)
+        if problemas is not None:
+            problemas.append(motivo)
         return None
     try:
         cfg = load_config(config_path)

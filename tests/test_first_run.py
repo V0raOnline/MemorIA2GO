@@ -199,3 +199,43 @@ def test_si_falla_no_revienta_el_arranque(tmp_path, monkeypatch):
     monkeypatch.setattr(first_run.subprocess, "run", revienta)
 
     assert first_run.asegurar_acceso_directo() == "fallo"   # y no una excepcion
+
+
+# ── Los mapas, tras el fallo del 2026-08-11 ──────────────────────────────
+#
+# El paquete lleva topic_map.json y gizmo_map.json solo como `.example`, y
+# nadie los renombraba: el pipeline salia a buscar un topic_map.json que no
+# existia. Lo diagnostico V0ra probando en limpio, y la solucion es suya:
+# si el instalador renombra uno, que renombre los tres.
+
+def test_crea_los_mapas_que_faltan(tmp_path, monkeypatch):
+    monkeypatch.setattr(first_run, "AQUI", tmp_path)
+    for nombre in first_run.MAPAS:
+        (tmp_path / f"{nombre}.example").write_text('{"ejemplo": []}', encoding="utf-8")
+
+    creados = first_run.preparar_mapas()
+
+    assert set(creados) == set(first_run.MAPAS)
+    for nombre in first_run.MAPAS:
+        assert (tmp_path / nombre).exists()
+
+
+def test_no_pisa_un_mapa_que_ya_existe(tmp_path, monkeypatch):
+    """Los temas son curaduria pura: no los reconstruye ningun reproceso.
+    Volver a descomprimir el zip encima no puede llevarselos."""
+    monkeypatch.setattr(first_run, "AQUI", tmp_path)
+    mio = '{"organoides": ["organoide"]}'
+    (tmp_path / "topic_map.json").write_text(mio, encoding="utf-8")
+    (tmp_path / "topic_map.json.example").write_text("{}", encoding="utf-8")
+
+    creados = first_run.preparar_mapas()
+
+    assert "topic_map.json" not in creados
+    assert (tmp_path / "topic_map.json").read_text(encoding="utf-8") == mio
+
+
+def test_sin_plantilla_no_inventa_el_mapa(tmp_path, monkeypatch):
+    monkeypatch.setattr(first_run, "AQUI", tmp_path)
+
+    assert first_run.preparar_mapas() == []
+    assert not (tmp_path / "topic_map.json").exists()
