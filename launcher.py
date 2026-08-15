@@ -31,6 +31,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -204,7 +205,11 @@ def get_config():
 
 @app.route("/api/config", methods=["POST"])
 def set_config():
-    data = request.get_json(force=True) or {}
+    # silent=True: sin el, un cuerpo vacio o un JSON roto lanzaba y salia
+    # por el except generico como 500. Con el, llega {} y lo rechaza la
+    # validacion de cada endpoint con su mensaje. Un 400 que explica vale
+    # mas que un 500 que no.
+    data = request.get_json(force=True, silent=True) or {}
     updates = {}
     updates.update(data.get("paths", {}))
     updates.update(data.get("options", {}))
@@ -242,7 +247,7 @@ def suno_backup():
     da acceso a la cuenta entera mientras dura, y argv es visible en la
     lista de procesos del sistema para cualquiera que mire.
     """
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True) or {}
     token = (data.get("token") or "").strip()
     # browser-token: la API de Suno lo pedia cuando se escribio el script,
     # pero en la practica (verificado por V0ra sobre su biblioteca entera) el
@@ -365,7 +370,7 @@ def flowmusic_backup():
     ablacion sobre las 16 que manda el navegador. No hay equivalente al
     browser-token de Suno.
     """
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True) or {}
     token = (data.get("token") or "").strip()
     if not token:
         return jsonify({"error": "Falta el Bearer token"}), 400
@@ -730,7 +735,14 @@ def get_topics():
 @app.route("/api/topics", methods=["POST"])
 def save_topics():
     try:
-        data = request.get_json(force=True) or {}
+        data = request.get_json(force=True, silent=True) or {}
+        # La clave tiene que venir. Sin esto, un POST malformado -- o un
+        # cuerpo vacio -- escribia {} y se llevaba por delante todos los
+        # temas curados a mano, respondiendo "ok". La interfaz manda siempre
+        # {temas}, asi que exigirlo no quita nada: solo distingue "no quedan
+        # temas" de "la peticion venia rota".
+        if "temas" not in data:
+            return jsonify({"error": "falta 'temas' en la peticion"}), 400
         temas = data.get("temas") or {}
         limpio = {
             str(k).strip(): [str(w).strip() for w in v if str(w).strip()]
@@ -738,6 +750,14 @@ def save_topics():
             if isinstance(v, list) and str(k).strip()
         }
         p = HERE / "topic_map.json"
+        # Copia antes de pisar. Este fichero es curaduria pura, de meses, y
+        # no lo reconstruye ningun reproceso: si se pierde, se perdio. El
+        # pacto de la casa vale tambien para lo que escribe la interfaz.
+        if p.exists():
+            try:
+                shutil.copy2(p, p.with_name(p.name + ".bak"))
+            except OSError:
+                pass
         tmp = p.with_name(p.name + ".tmp")
         tmp.write_text(json.dumps(limpio, ensure_ascii=False, indent=2),
                        encoding="utf-8", newline="\n")
@@ -801,7 +821,7 @@ def post_gizmos():
     rellen\u00f3), actualiza gizmo_map.json y parchea RAW_VAULT in-place.
     No relanza el pipeline aqui -- eso lo hace el front llamando a
     /api/run?from_merge=1 despues, para que el log en vivo sea uno solo."""
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True) or {}
     filled = {gid: name.strip() for gid, name in data.items() if name and name.strip()}
     if not filled:
         return jsonify({"ok": True, "patched": 0, "note": "nada que guardar"})
@@ -909,7 +929,7 @@ def descartar_pendiente():
     no resultados de busqueda ajenos, y el descarte se diseño para el ruido
     de estos ultimos."""
     try:
-        datos_req = request.get_json(force=True) or {}
+        datos_req = request.get_json(force=True, silent=True) or {}
         url = (datos_req.get("url") or "").strip()
         if not url:
             return jsonify({"error": "falta url"}), 400
