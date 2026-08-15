@@ -53,11 +53,11 @@ M3M0R·IA is maintained as two parallel product lines, one per language. Both ar
 
 ## Requirements
 
-- Python **3.10+**
-- Dependencies: `pip install -r requirements.txt`
-  (beautifulsoup4, lxml, rich, pyyaml, flask, requests)
-- Obsidian (to browse the result) and optionally Claude Desktop with an MCP filesystem server (to use it as live context)
-- Optional, for running the test suite: `pip install -r requirements-dev.txt && python -m pytest tests/`
+**If you use the Windows package, none.** It carries its own Python inside.
+
+- **Obsidian**, to browse the result. And optionally Claude Desktop with an MCP filesystem server, if you want your vault as live context.
+
+If you'd rather run it from the source, then yes: Python **3.10+** and `pip install -r requirements.txt` (beautifulsoup4, lxml, rich, pyyaml, flask, requests). For the test suite, `pip install -r requirements-dev.txt && python -m pytest tests/`.
 
 Developed and battle-tested on Windows; the pipeline itself is cross-platform.
 
@@ -86,7 +86,25 @@ The ZIPs go in **exactly as they are, without unzipping**, into whatever folder 
 
 The stats CSV is optional, but it's the only source carrying each post's **section** and **tags** — without it Inkwell still builds a working vault, just with no taxonomy. **You have to tick every column when you request it:** downloaded with the defaults, those two fields don't travel.
 
-### Installation
+### Installation — the Windows package
+
+**If you've never opened a console in your life, this is your path.** Download
+the zip, unpack it wherever you like, and double-click **`M3M0R-IA.bat`**.
+That's it: your browser opens with M3M0R·IA inside.
+
+It carries its own Python, so it **installs nothing on your system** — it
+can't break anything you already had working, it doesn't ask for admin
+rights, and it uninstalls by dragging the folder to the bin. On first launch
+a shortcut with an icon appears beside it, so you can pin it or move it to
+your desktop.
+
+The first screen will tell you the base folder isn't configured yet. That's
+done in the **Configuration** tab, with a path browser; no file to edit by
+hand.
+
+### Installation — from the source
+
+For anyone who's going to work on it, or isn't on Windows:
 
 ```bash
 git clone <this repo>
@@ -120,6 +138,24 @@ python launcher.py --port 80 --no-browser
 Now you can get in by typing `http://m3m0ria/`. The `--no-browser` is there because in this mode you normally leave it running in the background: on Windows, with a logon Scheduled Task launching `pythonw launcher.py --port 80 --no-browser`; on Linux, with a systemd user service. Careful: on Linux port 80 needs privileges — stay on 8765 or put a proxy in front.
 
 First dashboard load computes statistics once and caches them next to your vault (`.m3m0ria_stats.json`); after that, loads are instant. The pipeline refreshes the cache at the end of step 4, and the dashboard offers a manual *recalcular* link.
+
+### Building the package (only if you maintain this)
+
+```bash
+python installer/build.py
+```
+
+It downloads the embedded Python from python.org and checks **its published MD5 and a pinned SHA-256** before unpacking it: whatever goes in there ends up running on somebody else's computer. Before zipping, it sweeps the result
+and refuses if it finds paths belonging to the machine that built it — a
+package with absolute paths inside starts nowhere else, and that already
+happened once.
+
+There are two test benches for what only fails on a fresh install:
+
+```bash
+python installer/prueba_instalacion_nueva.py   # the API across the 4 startup states
+python installer/prueba_botones.py             # every POST with empty and broken bodies
+```
 
 ### CLI (no web)
 
