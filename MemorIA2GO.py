@@ -261,7 +261,18 @@ def load_from_yaml(config_path: str | None = None) -> dict | None:
         base_vault = get_path(cfg, "base_vault")
         gizmo_map = get_path(cfg, "gizmo_map")
 
-        if not exports_dir or not exports_dir.is_dir() or not base_vault:
+        # Se dice EN VOZ ALTA que falta, no se devuelve None a secas: quien
+        # lanza esto desde la web solo veia el proceso quedarse quieto.
+        problemas = []
+        if not exports_dir:
+            problemas.append("'exports_dir' esta sin configurar")
+        elif not exports_dir.is_dir():
+            problemas.append(f"la carpeta de exports no existe: {exports_dir}")
+        if not base_vault:
+            problemas.append("'base_vault' esta sin configurar")
+        if problemas:
+            for x in problemas:
+                warn(x)
             return None
 
         return {
@@ -522,7 +533,8 @@ def main():
         description="MemorIA2GO — Migra tu historial de ChatGPT a un vault MCP-ready."
     )
     ap.add_argument("--config", default=None, help="Ruta a memoria_config.yaml (opcional)")
-    ap.add_argument("--no-wizard", action="store_true", help="Fuerza uso de config YAML sin wizard")
+    ap.add_argument("--no-wizard", action="store_true",
+                    help="No preguntar nunca: si la config del YAML no sirve, salir con error")
     ap.add_argument("--from-merge", action="store_true",
                     help="Salta el paso 1 (importar) y arranca en el paso 2, reutilizando el "
                          "RAW_VAULT ya existente. Pensado para relanzar tras corregir gizmos "
@@ -558,9 +570,10 @@ def main():
     log_path = init_logger()
     log(log_path, "Sesión iniciada")
 
-    params = None
-    if not args.no_wizard:
-        params = load_from_yaml(args.config)
+    # El YAML se intenta SIEMPRE. Antes esto colgaba de --no-wizard, que
+    # invertia el sentido del flag: pedirle "sin asistente" hacia que ni
+    # siquiera leyera la configuracion, y acabara justo en el asistente.
+    params = load_from_yaml(args.config)
 
     if params:
         if USE_RICH:
@@ -581,7 +594,27 @@ def main():
             params = None
 
     if not params:
-        params = wizard()
+        # Nadie al otro lado: o se pidio explicitamente sin asistente, o la
+        # entrada no es una consola (subproceso del launcher, tarea
+        # programada, tuberia). Preguntar aqui es colgarse en silencio, que
+        # es la peor forma de fallar de las que tiene esta casa.
+        if args.no_wizard:
+            error("No hay configuracion utilizable y no puedo preguntar por ella.")
+            error("Revisa las rutas en la pestana Configuracion y vuelve a lanzar.")
+            sys.exit(2)
+
+        # Red para cuando nadie se acuerde de pasar --no-wizard: si al otro
+        # lado no hay nadie, el primer input() devuelve EOF y ahi se sabe
+        # seguro. NO se usa sys.stdin.isatty() para adivinarlo antes: en
+        # Windows devuelve True incluso con stdin=DEVNULL, porque NUL es un
+        # dispositivo de caracteres. Medido el 2026-08-11, y por eso la
+        # primera version de esta guarda no servia para nada.
+        try:
+            params = wizard()
+        except EOFError:
+            error("No hay configuracion utilizable y nadie ha contestado al asistente.")
+            error("Revisa las rutas en la pestana Configuracion y vuelve a lanzar.")
+            sys.exit(2)
 
     log(log_path, f"Exports: {params['exports_dir']}")
     log(log_path, f"Vault:  {params['vault_path']}")
