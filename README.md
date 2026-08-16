@@ -90,6 +90,16 @@ El CSV de estadísticas es opcional, pero es la única fuente en la que están l
 zip, descomprímelo donde quieras y haz doble clic en **`M3M0R-IA.bat`**. Ya
 está: se abre tu navegador con M3M0R·IA dentro.
 
+> **Un paso antes de descomprimir, y te ahorra un susto.** Windows marca todo
+> lo que llega de internet. Haz **clic derecho en el zip → Propiedades →**
+> marca **Desbloquear → Aceptar**, y luego descomprime.
+>
+> Si no lo haces no pasa nada malo, pero la marca se copia a los más de dos
+> mil ficheros de dentro, y al pulsar el `.bat` Windows avisará de que no
+> puede verificar quién creó este archivo. Es verdad: el paquete no va
+> firmado, firmar cuesta dinero y esto es software libre. Desbloquear el zip
+> antes evita esa pantalla por completo.
+
 Lleva su propio Python, así que **no instala nada en tu sistema** — no puede
 romperte nada que ya tuvieras funcionando, no te pide permisos de
 administrador, y se desinstala arrastrando la carpeta a la papelera. Al
