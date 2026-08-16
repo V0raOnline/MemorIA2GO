@@ -35,6 +35,10 @@ A diferencia de las herramientas genéricas de migración, que solo transfieren 
 
 Las conversaciones de los tres proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen y recorrer un hilo de pensamiento completo. Tintero y MUSIC·0LOGY construyen sus propios vaults: no tenía sentido tratar igual un archivo editorial que una biblioteca musical.
 
+¿Prefieres verlo funcionando antes de instalar nada? **[Test de recuperación de extracto conversacional](https://v0raonline.substack.com/p/test-de-recuperacion-de-extracto)** — una demostración con capturas, redactada como informe clínico por una institución que estudia a los organismos biológicos y su incapacidad para encontrar sus propias conversaciones.
+
+Y **no olvides descargar tu diploma** cuando completes tu primera extracción con éxito. Consta en acta.
+
 ¿Quieres saber cómo funciona cada flujo por dentro, qué hace cada adaptador y por qué las hermanas no son "un proveedor más"? Está todo en **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
