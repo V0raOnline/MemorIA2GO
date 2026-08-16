@@ -35,6 +35,10 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 The conversations from all three providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell and MUSIC·0LOGY build vaults of their own: it made no sense to treat an editorial archive the same as a music library.
 
+Rather see it working before installing anything? **[Test de recuperación de extracto conversacional](https://v0raonline.substack.com/p/test-de-recuperacion-de-extracto)** *(in Spanish)* — a walkthrough with screenshots, written up as a clinical report by an institution that studies biological organisms and their inability to find their own conversations.
+
+And **don't forget to collect your diploma** once you complete your first successful extraction. It goes on record.
+
 Want to know how each flow works inside, what each adapter does, and why the sister tools aren't "just another provider"? It's all in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
