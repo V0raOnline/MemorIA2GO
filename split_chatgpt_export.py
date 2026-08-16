@@ -122,6 +122,20 @@ def content_hash(s: str, n: int = 8) -> str:
     return hashlib.sha1(s.encode("utf-8", errors="ignore")).hexdigest()[:n]
 
 
+def contenido_identico(ruta: str, texto: str) -> bool:
+    """¿El fichero que ya está en disco dice exactamente esto?
+
+    Se compara de verdad en vez de deducirlo del nombre. Cuesta una lectura
+    y evita el fallo de la familia contraria: dar por bueno algo porque el
+    nombre cuadra.
+    """
+    try:
+        with open(ruta, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read().strip() == texto.strip()
+    except OSError:
+        return False
+
+
 def short_ts(dt: datetime.datetime) -> str:
     return dt.strftime("%Y%m%d%H%M")
 
@@ -526,10 +540,35 @@ def write_md(base_out_dir: str, title: str, date_str: str,
             h = content_hash(content_text)
             base, ext = os.path.splitext(path)
             write_path = f"{base}-h{h}{ext}"
-            i = 2
-            while os.path.exists(write_path):
-                write_path = f"{base}-h{h}-{i}{ext}"
-                i += 1
+
+            # El nombre YA es la identidad: sale del hash del contenido. Si
+            # ese fichero existe, dentro está esto mismo, y no hay nada que
+            # escribir. Contar encima (-2, -3...) creaba copias idénticas en
+            # cada pasada: 7.134 notas y 936 MB en el vault real de V0ra,
+            # todas byte a byte iguales a su canónica.
+            #
+            # Y no era un fallo del reproceso: salta en CUALQUIER importación
+            # donde una conversación coincida con otra ya guardada -- de esas
+            # 7.134, mil eran anteriores al reproceso. El reproceso solo lo
+            # hizo evidente porque coincide con todas a la vez.
+            #
+            # Es lo que los bancos de assets llevan haciendo desde siempre:
+            # nombre por hash, y si ya está no se reescribe. Aquí estaba a
+            # medias.
+            if os.path.exists(write_path):
+                if contenido_identico(write_path, content_text):
+                    rel = os.path.relpath(write_path, base_out_dir).replace("\\", "/")
+                    return write_path, rel
+                # Colisión real: mismo título, misma fecha, los mismos 32
+                # bits de hash y contenido distinto. Haría falta que
+                # coincidieran decenas de miles de notas homónimas, pero si
+                # llega el día, el contador sigue aquí.
+                i = 2
+                candidato = f"{base}-h{h}-{i}{ext}"
+                while os.path.exists(candidato):
+                    i += 1
+                    candidato = f"{base}-h{h}-{i}{ext}"
+                write_path = candidato
         else:
             if policy.get("suffix_on_duplicate"):
                 base, ext = os.path.splitext(path)
