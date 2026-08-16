@@ -92,6 +92,16 @@ The stats CSV is optional, but it's the only source carrying each post's **secti
 the zip, unpack it wherever you like, and double-click **`M3M0R-IA.bat`**.
 That's it: your browser opens with M3M0R·IA inside.
 
+> **One step before unpacking, and it saves you a scare.** Windows marks
+> everything that arrives from the internet. **Right-click the zip →
+> Properties →** tick **Unblock → OK**, and then unpack it.
+>
+> Nothing bad happens if you skip it, but the mark gets copied onto all two
+> thousand-odd files inside, and clicking the `.bat` will make Windows warn
+> you that it can't verify who created this file. That's true: the package
+> isn't signed, signing costs money, and this is free software. Unblocking
+> the zip first avoids that screen entirely.
+
 It carries its own Python, so it **installs nothing on your system** — it
 can't break anything you already had working, it doesn't ask for admin
 rights, and it uninstalls by dragging the folder to the bin. On first launch
