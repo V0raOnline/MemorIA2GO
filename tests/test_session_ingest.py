@@ -168,6 +168,43 @@ def test_ingest_dir_recorre_todas(tmp_path):
     assert len(list(banco.glob("*.jsonl"))) == 2
 
 
+def test_omite_la_sesion_activa_por_sessionid_del_entorno(tmp_path, monkeypatch):
+    """La sesion EN CURSO se salta: su captura seria parcial. Se reconoce por
+    el sessionId que Claude Code publica en el entorno."""
+    proyectos = tmp_path / "projects"
+    proyectos.mkdir()
+    _escribir_jsonl(proyectos / "activa.jsonl", _sesion_con_todo(sid="LA-ACTIVA"))
+    _escribir_jsonl(proyectos / "cerrada.jsonl", _sesion_con_todo(sid="CERRADA"))
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "LA-ACTIVA")
+    stats = si.ingest_dir(proyectos, tmp_path / "vault", nivel=2, log=lambda *a: None)
+
+    assert stats["activa_omitida"] == 1
+    assert stats["sesiones"] == 1        # solo la cerrada
+    banco = tmp_path / "vault" / "MERGED_VAULT" / "CLAUDE_CODE" / "SESIONES"
+    manifest = json.loads((banco / "_sesiones_manifest.json").read_text(encoding="utf-8"))
+    ids = {m["session_id"] for m in manifest.values()}
+    assert ids == {"CERRADA"}, "la activa no debe haberse ingerido"
+
+
+def test_id_de_lee_el_sessionid(tmp_path):
+    j = _escribir_jsonl(tmp_path / "s.jsonl", _sesion_con_todo(sid="ABC123"))
+    assert si._id_de(j) == "ABC123"
+
+
+def test_sin_sessionid_en_entorno_no_se_omite_nada(tmp_path, monkeypatch):
+    """Fuera de Claude Code (sin la env var) y con ficheros estables, ninguno
+    se toma por activo: _esta_creciendo es False sobre un fichero quieto."""
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_HOST_SESSION_ID", raising=False)
+    proyectos = tmp_path / "projects"
+    proyectos.mkdir()
+    _escribir_jsonl(proyectos / "s.jsonl", _sesion_con_todo())
+    stats = si.ingest_dir(proyectos, tmp_path / "vault", nivel=2, log=lambda *a: None)
+    assert stats["activa_omitida"] == 0
+    assert stats["sesiones"] == 1
+
+
 def test_no_escribe_fuera_del_vault_indicado(tmp_path):
     """Salvaguarda: todo lo escrito cuelga del base_vault que se le pasa."""
     jsonl = _escribir_jsonl(tmp_path / "s.jsonl", _sesion_con_todo())

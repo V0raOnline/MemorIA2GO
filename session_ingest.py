@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -60,6 +61,43 @@ SUBCARPETA_MADRE = "Sesiones-Code"
 
 def _hash_fichero(path: Path) -> str:
     return hashlib.sha1(path.read_bytes()).hexdigest()[:16]
+
+
+def sesion_activa() -> Optional[str]:
+    """El sessionId de la sesion de Claude Code EN CURSO, si esto corre dentro
+    de una. Claude Code lo publica en el entorno. Fuera de Claude Code (o en
+    Codex) devuelve None."""
+    return (os.environ.get("CLAUDE_CODE_SESSION_ID")
+            or os.environ.get("CLAUDE_CODE_HOST_SESSION_ID") or "").strip() or None
+
+
+def _esta_creciendo(jsonl: Path) -> bool:
+    """Red de seguridad para cuando no hay sessionId en el entorno: un fichero
+    que cambia de tamaño mientras se lee es una sesion viva. La propia lectura
+    del contenido da la ventana temporal; no hace falta un sleep artificial."""
+    try:
+        antes = jsonl.stat().st_size
+        _ = jsonl.read_bytes()
+        return jsonl.stat().st_size != antes
+    except OSError:
+        return False
+
+
+def _id_de(jsonl: Path) -> Optional[str]:
+    """El sessionId de un .jsonl, leido de su primera linea util. Barato."""
+    try:
+        with jsonl.open("r", encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if not linea:
+                    continue
+                d = json.loads(linea)
+                if isinstance(d, dict) and d.get("sessionId"):
+                    return d["sessionId"]
+                break
+    except (OSError, ValueError):
+        pass
+    return None
 
 
 def _preservar_fuente(jsonl: Path, banco_dir: Path) -> str:
@@ -132,9 +170,19 @@ def ingest_dir(projects_dir: Any, base_vault: Any,
     un proyecto de Claude Code; se recorren todas."""
     projects_dir = Path(projects_dir)
     jsonls = sorted(projects_dir.rglob("*.jsonl"))
-    stats = {"sesiones": 0, "vacias": 0, "notas": 0}
+    stats = {"sesiones": 0, "vacias": 0, "notas": 0, "activa_omitida": 0}
+    activa = sesion_activa()
     log("%d ficheros de sesion bajo %s" % (len(jsonls), projects_dir))
     for j in jsonls:
+        # Omitir la sesion EN CURSO: su .jsonl esta creciendo mientras la
+        # leemos, asi que su captura seria parcial. (El caso mas meta posible:
+        # ingerir la conversacion en la que se escribe este ingestor.) Se
+        # detecta por el sessionId del entorno, o -- si no lo hay -- porque el
+        # fichero cambia de tamaño al leerlo.
+        if (activa and _id_de(j) == activa) or _esta_creciendo(j):
+            stats["activa_omitida"] += 1
+            log("  OMITIDA (sesión activa, captura parcial): %s" % j.name[:40])
+            continue
         try:
             escritas = ingest_sesion(j, base_vault, nivel=nivel)
         except Exception as e:
@@ -183,6 +231,9 @@ def main() -> int:
     print()
     print("Sesiones ingeridas: %d  ·  vacias: %d  ·  notas escritas: %d"
           % (stats["sesiones"], stats["vacias"], stats["notas"]))
+    if stats.get("activa_omitida"):
+        print("Sesión activa omitida: %d (relanza cuando la cierres para "
+              "capturarla entera)" % stats["activa_omitida"])
     print("Fuente cruda preservada en MERGED_VAULT/%s" % BANCO)
     return 0
 
