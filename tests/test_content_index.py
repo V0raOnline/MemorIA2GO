@@ -215,6 +215,46 @@ def test_render_pendientes_note_vacio():
     assert "Nothing pending" in md
 
 
+def test_la_nota_no_lista_lo_ya_triado():
+    """El filtro que faltaba (2026-08-30). Las triadas se quedan en el JSON
+    porque el pipeline las necesita, pero listarlas pedia bajar a mano lo ya
+    bajado y dejaba el enlace externo vivo dentro de una nota del vault."""
+    pendientes = [
+        {"id": "a", "prompt": "ya bajada", "link": "https://grok.com/x",
+         "media_type": "video", "create_time": "2026-06-01T00:00:00Z",
+         "estado": "rescatada", "fichero": "abc.mp4"},
+        {"id": "b", "prompt": "no la quiero", "link": "https://grok.com/y",
+         "media_type": "image", "create_time": "2026-06-02T00:00:00Z",
+         "estado": "descartada"},
+        {"id": "c", "prompt": "esta si", "link": "https://grok.com/z",
+         "media_type": "video", "create_time": "2026-06-03T00:00:00Z"},
+    ]
+    md = ci.render_pendientes_note(pendientes, "Grok — pendientes de descarga")
+
+    assert "esta si" in md
+    assert "ya bajada" not in md and "no la quiero" not in md
+    # Y, sobre todo, que el enlace de las triadas no siga vivo en la nota.
+    assert "https://grok.com/x" not in md
+    assert "https://grok.com/y" not in md
+    assert "1 generations" in md
+
+
+def test_si_esta_todo_triado_la_nota_dice_que_no_queda_nada():
+    pendientes = [
+        {"id": "a", "link": "https://grok.com/x", "estado": "rescatada"},
+        {"id": "b", "link": "https://grok.com/y", "estado": "descartada"},
+    ]
+    md = ci.render_pendientes_note(pendientes, "Grok — pendientes de descarga")
+    assert "Nothing pending" in md
+    assert "grok.com" not in md
+
+
+def test_sin_estado_sigue_contando_como_pendiente():
+    """Los ficheros anteriores al modelo de estados no traen `estado`: si el
+    filtro los tomara por triados, se perderia la lista entera de golpe."""
+    assert ci.sin_triar([{"id": "a"}]) == [{"id": "a"}]
+
+
 def test_generate_provider_index_sin_contenido_no_revienta(tmp_path):
     vault = tmp_path
     (vault / "Conversations").mkdir()

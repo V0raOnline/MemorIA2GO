@@ -253,11 +253,31 @@ def generate_provider_index(vault: Path, conversations_dir: str, provider_title:
     return {"markdown": "\n".join(lines), "stats": stats}
 
 
+def sin_triar(pendientes: list) -> list:
+    """Los que siguen siendo tarea. Sin `estado` = sin triar, para no romper
+    ficheros anteriores al modelo de estados.
+
+    Las entradas ya rescatadas o descartadas se CONSERVAN en el JSON porque el
+    pipeline las necesita (borrarlas hacia que el siguiente --reprocess-all las
+    volviera a listar: bug real b8a9c82), pero no son tareas. Este filtro
+    faltaba aqui: la UI y el backend si lo hacian y el generador de la nota se
+    quedo sin enterarse cuando se anadio el modelo de estados. Listarlas pedia
+    bajar a mano lo que ya estaba bajado y, peor, mantenia vivo el enlace
+    externo dentro de una nota del vault -- que es justo lo que el rescate
+    viene a quitar de en medio (2026-08-30)."""
+    return [p for p in pendientes
+            if (p.get("estado") or "sin_triar") == "sin_triar"]
+
+
 def render_pendientes_note(pendientes: list, titulo: str) -> str:
     """Nota separada del indice de contenido (decision V0ra 2026-07-22):
     esto es una lista de tareas -- lo que falta descargar a mano -- no
     contenido que ya tienes archivado, asi que no comparte sitio con el
-    indice real. Colapsada igual que el resto."""
+    indice real. Colapsada igual que el resto.
+
+    Filtra aqui dentro a proposito: cualquier llamador futuro hereda el
+    filtro sin tener que acordarse."""
+    pendientes = sin_triar(pendientes)
     lines = [f"# {titulo}", ""]
     if not pendientes:
         lines.append("_Nothing pending -- everything the export ships has been extracted._")
@@ -347,7 +367,9 @@ def main():
         nota = render_pendientes_note(pendientes, args.pendientes_titulo)
         pend_out = vault / args.pendientes_out
         pend_out.write_text(nota, encoding="utf-8")
-        print(f"Pending-downloads note: {pend_out} ({len(pendientes)})")
+        # El recuento es de lo que la nota lista, no del fichero entero: si
+        # dijera len(pendientes) volveria a contar las ya triadas.
+        print(f"Pending-downloads note: {pend_out} ({len(sin_triar(pendientes))})")
 
 
 if __name__ == "__main__":
