@@ -82,8 +82,18 @@ def titulo(sesion: dict) -> str:
 
 def nombres(sesion: dict) -> Dict[str, str]:
     """Los tres nombres de fichero (sin extension) de una sesion. Publico
-    porque el que integre necesita saber como se llamaran para enlazar."""
+    porque el que integre necesita saber como se llamaran para enlazar.
+
+    El nombre lleva un trozo del session_id, y no es cosmetico: dos sesiones
+    distintas del mismo dia con el mismo titulo (o sin titulo -- 4 sesiones de
+    Codex del 2026-08-28 quedaban todas como 'sesion-de-agente') producirian el
+    mismo nombre y una pisaria a la otra al escribir. La identidad es el
+    session_id; que el nombre derive de ella evita la colision. Misma familia
+    que el bug 1b del backlog."""
+    sid = (sesion.get("session_id") or "").replace("-", "")[:8]
     base = "%s_%s" % (_fecha(sesion.get("create_time")), _slug(titulo(sesion)))
+    if sid:
+        base = "%s-%s" % (base, sid)
     return {
         "madre": base,
         "razonamientos": base + " · razonamientos",

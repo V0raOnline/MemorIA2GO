@@ -47,6 +47,7 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 from providers import claudecode_adapter as cc  # noqa: E402
+from providers import codex_adapter as cx  # noqa: E402
 import session_notes as sn  # noqa: E402
 
 for _f in (sys.stdout, sys.stderr):
@@ -55,8 +56,35 @@ for _f in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-BANCO = "CLAUDE_CODE/SESIONES"
-SUBCARPETA_MADRE = "Sesiones-Code"
+# Cada proveedor de sesiones locales: su adaptador, su banco de fuente cruda,
+# su subcarpeta de madres dentro de Conversaciones/, y su etiqueta de origen.
+# El adaptador se elige por deteccion del formato (ver _adaptador_de), no por
+# ruta, asi que da igual mezclar sesiones de los dos en una misma carpeta.
+PROVEEDORES = {
+    "claude-code": {"mod": cc, "banco": "CLAUDE_CODE/SESIONES",
+                    "sub": "Sesiones-Code", "source": "claude_code_session"},
+    "codex": {"mod": cx, "banco": "CODEX/SESIONES",
+              "sub": "Sesiones-Codex", "source": "codex_session"},
+}
+
+
+def _adaptador_de(jsonl: Path):
+    """Devuelve (clave_proveedor, config) segun el formato del .jsonl, o None si
+    no es una sesion reconocible. Mira solo la primera linea util."""
+    try:
+        with jsonl.open("r", encoding="utf-8") as f:
+            for linea in f:
+                linea = linea.strip()
+                if linea:
+                    break
+            else:
+                return None
+    except OSError:
+        return None
+    for clave, cfg in PROVEEDORES.items():
+        if cfg["mod"].detect(linea):
+            return clave, cfg
+    return None
 
 
 def _hash_fichero(path: Path) -> str:
@@ -139,9 +167,14 @@ def ingest_sesion(jsonl: Any, base_vault: Any, nivel: int = sn.NIVEL_PLEGADO
     jsonl = Path(jsonl)
     base_vault = Path(base_vault)
     merged = base_vault / "MERGED_VAULT"
-    banco_dir = merged / BANCO
 
-    sesion = cc.parse_fichero(jsonl)
+    quien = _adaptador_de(jsonl)
+    if quien is None:
+        return None
+    _clave, cfg = quien
+    banco_dir = merged / cfg["banco"]
+
+    sesion = cfg["mod"].parse_fichero(jsonl)
     if not sesion or not sesion.get("turns"):
         return None
 
@@ -149,14 +182,14 @@ def ingest_sesion(jsonl: Any, base_vault: Any, nivel: int = sn.NIVEL_PLEGADO
     fuente = _preservar_fuente(jsonl, banco_dir)
     _anotar_manifest(banco_dir, fuente, sesion, jsonl)
 
-    # 2. Notas: madre a Conversaciones/Sesiones-Code/AAAA/MM, hijas al banco.
+    # 2. Notas: madre a Conversaciones/<sub>/AAAA/MM, hijas al banco.
     fecha = sn._fecha(sesion.get("create_time"))  # AAAA-MM-DD o 'sin-fecha'
     y, m = (fecha.split("-")[0], fecha.split("-")[1]) if "-" in fecha else ("sin-fecha", "")
-    madre_dir = merged / "Conversaciones" / SUBCARPETA_MADRE / y / m
+    madre_dir = merged / "Conversaciones" / cfg["sub"] / y / m
 
     extra_madre = {
         "Project_name": "none",           # huerfana: se agrupa a mano
-        "source": "claude_code_session",
+        "source": cfg["source"],
         "conv_id": sesion.get("session_id"),
     }
     return sn.generar_notas(sesion, madre_dir, nivel=nivel,
@@ -166,8 +199,9 @@ def ingest_sesion(jsonl: Any, base_vault: Any, nivel: int = sn.NIVEL_PLEGADO
 def ingest_dir(projects_dir: Any, base_vault: Any,
                nivel: int = sn.NIVEL_PLEGADO,
                log=print) -> Dict[str, int]:
-    """Ingesta todos los .jsonl bajo projects_dir (recursivo). Cada carpeta es
-    un proyecto de Claude Code; se recorren todas."""
+    """Ingesta todos los .jsonl bajo projects_dir (recursivo). El proveedor de
+    cada sesion se detecta por su formato, asi que projects_dir puede tener
+    sesiones de Claude Code, de Codex, o de los dos."""
     projects_dir = Path(projects_dir)
     jsonls = sorted(projects_dir.rglob("*.jsonl"))
     stats = {"sesiones": 0, "vacias": 0, "notas": 0, "activa_omitida": 0}
@@ -197,12 +231,23 @@ def ingest_dir(projects_dir: Any, base_vault: Any,
     return stats
 
 
+def _carpetas_por_defecto() -> List[Path]:
+    """Las dos carpetas de sesiones locales, si existen."""
+    out = []
+    for p in (Path.home() / ".claude" / "projects",
+              Path.home() / ".codex" / "sessions"):
+        if p.exists():
+            out.append(p)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Ingesta las sesiones locales de Claude Code al vault. "
-                    "A mano: el pipeline no la llama.")
-    ap.add_argument("--projects-dir", default=None,
-                    help="Carpeta de sesiones (por defecto ~/.claude/projects)")
+        description="Ingesta las sesiones locales de Claude Code y Codex al "
+                    "vault. A mano: el pipeline no la llama.")
+    ap.add_argument("--projects-dir", default=None, action="append",
+                    help="Carpeta de sesiones (repetible). Por defecto, "
+                         "~/.claude/projects y ~/.codex/sessions")
     ap.add_argument("--config", default=None, help="Ruta a memoria_config.yaml")
     ap.add_argument("--base-vault", default=None,
                     help="Salta la config y usa esta carpeta base")
@@ -211,10 +256,11 @@ def main() -> int:
                     help="Verbosidad del output de herramientas (2 por defecto)")
     args = ap.parse_args()
 
-    projects = Path(args.projects_dir) if args.projects_dir \
-        else Path.home() / ".claude" / "projects"
-    if not projects.exists():
-        print("No existe la carpeta de sesiones: %s" % projects)
+    carpetas = [Path(p) for p in args.projects_dir] if args.projects_dir \
+        else _carpetas_por_defecto()
+    carpetas = [p for p in carpetas if p.exists()]
+    if not carpetas:
+        print("No existe ninguna carpeta de sesiones.")
         return 2
 
     if args.base_vault:
@@ -227,14 +273,19 @@ def main() -> int:
             print("base_vault no configurado")
             return 2
 
-    stats = ingest_dir(projects, base_vault, nivel=args.nivel)
+    total = {"sesiones": 0, "vacias": 0, "notas": 0, "activa_omitida": 0}
+    for carpeta in carpetas:
+        st = ingest_dir(carpeta, base_vault, nivel=args.nivel)
+        for k in total:
+            total[k] += st.get(k, 0)
+
     print()
     print("Sesiones ingeridas: %d  ·  vacias: %d  ·  notas escritas: %d"
-          % (stats["sesiones"], stats["vacias"], stats["notas"]))
-    if stats.get("activa_omitida"):
+          % (total["sesiones"], total["vacias"], total["notas"]))
+    if total.get("activa_omitida"):
         print("Sesión activa omitida: %d (relanza cuando la cierres para "
-              "capturarla entera)" % stats["activa_omitida"])
-    print("Fuente cruda preservada en MERGED_VAULT/%s" % BANCO)
+              "capturarla entera)" % total["activa_omitida"])
+    print("Fuente cruda preservada en MERGED_VAULT/{CLAUDE_CODE,CODEX}/SESIONES")
     return 0
 
 

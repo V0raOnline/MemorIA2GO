@@ -212,3 +212,54 @@ def test_no_escribe_fuera_del_vault_indicado(tmp_path):
     escritas = si.ingest_sesion(jsonl, vault, nivel=2)
     for p in escritas.values():
         assert str(p).startswith(str(vault))
+
+
+def _sesion_codex(sid="CX1"):
+    """Una sesion de Codex minima: session_meta + prompt + respuesta + tool."""
+    return [
+        {"timestamp": "2026-04-06T18:00:00Z", "type": "session_meta",
+         "payload": {"id": sid, "cwd": "/repo/DriftCompass"}},
+        {"timestamp": "2026-04-06T18:00:03Z", "type": "event_msg",
+         "payload": {"type": "user_message", "message": "compara los ficheros"}},
+        {"timestamp": "2026-04-06T18:00:05Z", "type": "response_item",
+         "payload": {"type": "message", "role": "assistant",
+                     "content": [{"type": "output_text", "text": "Voy a mirar."}]}},
+        {"timestamp": "2026-04-06T18:00:06Z", "type": "response_item",
+         "payload": {"type": "function_call", "name": "shell_command",
+                     "arguments": '{"command":"ls"}', "call_id": "c1"}},
+        {"timestamp": "2026-04-06T18:00:07Z", "type": "response_item",
+         "payload": {"type": "function_call_output", "call_id": "c1",
+                     "output": "a\nb"}},
+    ]
+
+
+def test_codex_va_a_su_propio_banco_y_subcarpeta(tmp_path):
+    """El proveedor se detecta por formato; Codex enruta a CODEX/SESIONES y a
+    Conversaciones/Sesiones-Codex, no a los de Claude Code."""
+    jsonl = _escribir_jsonl(tmp_path / "cx.jsonl", _sesion_codex())
+    vault = tmp_path / "vault"
+    escritas = si.ingest_sesion(jsonl, vault, nivel=2)
+    assert escritas, "la sesion de Codex debe ingerirse"
+
+    madre = escritas["madre"]
+    assert "Sesiones-Codex" in madre.parts
+    assert "CODEX" in escritas["herramientas"].parts
+    # frontmatter con el source de Codex
+    fm = madre.read_text(encoding="utf-8")
+    assert 'source: "codex_session"' in fm
+    assert 'provider: "codex"' in fm
+
+
+def test_los_dos_proveedores_conviven_en_una_carpeta(tmp_path):
+    """detect() elige el adaptador, asi que sesiones de los dos en la misma
+    carpeta se reparten a sus bancos respectivos."""
+    proyectos = tmp_path / "mix"
+    proyectos.mkdir()
+    _escribir_jsonl(proyectos / "code.jsonl", _sesion_con_todo(sid="CODE1"))
+    _escribir_jsonl(proyectos / "codex.jsonl", _sesion_codex(sid="CODEX1"))
+
+    stats = si.ingest_dir(proyectos, tmp_path / "vault", nivel=2, log=lambda *a: None)
+    assert stats["sesiones"] == 2
+    merged = tmp_path / "vault" / "MERGED_VAULT"
+    assert (merged / "CLAUDE_CODE" / "SESIONES").exists()
+    assert (merged / "CODEX" / "SESIONES").exists()

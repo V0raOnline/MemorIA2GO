@@ -135,6 +135,22 @@ def test_thinking_vacio_no_crea_nota_fantasma(tmp_path):
     assert "razonamientos" not in sn.generar_notas(ses, tmp_path, nivel=2)
 
 
+def test_dos_sesiones_mismo_titulo_y_dia_no_colisionan(tmp_path):
+    """Bug real (2026-08-31): 4 sesiones de Codex del mismo dia sin titulo
+    quedaban todas como 'sesion-de-agente' y se pisaban al escribir. El nombre
+    deriva del session_id, asi que dos sesiones distintas dan nombres distintos
+    aunque compartan titulo y fecha."""
+    ses_a = _sesion([_user(), _asis()], session_id="aaaaaaaa-1111",
+                    title=None, create_time=1735732800.0)
+    ses_b = _sesion([_user(), _asis()], session_id="bbbbbbbb-2222",
+                    title=None, create_time=1735732800.0)
+    a = sn.generar_notas(ses_a, tmp_path, nivel=2)
+    b = sn.generar_notas(ses_b, tmp_path, nivel=2)
+    assert a["madre"].name != b["madre"].name
+    # las dos madres sobreviven en disco
+    assert a["madre"].exists() and b["madre"].exists()
+
+
 def test_sesion_vacia_no_escribe_nada(tmp_path):
     assert sn.generar_notas({"turns": []}, tmp_path) == {}
     assert sn.generar_notas(None, tmp_path) == {}
