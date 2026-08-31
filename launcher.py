@@ -42,6 +42,9 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, Response, send_from_directory
 
+# Identidad de un pendiente separada de su llave -- ver pendientes.py.
+from pendientes import ref_pendiente, ref_de_entrada, sanear
+
 HERE = Path(__file__).resolve().parent
 WEB_DIR = HERE / "web"
 CONFIG_PATH = HERE / "memoria_config.yaml"
@@ -875,9 +878,26 @@ def _leer_pendientes(base_vault, proveedor: str) -> list:
         return []
 
 
+def _buscar_pendiente(pendientes: list, proveedor: str, credencial: str):
+    """La entrada cuya identidad corresponde a esa credencial.
+
+    Se compara por `ref` (ver pendientes.py): las entradas ya triadas no
+    guardan su credencial, asi que buscarlas por ella no las encontraria. El
+    navegador manda la credencial porque es lo que tiene a mano en la lista de
+    las SIN triar, que si la conservan; aqui se hashea para buscar.
+    """
+    r = ref_pendiente(credencial)
+    return next((p for p in pendientes
+                 if (p.get("ref") or ref_de_entrada(p, proveedor)) == r), None)
+
+
 def _escribir_pendientes(base_vault, proveedor: str, datos: list) -> None:
     """Escritura atomica via tmp+replace: un corte a mitad no deja el
-    triaje de V0ra en un JSON roto."""
+    triaje de V0ra en un JSON roto.
+
+    Sanea antes de escribir: toda salida de aqui lleva `ref` y ninguna entrada
+    triada conserva su enlace de descarga."""
+    sanear(datos, proveedor)
     path = _ruta_pendientes(base_vault, proveedor)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -939,7 +959,7 @@ def descartar_pendiente():
             return jsonify({"error": "base_vault is not configured"}), 400
 
         pendientes = _leer_pendientes(base_vault, "chatgpt")
-        entrada = next((p for p in pendientes if p.get("url") == url), None)
+        entrada = _buscar_pendiente(pendientes, "chatgpt", url)
         if entrada is None:
             return jsonify({"error": "that image is no longer in the list"}), 404
 
@@ -978,13 +998,11 @@ def registrar_pendiente():
         if not pendiente_id:
             return jsonify({"error": "missing id"}), 400
 
-        pend_path = base_vault / "GROK" / "_pendientes_descarga.json"
-        if not pend_path.exists():
+        pendientes = _leer_pendientes(base_vault, "grok")
+        if not pendientes:
             return jsonify({"error": "no pending downloads recorded"}), 404
-        with open(pend_path, "r", encoding="utf-8-sig") as f:
-            pendientes = json.load(f)
 
-        pendiente = next((p for p in pendientes if p.get("id") == pendiente_id), None)
+        pendiente = _buscar_pendiente(pendientes, "grok", pendiente_id)
         if pendiente is None:
             return jsonify({"error": "that pending item no longer exists (already registered?)"}), 404
 
@@ -1029,9 +1047,9 @@ def registrar_pendiente():
         # `vistos` y no la duplica. Mismo modelo de estados que ChatGPT.
         pendiente["estado"] = "rescatada"
         pendiente["fichero"] = fname
-        tmp = pend_path.with_name(pend_path.name + ".tmp")
-        tmp.write_text(json.dumps(pendientes, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
-        tmp.replace(pend_path)
+        # _escribir_pendientes sanea: al quedar triada, esta entrada pierde su
+        # `id` y su `link` y conserva solo el `ref`.
+        _escribir_pendientes(base_vault, "grok", pendientes)
 
         restantes = sum(1 for p in pendientes
                         if (p.get("estado") or "sin_triar") == "sin_triar")
@@ -1057,7 +1075,7 @@ def _registrar_imagen_web(base_vault, url: str, archivo) -> "Response":
         return jsonify({"error": "missing url"}), 400
 
     pendientes = _leer_pendientes(base_vault, "chatgpt")
-    entrada = next((p for p in pendientes if p.get("url") == url), None)
+    entrada = _buscar_pendiente(pendientes, "chatgpt", url)
     if entrada is None:
         return jsonify({"error": "that image is no longer in the list"}), 404
 

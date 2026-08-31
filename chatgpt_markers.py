@@ -42,6 +42,8 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from pendientes import ref_pendiente
+
 # ---------- Anatomia del marcador ----------
 
 MARK_OPEN = ""
@@ -255,11 +257,15 @@ def resolve_markers(
     pendientes_out   -- si se pasa, se le anaden las imagenes de busqueda web
                         encontradas (dicts con url/query/conversacion) para
                         que el llamante monte la lista de pendientes
-    estado_imagenes  -- {url: {"estado": "rescatada"|"descartada",
+    estado_imagenes  -- {ref: {"estado": "rescatada"|"descartada",
                         "fichero": "nombre.jpg"}} con el triaje ya hecho por
                         V0ra. Vive fuera de la nota a proposito: las notas se
                         regeneran en cada reproceso y la curacion no debe
                         perderse (mismo principio que gizmo_map.json).
+                        La clave es `ref` (hash de la URL, ver pendientes.py) y
+                        no la URL: una entrada triada ya no la guarda, porque
+                        mientras estaba guardada era una llave viva. La URL se
+                        hashea aqui al vuelo, que para eso la trae el export.
     conv_titulo      -- solo para dar contexto a los pendientes
     """
     # Se comprueba el rango PUA entero, no solo MARK_OPEN: hay notas reales
@@ -332,7 +338,11 @@ def resolve_markers(
             queries = _queries_de_marcador(campos)
             rescatadas, descartadas, pendientes = [], 0, []
             for u in urls:
-                est = estado_imagenes.get(u) or {}
+                # Indexado por `ref`, no por URL: el estado guardado ya no
+                # conserva la URL de las triadas (ver pendientes.py). La URL la
+                # tenemos aqui porque viene del export, asi que se hashea al
+                # vuelo para buscar.
+                est = estado_imagenes.get(ref_pendiente(u)) or {}
                 if est.get("estado") == "rescatada" and est.get("fichero"):
                     rescatadas.append(est["fichero"])
                 elif est.get("estado") == "descartada":
