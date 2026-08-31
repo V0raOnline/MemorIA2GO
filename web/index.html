@@ -111,6 +111,12 @@
       <div id="dashboard-images" class="stat-grid"></div>
     </div>
 
+    <div class="card">
+      <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /><path d="m9 9 3 3 3-3" /></svg>Sesiones de agente</h2>
+      <div id="dashboard-sessions" class="stat-grid"><div class="empty-note">Cargando...</div></div>
+      <div class="chart-note">Sesiones de Claude Code y Codex traídas a tu vault. Se ingieren desde la pestaña Reconexión.</div>
+    </div>
+
     <!-- MUSIC·0LOGY: herramienta hermana, pipeline propio, misma casa.
          Una sola tarjeta para las dos bibliotecas, con el acumulado arriba
          y el desglose por fuente debajo -- mismo patron que la tarjeta de
@@ -633,6 +639,33 @@
         Esta app nunca descarga nada por su cuenta.
       </p>
       <div id="pendientes-list"><div class="empty-note">Cargando...</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Sesiones de Claude Code y Codex</h2>
+      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
+        Tus sesiones de agente viven solo en tu disco: ningún export las incluye, y si no las
+        recoges se pierden. Se traen aquí como notas — la conversación limpia, con los razonamientos
+        y las herramientas en notas hermanas a un clic. La fuente original se guarda intacta, así que
+        siempre puedes regenerarlas. Esta app solo lo hace cuando tú lo lanzas, y omite la sesión que
+        tengas abierta en ese momento.
+      </p>
+      <p style="color:var(--text-dim); font-size:13px;">
+        El <strong>detalle</strong> decide cuánto de las llamadas a herramientas entra en la nota. Bajarlo
+        no pierde nada: la fuente completa queda guardada y puedes volver a generar con más detalle
+        cuando quieras.
+      </p>
+      <div style="display:flex; align-items:center; gap:12px; margin:12px 0; flex-wrap:wrap;">
+        <label for="sessions-nivel" style="font-size:13px; color:var(--text-dim);">Detalle de herramientas</label>
+        <select id="sessions-nivel" class="input" style="width:auto; min-width:280px;">
+          <option value="0">Desactivado — solo la conversación</option>
+          <option value="1">Bajo — una línea por llamada</option>
+          <option value="2" selected>Medio — resultado plegado (recomendado)</option>
+          <option value="3">Alto — resultado íntegro</option>
+        </select>
+      </div>
+      <button class="btn" id="btn-sessions-ingest">Ingerir sesiones</button>
+      <div id="sessions-msg" class="msg"></div>
     </div>
 
     <div class="card">

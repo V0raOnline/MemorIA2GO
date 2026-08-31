@@ -218,6 +218,7 @@ async function loadDashboard(refresh = false) {
   summaryEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
   vaultsEl.innerHTML = "";
   imagesEl.innerHTML = "";
+  loadSessionsStat();  // independiente de /api/stats: su propio endpoint barato
 
   try {
     const res = await fetch("/api/stats" + (refresh ? "?refresh=1" : ""));
@@ -959,6 +960,57 @@ document.getElementById("btn-reindex").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+// ─────────────────────────────────────────
+// Sesiones locales de Claude Code / Codex
+// ─────────────────────────────────────────
+document.getElementById("btn-sessions-ingest").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-sessions-ingest");
+  const msg = document.getElementById("sessions-msg");
+  const nivel = document.getElementById("sessions-nivel").value;
+  btn.disabled = true;
+  msg.textContent = "Ingiriendo sesiones (puede tardar según cuántas haya)...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/sessions/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nivel: parseInt(nivel, 10) }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    let txt = `${data.sesiones} sesiones ingeridas, ${data.notas} notas escritas.`;
+    if (data.activa_omitida) {
+      txt += ` La sesión abierta se omitió (relánzalo cuando la cierres para capturarla entera).`;
+    }
+    msg.textContent = txt;
+    msg.className = "msg ok";
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function loadSessionsStat() {
+  const el = document.getElementById("dashboard-sessions");
+  if (!el) return;
+  try {
+    const data = await (await fetch("/api/sessions/status")).json();
+    if (data.error) throw new Error(data.error);
+    if (!data.total) {
+      el.innerHTML = `<div class="empty-note">Ninguna todavía. Ingiérelas desde Reconexión.</div>`;
+      return;
+    }
+    el.innerHTML =
+      statBox("Total", data.total) +
+      statBox("Claude Code", data.claude_code) +
+      statBox("Codex", data.codex);
+  } catch (e) {
+    el.innerHTML = `<div class="empty-note">${e.message}</div>`;
+  }
+}
 
 // ─────────────────────────────────────────
 // Ejecutar pipeline (SSE)
