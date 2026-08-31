@@ -111,6 +111,12 @@
       <div id="dashboard-images" class="stat-grid"></div>
     </div>
 
+    <div class="card">
+      <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /><path d="m9 9 3 3 3-3" /></svg>Agent sessions</h2>
+      <div id="dashboard-sessions" class="stat-grid"><div class="empty-note">Loading...</div></div>
+      <div class="chart-note">Claude Code and Codex sessions brought into your vault. Ingested from the Reconnection tab.</div>
+    </div>
+
     <!-- MUSIC·0LOGY: herramienta hermana, pipeline propio, misma casa.
          Una sola tarjeta para las dos bibliotecas, con el acumulado arriba
          y el desglose por fuente debajo -- mismo patron que la tarjeta de
@@ -649,6 +655,33 @@
       </p>
       <button class="btn" id="btn-layout">Rename to English layout</button>
       <div id="layout-msg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Claude Code and Codex sessions</h2>
+      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
+        Your agent sessions live only on your disk: no export includes them, and if you don't
+        collect them they're lost. They're brought in here as notes — the conversation clean, with
+        the reasoning and the tools in sibling notes a click away. The original source is kept
+        intact, so you can always regenerate them. This app only does it when you launch it, and it
+        skips whatever session you have open at the time.
+      </p>
+      <p style="color:var(--text-dim); font-size:13px;">
+        The <strong>detail</strong> level decides how much of the tool calls goes into the note.
+        Lowering it loses nothing: the full source stays saved and you can regenerate with more
+        detail whenever you want.
+      </p>
+      <div style="display:flex; align-items:center; gap:12px; margin:12px 0; flex-wrap:wrap;">
+        <label for="sessions-nivel" style="font-size:13px; color:var(--text-dim);">Tool detail</label>
+        <select id="sessions-nivel" class="input" style="width:auto; min-width:280px;">
+          <option value="0">Off — conversation only</option>
+          <option value="1">Low — one line per call</option>
+          <option value="2" selected>Medium — folded result (recommended)</option>
+          <option value="3">High — full result</option>
+        </select>
+      </div>
+      <button class="btn" id="btn-sessions-ingest">Ingest sessions</button>
+      <div id="sessions-msg" class="msg"></div>
     </div>
 
     <div class="card">

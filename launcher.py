@@ -1183,6 +1183,62 @@ def reindex():
 
 
 # ─────────────────────────────────────────
+# API: sesiones locales de Claude Code / Codex (herramienta hermana, a mano)
+# ─────────────────────────────────────────
+
+@app.route("/api/sessions/status")
+def sessions_status():
+    """Cuantas sesiones de agente hay ya en el vault. Para la tarjeta del
+    Observatorio. Barato: cuenta los .jsonl crudos de los dos bancos, que es
+    lo que la ingesta preserva (uno por sesion ingerida)."""
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"claude_code": 0, "codex": 0, "total": 0})
+        merged = Path(base_vault) / "MERGED_VAULT"
+        cc = len(list((merged / "CLAUDE_CODE" / "SESSIONS").glob("*.jsonl"))) \
+            if (merged / "CLAUDE_CODE" / "SESSIONS").exists() else 0
+        cx = len(list((merged / "CODEX" / "SESSIONS").glob("*.jsonl"))) \
+            if (merged / "CODEX" / "SESSIONS").exists() else 0
+        return jsonify({"claude_code": cc, "codex": cx, "total": cc + cx})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/sessions/ingest", methods=["POST"])
+def sessions_ingest():
+    """Ingesta las sesiones locales de Claude Code y Codex al vault. A mano:
+    el pipeline no lo hace. `nivel` (0-3) es el detalle del output de
+    herramientas en las notas; la fuente cruda se preserva igual sea cual sea.
+    La sesion en curso se omite (su captura seria parcial)."""
+    try:
+        datos = request.get_json(force=True, silent=True) or {}
+        try:
+            nivel = int(datos.get("nivel", 2))
+        except (TypeError, ValueError):
+            nivel = 2
+        nivel = max(0, min(3, nivel))
+
+        from config_loader import load_config, get_path
+        import session_ingest as si
+        cfg = load_config(str(CONFIG_PATH))
+        base_vault = get_path(cfg, "base_vault")
+        if not base_vault:
+            return jsonify({"error": "base_vault not configured"}), 400
+
+        total = {"sesiones": 0, "vacias": 0, "notas": 0, "activa_omitida": 0}
+        for carpeta in si._carpetas_por_defecto():
+            st = si.ingest_dir(carpeta, base_vault, nivel=nivel, log=lambda *a: None)
+            for k in total:
+                total[k] += st.get(k, 0)
+        return jsonify({"ok": True, **total})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
 # API: ejecutar pipeline (SSE, log en vivo)
 # ─────────────────────────────────────────
 
