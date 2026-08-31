@@ -66,11 +66,24 @@ def _primer_arg(inp: dict) -> str:
     return ""
 
 
+def titulo(sesion: dict) -> str:
+    """El titulo legible de una sesion. Muchas sesiones de Code no traen
+    aiTitle; en ese caso, el primer prompt de la persona describe la sesion
+    mejor que su UUID. Ultimo recurso: una etiqueta generica."""
+    t = (sesion.get("title") or "").strip()
+    if t:
+        return t
+    for turno in sesion.get("turns", []):
+        if turno.get("role") == "user" and (turno.get("text") or "").strip():
+            primero = turno["text"].strip().splitlines()[0]
+            return primero[:70]
+    return "Sesión de agente"
+
+
 def nombres(sesion: dict) -> Dict[str, str]:
     """Los tres nombres de fichero (sin extension) de una sesion. Publico
     porque el que integre necesita saber como se llamaran para enlazar."""
-    base = "%s_%s" % (_fecha(sesion.get("create_time")),
-                      _slug(sesion.get("title") or sesion.get("session_id") or "sesion"))
+    base = "%s_%s" % (_fecha(sesion.get("create_time")), _slug(titulo(sesion)))
     return {
         "madre": base,
         "razonamientos": base + " · razonamientos",
@@ -104,16 +117,24 @@ def _fm(pares: List[tuple]) -> List[str]:
     return out
 
 
-def _nota_madre(sesion: dict, nom: Dict[str, str], nivel: int) -> str:
-    L = _fm([
+def _nota_madre(sesion: dict, nom: Dict[str, str], nivel: int,
+                extra_madre: Optional[Dict[str, Any]] = None) -> str:
+    # Nombres de campo del PIPELINE (title, date, provider), no propios, para
+    # que la madre sea ciudadana de primera en Conversaciones/: Cartografia y
+    # project_organizer leen esos campos. `extra_madre` lo rellena quien
+    # ingesta (Project_name, source, conv_id): ver session_ingest.py.
+    pares = [
         ("tipo", "sesion-agente"),
-        ("proveedor", sesion.get("provider")),
-        ("titulo", sesion.get("title")),
+        ("title", titulo(sesion)),
+        ("date", _fecha(sesion.get("create_time"))),
+        ("provider", sesion.get("provider")),
         ("proyecto", sesion.get("project")),
         ("rama", sesion.get("git_branch")),
-        ("fecha", _fecha(sesion.get("create_time"))),
-    ])
-    L += ["# %s" % (sesion.get("title") or "Sesión de agente"), "",
+    ]
+    for k, v in (extra_madre or {}).items():
+        pares.append((k, v))
+    L = _fm(pares)
+    L += ["# %s" % titulo(sesion), "",
           "> Sesión de %s. La conversación va aquí; los razonamientos y las "
           "herramientas están en sus notas hermanas, enlazados turno a turno."
           % (sesion.get("provider") or "agente"), ""]
@@ -141,7 +162,7 @@ def _nota_madre(sesion: dict, nom: Dict[str, str], nivel: int) -> str:
 
 def _nota_razonamientos(sesion: dict, nom: Dict[str, str]) -> str:
     L = _fm([("tipo", "razonamientos"), ("de", "[[%s]]" % nom["madre"])])
-    L += ["# Razonamientos — %s" % (sesion.get("title") or ""), "",
+    L += ["# Razonamientos — %s" % titulo(sesion), "",
           "> Los bloques de pensamiento, por turno. Se llega desde la nota "
           "madre. Solo están los turnos en que el pensamiento estaba visible.",
           ""]
@@ -159,7 +180,7 @@ def _nota_herramientas(sesion: dict, nom: Dict[str, str], nivel: int) -> str:
     etiqueta = {NIVEL_TRAZA: "una línea por llamada",
                 NIVEL_PLEGADO: "resultado plegado",
                 NIVEL_INTEGRO: "resultado íntegro"}.get(nivel, "")
-    L += ["# Herramientas — %s" % (sesion.get("title") or ""), "",
+    L += ["# Herramientas — %s" % titulo(sesion), "",
           "> Cada llamada con su resultado (%s). Se llega desde la nota madre."
           % etiqueta, ""]
     for n, t in _turnos_asistente(sesion):
@@ -181,24 +202,36 @@ def _nota_herramientas(sesion: dict, nom: Dict[str, str], nivel: int) -> str:
     return "\n".join(L).rstrip() + "\n"
 
 
-def generar_notas(sesion: dict, out_dir: Any, nivel: int = NIVEL_PLEGADO) -> Dict[str, Path]:
-    """Escribe las notas de una sesion en out_dir. Devuelve {rol: ruta} de lo
-    que se escribio (la madre siempre; las hijas si habia contenido)."""
+def generar_notas(sesion: dict, out_dir: Any, nivel: int = NIVEL_PLEGADO,
+                  hijas_dir: Any = None,
+                  extra_madre: Optional[Dict[str, Any]] = None) -> Dict[str, Path]:
+    """Escribe las notas de una sesion. Devuelve {rol: ruta} de lo escrito (la
+    madre siempre; las hijas si habia contenido).
+
+    - out_dir: donde va la MADRE.
+    - hijas_dir: donde van razonamientos y herramientas. Si es None, van a
+      out_dir (comodo para pruebas). En el vault real se separan: la madre a
+      Conversaciones/ y las hijas a un banco, para no contaminar el vocabulario
+      de Cartografia con `git`, rutas y comandos (ver CONTEXT 3y).
+    - extra_madre: frontmatter extra para la madre (Project_name, source...).
+    """
     if not sesion or not sesion.get("turns"):
         return {}
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    dir_hijas = Path(hijas_dir) if hijas_dir is not None else out
+    dir_hijas.mkdir(parents=True, exist_ok=True)
     nom = nombres(sesion)
     escritas: Dict[str, Path] = {}
 
-    def _escribe(rol: str, texto: str):
-        p = out / (nom[rol] + ".md")
+    def _escribe(carpeta: Path, rol: str, texto: str):
+        p = carpeta / (nom[rol] + ".md")
         p.write_text(texto, encoding="utf-8", newline="\n")
         escritas[rol] = p
 
-    _escribe("madre", _nota_madre(sesion, nom, nivel))
+    _escribe(out, "madre", _nota_madre(sesion, nom, nivel, extra_madre))
     if _hay(sesion, "thinking"):
-        _escribe("razonamientos", _nota_razonamientos(sesion, nom))
+        _escribe(dir_hijas, "razonamientos", _nota_razonamientos(sesion, nom))
     if _hay(sesion, "tools") and nivel > NIVEL_SILENCIO:
-        _escribe("herramientas", _nota_herramientas(sesion, nom, nivel))
+        _escribe(dir_hijas, "herramientas", _nota_herramientas(sesion, nom, nivel))
     return escritas
