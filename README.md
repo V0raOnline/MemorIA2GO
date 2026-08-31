@@ -90,6 +90,7 @@ This starts **outside** the tool, and it's the one thing it can't do for you. Yo
 | **Substack** | Dashboard → Settings → Import/Export |
 | **Substack**, stats *(optional)* | Dashboard → Stats → Posts → Show, **ticking every column**, then download the CSV |
 | **Suno · Flow Music** | There's no export: the library is downloaded from inside the tool through their API, with a token you copy from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
+| **Claude Code · Codex** *(sessions)* | Nothing to bring: your agent sessions already live on your disk (`~/.claude/projects`, `~/.codex/sessions`) and no account export includes them. They're ingested straight from the Reconnection tab |
 
 The ZIPs go in **exactly as they are, without unzipping**, into whatever folder you set as `exports_dir`. The Substack one goes into that same folder: the conversation pipeline recognizes it and turns it away, and Inkwell picks it up from there. One folder, two doors.
 
