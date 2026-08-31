@@ -9,6 +9,7 @@ from io import BytesIO
 import pytest
 
 import launcher
+from pendientes import ref_pendiente
 
 
 def _make_config(tmp_path, base_vault):
@@ -72,13 +73,23 @@ def test_registrar_grok_conserva_la_entrada_para_sobrevivir_al_reproceso(client,
 
     guardado = json.loads(path.read_text(encoding="utf-8"))
     assert len(guardado) == 2, "la entrada no debe borrarse: el reproceso la re-anadiria"
-    rescatada = next(p for p in guardado if p["id"] == "abc123")
+    # Se busca por `ref`, no por `id`: al quedar triada pierde la credencial
+    # (ver pendientes.py). En Grok el `id` ES la credencial -- basta para
+    # construir la ruta al fichero -- asi que tambien se va.
+    rescatada = next(p for p in guardado if p["ref"] == ref_pendiente("abc123"))
     assert rescatada["estado"] == "rescatada"
     assert rescatada["fichero"] == body["fname"]
+    assert "id" not in rescatada and "link" not in rescatada, \
+        "una entrada triada no puede seguir guardando con que abrirse"
 
-    # Simula el merge del pipeline: los ids ya presentes no se re-anaden.
-    vistos = {p.get("id") for p in guardado}
-    assert "abc123" in vistos
+    # La que sigue sin triar SI conserva su id: tiene que ser pulsable.
+    sin_triar = next(p for p in guardado if p.get("id") == "def456")
+    assert sin_triar["ref"] == ref_pendiente("def456")
+
+    # Simula el merge del pipeline: lo ya presente no se re-anade, y ahora la
+    # identidad con la que se reconoce es el hash, no la credencial.
+    vistos = {p.get("ref") for p in guardado}
+    assert ref_pendiente("abc123") in vistos
 
     # Y la lista de trabajo ya no la ofrece.
     datos = client.get("/api/pendientes").get_json()
@@ -188,9 +199,17 @@ def test_descartar_marca_estado_y_lo_saca_de_la_lista(client, tmp_path):
                        json={"url": "https://a.es/1.jpg"}).get_json()
     assert body["ok"] is True and body["restantes"] == 1
 
-    guardado = {e["url"]: e["estado"] for e in _leer(path)}
-    assert guardado["https://a.es/1.jpg"] == "descartada"
-    assert guardado["https://b.es/2.jpg"] == "sin_triar"
+    # Indexado por `ref`: la descartada ya no guarda su URL.
+    guardado = {e["ref"]: e for e in _leer(path)}
+    descartada = guardado[ref_pendiente("https://a.es/1.jpg")]
+    assert descartada["estado"] == "descartada"
+    assert "url" not in descartada, \
+        "descartar tambien tiene que quitar el enlace: es una llave viva"
+
+    # La que sigue sin triar conserva su URL, que es lo que la hace pulsable.
+    intacta = guardado[ref_pendiente("https://b.es/2.jpg")]
+    assert intacta["estado"] == "sin_triar"
+    assert intacta["url"] == "https://b.es/2.jpg"
 
     datos = client.get("/api/pendientes").get_json()
     assert [p["url"] for p in datos["chatgpt"]] == ["https://b.es/2.jpg"]

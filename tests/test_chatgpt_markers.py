@@ -9,6 +9,7 @@ contra los exports de V0ra, incluyendo la deriva de formato entre exports
 (el nuevo no trae `matched_text` ni `start_idx`/`end_idx`).
 """
 import chatgpt_markers as cm
+from pendientes import ref_pendiente as _ref
 
 A = cm.MARK_OPEN
 S = cm.MARK_SEP
@@ -154,9 +155,12 @@ def test_image_group_sin_triar_avisa_y_registra_pendientes():
 
 def test_image_group_rescatada_se_pinta_como_imagen_real():
     texto = marcador(f'image_group{S}{{"query":["x"]}}')
+    # El mapa de estado va indexado por `ref`, no por URL (ver pendientes.py):
+    # una entrada ya triada no guarda su URL, asi que la clave no puede ser
+    # ella. El renderizador hashea al vuelo la URL que le trae el export.
     estado = {
-        "https://a.es/1.jpg": {"estado": "rescatada", "fichero": "abc123.jpg"},
-        "https://b.es/2.jpg": {"estado": "rescatada", "fichero": "def456.jpg"},
+        _ref("https://a.es/1.jpg"): {"estado": "rescatada", "fichero": "abc123.jpg"},
+        _ref("https://b.es/2.jpg"): {"estado": "rescatada", "fichero": "def456.jpg"},
     }
     out = cm.resolve_markers(texto, _refs_imagen(), estado_imagenes=estado)
     assert "![](CHATGPT/WEB/abc123.jpg)" in out
@@ -167,7 +171,7 @@ def test_image_group_rescatada_se_pinta_como_imagen_real():
 def test_image_group_descartada_deja_marca_discreta():
     """Decision V0ra: marca discreta, ni borrado silencioso ni ruido."""
     texto = marcador(f'image_group{S}{{"query":["auriculares"]}}')
-    estado = {u: {"estado": "descartada"} for u in
+    estado = {_ref(u): {"estado": "descartada"} for u in
               ("https://a.es/1.jpg", "https://b.es/2.jpg")}
     out = cm.resolve_markers(texto, _refs_imagen(), estado_imagenes=estado)
     assert out.strip() == "*[busqueda de imagenes descartada]*"
@@ -176,7 +180,7 @@ def test_image_group_descartada_deja_marca_discreta():
 def test_image_group_no_registra_pendiente_lo_ya_triado():
     """El triaje sobrevive a un reproceso: lo descartado no vuelve a la lista."""
     texto = marcador(f'image_group{S}{{"query":["x"]}}')
-    estado = {"https://a.es/1.jpg": {"estado": "descartada"}}
+    estado = {_ref("https://a.es/1.jpg"): {"estado": "descartada"}}
     pend = []
     cm.resolve_markers(texto, _refs_imagen(), pendientes_out=pend, estado_imagenes=estado)
     assert [p["url"] for p in pend] == ["https://b.es/2.jpg"]

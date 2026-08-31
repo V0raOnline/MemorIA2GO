@@ -687,9 +687,15 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
 
 
 def _cargar_estado_pendientes(path: Optional[str]) -> Dict[str, dict]:
-    """Lee el triaje ya hecho por V0ra, indexado por URL. Tolerante: si el
-    fichero no existe todavia o esta corrupto, se empieza de cero (perder
-    el triaje es molesto, pero abortar la importacion es peor)."""
+    """Lee el triaje ya hecho por V0ra, indexado por `ref` (ver pendientes.py).
+
+    Antes se indexaba por URL, y por eso la URL no se podia tirar nunca: era la
+    clave con la que el paso 1 reconocia una imagen ya triada. Ahora la clave es
+    el hash, que el renderizador calcula de la URL que trae el export -- la URL
+    sigue estando disponible donde hace falta, solo deja de guardarse.
+
+    Tolerante: si el fichero no existe todavia o esta corrupto, se empieza de
+    cero (perder el triaje es molesto, pero abortar la importacion es peor)."""
     if not path or not os.path.exists(path):
         return {}
     try:
@@ -697,8 +703,23 @@ def _cargar_estado_pendientes(path: Optional[str]) -> Dict[str, dict]:
             datos = json.load(f)
     except Exception:
         return {}
-    return {d["url"]: d for d in datos
-            if isinstance(d, dict) and d.get("url")}
+    indexado = {}
+    for d in datos:
+        if not isinstance(d, dict):
+            continue
+        r = ref_de_entrada(d, "chatgpt")
+        if r:
+            indexado[r] = d
+    return indexado
+
+
+# Identidad de un pendiente separada de su llave: ver pendientes.py, que
+# explica por que y cual es la regla. Modulo aparte porque lo comparten
+# este fichero, launcher, chatgpt_markers y rescue_pending.
+from pendientes import (  # noqa: E402
+    ref_pendiente, ref_de_entrada, olvidar_credencial, sanear,
+    esta_sin_triar,
+)
 
 
 def _guardar_pendientes(path: str, vistas: List[dict], previos: Dict[str, dict]) -> int:
@@ -707,16 +728,20 @@ def _guardar_pendientes(path: str, vistas: List[dict], previos: Dict[str, dict])
     triaje anterior ni las entradas de exports que ya no se reprocesan.
     Cuenta en cuantas notas distintas aparece cada imagen -- ese numero es
     lo que ayuda a decidir si una imagen sostenia un argumento o es ruido."""
+    # Fusion por `ref`, no por URL (ver pendientes.py): asi una entrada ya
+    # triada se reconoce sin necesidad de que siga guardando su enlace.
     fusionado: Dict[str, dict] = {}
-    for url, entrada in previos.items():
-        fusionado[url] = dict(entrada)
+    for ref, entrada in previos.items():
+        fusionado[ref] = dict(entrada)
 
     for v in vistas:
         url = v.get("url")
         if not url:
             continue
-        actual = fusionado.setdefault(url, {
-            "url": url, "estado": "sin_triar", "queries": [], "conversaciones": [],
+        ref = ref_pendiente(url)
+        actual = fusionado.setdefault(ref, {
+            "ref": ref, "url": url, "estado": "sin_triar",
+            "queries": [], "conversaciones": [],
         })
         for q in (v.get("queries") or []):
             if q and q not in actual.setdefault("queries", []):
@@ -725,7 +750,9 @@ def _guardar_pendientes(path: str, vistas: List[dict], previos: Dict[str, dict])
         if conv and conv not in actual.setdefault("conversaciones", []):
             actual["conversaciones"].append(conv)
 
-    salida = sorted(fusionado.values(), key=lambda d: (d.get("estado") or "", d.get("url") or ""))
+    sanear(list(fusionado.values()), "chatgpt")
+    salida = sorted(fusionado.values(),
+                    key=lambda d: (d.get("estado") or "", d.get("ref") or ""))
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(salida, f, ensure_ascii=False, indent=2)
@@ -1196,11 +1223,22 @@ def main():
                             existentes = json.load(f)
                     except Exception:
                         existentes = []
-                vistos = {p.get("id") for p in existentes}
+                # Sanear ANTES de fundir: asegura `ref` en lo ya guardado y
+                # limpia la credencial de lo ya triado. Es la migracion, y va
+                # aqui porque este es el sitio por el que pasa toda escritura
+                # del fichero -- un vault viejo queda limpio en el primer
+                # reproceso sin que nadie lance nada a mano.
+                limpiadas = sanear(existentes, "grok")
+                vistos = {p["ref"] for p in existentes if p.get("ref")}
                 for p in pendientes:
-                    if p.get("id") not in vistos:
+                    r = ref_pendiente(p.get("id"))
+                    if r not in vistos:
+                        p["ref"] = r
                         existentes.append(p)
-                        vistos.add(p.get("id"))
+                        vistos.add(r)
+                if limpiadas:
+                    print(f"  [pendientes] {limpiadas} entradas ya triadas: "
+                          f"enlace de descarga retirado, se conserva su ref")
                 os.makedirs(os.path.dirname(pend_path) or ".", exist_ok=True)
                 with open(pend_path, "w", encoding="utf-8") as f:
                     json.dump(existentes, f, ensure_ascii=False, indent=2)
@@ -1209,7 +1247,9 @@ def main():
     if args.chatgpt_pendientes_out and (markers_ctx.pendientes or markers_ctx.estado):
         total = _guardar_pendientes(args.chatgpt_pendientes_out,
                                      markers_ctx.pendientes, markers_ctx.estado)
-        nuevas = len({p.get("url") for p in markers_ctx.pendientes} - set(markers_ctx.estado))
+        # `estado` esta indexado por ref, asi que la resta tiene que serlo tambien.
+        nuevas = len({ref_pendiente(p.get("url")) for p in markers_ctx.pendientes}
+                     - set(markers_ctx.estado))
         print(f"Imagenes de busqueda web: {total} en la lista ({nuevas} nuevas) "
               f"-> {args.chatgpt_pendientes_out}")
 
