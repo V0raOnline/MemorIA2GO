@@ -84,14 +84,14 @@ Esto empieza **fuera** de la herramienta, y es lo único que no puede hacer por 
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **ChatGPT**                             | Configuración → Controles de datos → Exportar datos. Llega un ZIP por email                                                                                             |
 | **Claude**                              | Configuración → Privacidad → Exportar datos. Llega por email, a veces en varios ZIP                                                                                     |
-| **Grok**                                | Configuración → Datos → Descarga tus datos                                                                                                                              |
+| **Grok**                                | Configuración → Datos → Descarga tus datos. El export incluye conversaciones y una parte de tus generaciones de Imagine; algunas llegan solo como enlace y M3M0R·IA las descarga aparte con la herramienta de pendientes (pestaña Reconexión) |
 | **Substack**                            | Panel de control → Configuración → Importar/exportar                                                                                                                    |
 | **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV                                                          |
 | **Suno · Flow Music**                   | No hay export: la biblioteca se descarga desde la herramienta a través de su API con un token que copias del navegador — ver **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** |
 
 Los ZIP se sueltan **tal cual, sin descomprimir**, en la carpeta que configures como `exports_dir`. El de Substack va a esa misma carpeta: el pipeline de conversaciones lo reconoce y lo rechaza, y Tintero lo recoge de ahí. Una carpeta, dos puertas.
 
-**No borres los zip**, siempre estamos buscando como extraer más información de ellos y si los conservas podrás reprocesarlos para ampliar tu m3m0rIA.
+**No borres los zip.** Son la fuente original y la única copia completa de lo que te dio cada plataforma: siempre estamos buscando cómo extraer más información de ellos, así que conservarlos te deja reprocesarlos para ampliar tu m3m0rIA a medida que la herramienta aprende a leer más. Y si actualizas M3M0R·IA, tener los zip te permite reconstruir el vault desde cero con la versión nueva, sin depender de lo que quedó escrito con la vieja.
 
 El CSV de estadísticas es opcional, pero es la única fuente en la que están la **sección** y las **etiquetas** de cada post — sin él Tintero construye el vault funcional, solo que sin taxonomía. **Hay que marcar todas las columnas al pedirlo:** si se descarga solo con las de por defecto, esos dos campos no viajan.
 
@@ -219,6 +219,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 
 ## Roadmap
 
+- **Biblioteca de Imagine (Grok) como herramienta hermana**, al estilo de MUSIC·0LOGY: traer las generaciones que el export no incluye, directamente desde tu biblioteca, con el linaje entre una imagen y sus ediciones resuelto como enlaces. Ya funciona para uso propio; pendiente de integrar en la interfaz.
 - Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
 - Extracción de assets para los adjuntos `.dat` del export fragmentado de ChatGPT 2026+ (un formato binario distinto al ya soportado)
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
