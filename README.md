@@ -86,14 +86,14 @@ This starts **outside** the tool, and it's the one thing it can't do for you. Yo
 |---|---|
 | **ChatGPT** | Settings → Data controls → Export data. A ZIP arrives by email |
 | **Claude** | Settings → Privacy → Export data. Arrives by email, sometimes as several ZIPs |
-| **Grok** | Settings → Data → Download your data |
+| **Grok** | Settings → Data → Download your data. The export includes conversations and part of your Imagine generations; some arrive only as a link and M3M0R·IA downloads them separately with the pending-downloads tool (Reconnection tab) |
 | **Substack** | Dashboard → Settings → Import/Export |
 | **Substack**, stats *(optional)* | Dashboard → Stats → Posts → Show, **ticking every column**, then download the CSV |
 | **Suno · Flow Music** | There's no export: the library is downloaded from inside the tool through their API, with a token you copy from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
 
 The ZIPs go in **exactly as they are, without unzipping**, into whatever folder you set as `exports_dir`. The Substack one goes into that same folder: the conversation pipeline recognizes it and turns it away, and Inkwell picks it up from there. One folder, two doors.
 
-**Don't delete the zips** — we're always finding new things to pull out of them, and if you keep them you'll be able to reprocess and grow your m3m0rIA later.
+**Don't delete the zips.** They're the original source and the only complete copy of what each platform gave you: we're always finding new ways to pull more out of them, so keeping them lets you reprocess and grow your m3m0rIA as the tool learns to read more. And if you update M3M0R·IA, having the zips lets you rebuild the vault from scratch with the new version, without depending on what got written with the old one.
 
 The stats CSV is optional, but it's the only source carrying each post's **section** and **tags** — without it Inkwell still builds a working vault, just with no taxonomy. **You have to tick every column when you request it:** downloaded with the defaults, those two fields don't travel.
 
@@ -221,6 +221,7 @@ Each document answers **one** question. If you're looking for something that isn
 
 ## Roadmap
 
+- **Imagine (Grok) library as a sibling tool**, in the style of MUSIC·0LOGY: bringing in the generations the export leaves out, straight from your library, with the lineage between an image and its edits resolved as links. Already works for personal use; pending UI integration.
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
