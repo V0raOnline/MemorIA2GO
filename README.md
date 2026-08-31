@@ -88,6 +88,7 @@ Esto empieza **fuera** de la herramienta, y es lo único que no puede hacer por 
 | **Substack**                            | Panel de control → Configuración → Importar/exportar                                                                                                                    |
 | **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV                                                          |
 | **Suno · Flow Music**                   | No hay export: la biblioteca se descarga desde la herramienta a través de su API con un token que copias del navegador — ver **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** |
+| **Claude Code · Codex** *(sesiones)*    | No hay que traer nada: las sesiones de agente ya viven en tu disco (`~/.claude/projects`, `~/.codex/sessions`) y ningún export de cuenta las incluye. Se ingieren directamente desde la pestaña Reconexión |
 
 Los ZIP se sueltan **tal cual, sin descomprimir**, en la carpeta que configures como `exports_dir`. El de Substack va a esa misma carpeta: el pipeline de conversaciones lo reconoce y lo rechaza, y Tintero lo recoge de ahí. Una carpeta, dos puertas.
 
