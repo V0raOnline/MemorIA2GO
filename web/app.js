@@ -823,7 +823,7 @@ function pintarFilas(det) {
     btn.addEventListener("click", () => registrarPendiente(btn, proveedor));
   });
   cuerpo.querySelectorAll("[data-pendiente-descartar]").forEach(btn => {
-    btn.addEventListener("click", () => descartarPendiente(btn));
+    btn.addEventListener("click", () => descartarPendiente(btn, proveedor));
   });
 }
 
@@ -846,7 +846,7 @@ function filaGrok(p) {
         <div class="meta"><a href="${escapeHtml(p.link || "#")}" target="_blank" rel="noopener">Ver en grok.com</a></div>
         <div class="msg" data-pendiente-msg></div>
       </div>
-      ${acciones()}
+      ${acciones(`<button class="btn secondary" data-pendiente-descartar>Descartar</button>`)}
     </div>`;
 }
 
@@ -919,17 +919,22 @@ async function registrarPendiente(btn, proveedor) {
   }
 }
 
-async function descartarPendiente(btn) {
+async function descartarPendiente(btn, proveedor) {
   const row = btn.closest(".gizmo-row");
   const msg = row.querySelector("[data-pendiente-msg]");
   btn.disabled = true;
   msg.textContent = "Descartando...";
   msg.className = "msg";
   try {
+    // La clave del pendiente depende del proveedor: `url` en ChatGPT, `id` en
+    // Grok (ver get_pendientes/descartar_pendiente en launcher.py).
+    const cuerpo = { proveedor: proveedor || "chatgpt" };
+    if (proveedor === "grok") cuerpo.id = row.dataset.pendienteId;
+    else cuerpo.url = row.dataset.pendienteUrl;
     const res = await fetch("/api/pendientes/descartar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: row.dataset.pendienteUrl }),
+      body: JSON.stringify(cuerpo),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
