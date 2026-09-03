@@ -22,7 +22,7 @@ Endpoints:
   GET  /api/run?from_merge=1  -> SSE, salta el paso 1 (usado tras /api/gizmos)
   GET  /api/pendientes         -> pendientes de descarga por proveedor (Reconexión)
   POST /api/pendientes/registrar -> da de alta un pendiente descargado a mano (upload)
-  POST /api/pendientes/descartar -> marca una imagen web como irrelevante
+  POST /api/pendientes/descartar -> marca un pendiente (web o generación) como descartado
   POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
   GET  /api/layout             -> ¿el vault usa el layout español? (pinta la card o no)
   POST /api/layout/migrate     -> renombra el layout al inglés y reengancha enlaces
@@ -938,19 +938,25 @@ def get_pendientes():
 
 @app.route("/api/pendientes/descartar", methods=["POST"])
 def descartar_pendiente():
-    """Marca una imagen de busqueda web como irrelevante. El descarte se
-    guarda en el JSON (no en la nota) para que sobreviva a los reprocesos:
-    la nota se regenera y el paso 1 vuelve a leer este estado para dejar
-    la marca discreta en su sitio.
+    """Marca un pendiente como irrelevante SIN borrarlo. El descarte se guarda
+    como `estado` en el JSON (no en la nota) para que sobreviva a los
+    reprocesos: la nota se regenera y el paso 1 vuelve a leer este estado para
+    dejar la marca discreta en su sitio.
 
-    Solo ChatGPT: los pendientes de Grok son generaciones propias de V0ra,
-    no resultados de busqueda ajenos, y el descarte se diseño para el ruido
-    de estos ultimos."""
+    Vale para los dos proveedores, con el mismo modelo de estados desde b8a9c82
+    (la entrada se CONSERVA marcada, nunca se borra), pero por motivos
+    distintos: en ChatGPT descarta ruido de busqueda ajeno; en Grok,
+    generaciones propias de V0ra que ya no quiere ver en la lista. La credencial
+    llega por `url` (ChatGPT) o `id` (Grok) segun cual sea la clave del
+    proveedor -- ver get_pendientes()."""
     try:
         datos_req = request.get_json(force=True, silent=True) or {}
-        url = (datos_req.get("url") or "").strip()
-        if not url:
-            return jsonify({"error": "missing url"}), 400
+        proveedor = (datos_req.get("proveedor") or "chatgpt").strip().lower()
+        if proveedor not in ("chatgpt", "grok"):
+            return jsonify({"error": "unknown provider"}), 400
+        credencial = (datos_req.get("url") or datos_req.get("id") or "").strip()
+        if not credencial:
+            return jsonify({"error": "missing credential"}), 400
 
         from config_loader import load_config, get_path
         cfg = load_config(str(CONFIG_PATH))
@@ -958,13 +964,13 @@ def descartar_pendiente():
         if not base_vault:
             return jsonify({"error": "base_vault is not configured"}), 400
 
-        pendientes = _leer_pendientes(base_vault, "chatgpt")
-        entrada = _buscar_pendiente(pendientes, "chatgpt", url)
+        pendientes = _leer_pendientes(base_vault, proveedor)
+        entrada = _buscar_pendiente(pendientes, proveedor, credencial)
         if entrada is None:
-            return jsonify({"error": "that image is no longer in the list"}), 404
+            return jsonify({"error": "that pending item is no longer in the list"}), 404
 
         entrada["estado"] = "descartada"
-        _escribir_pendientes(base_vault, "chatgpt", pendientes)
+        _escribir_pendientes(base_vault, proveedor, pendientes)
         restantes = sum(1 for p in pendientes
                         if (p.get("estado") or "sin_triar") == "sin_triar")
         return jsonify({"ok": True, "restantes": restantes})

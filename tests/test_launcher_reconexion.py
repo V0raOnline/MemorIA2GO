@@ -226,6 +226,46 @@ def test_descartar_sin_url_da_error(client, tmp_path):
     assert client.post("/api/pendientes/descartar", json={}).status_code == 400
 
 
+def test_descartar_grok_marca_estado_conservando_la_entrada(client, tmp_path):
+    """Punto 8 del backlog: Grok tambien descarta. La clave es `id` (no `url`
+    como ChatGPT), la entrada se CONSERVA marcada -- si no, el reproceso la
+    re-anadiria -- y al quedar triada suelta su credencial (`id`/`link`)
+    igual que al rescatarla: en Grok el `id` ES la llave."""
+    grok_dir = tmp_path / "vault" / "GROK"
+    grok_dir.mkdir(parents=True)
+    path = grok_dir / "_pendientes_descarga.json"
+    path.write_text(json.dumps([
+        {"id": "g1", "prompt": "x", "link": "https://grok.com/g1", "media_type": "image"},
+        {"id": "g2", "prompt": "y", "link": "https://grok.com/g2", "media_type": "image"},
+    ]), encoding="utf-8")
+
+    body = client.post("/api/pendientes/descartar",
+                       json={"proveedor": "grok", "id": "g1"}).get_json()
+    assert body["ok"] is True and body["restantes"] == 1
+
+    guardado = {e["ref"]: e for e in _leer(path)}
+    assert len(guardado) == 2, "la entrada no debe borrarse: el reproceso la re-anadiria"
+    descartada = guardado[ref_pendiente("g1")]
+    assert descartada["estado"] == "descartada"
+    assert "id" not in descartada and "link" not in descartada, \
+        "en Grok el id ES la credencial: descartar tiene que soltarla"
+
+    # La que sigue sin triar conserva su id, que es lo que la hace pulsable.
+    intacta = guardado[ref_pendiente("g2")]
+    assert intacta.get("estado", "sin_triar") == "sin_triar"
+    assert intacta["id"] == "g2"
+
+    datos = client.get("/api/pendientes").get_json()
+    assert [p["id"] for p in datos["grok"]] == ["g2"]
+
+
+def test_descartar_proveedor_desconocido_da_error(client, tmp_path):
+    _pendientes_chatgpt(tmp_path, [])
+    res = client.post("/api/pendientes/descartar",
+                      json={"proveedor": "midjourney", "id": "x"})
+    assert res.status_code == 400
+
+
 def test_registrar_imagen_web_inexistente_da_error(client, tmp_path):
     _pendientes_chatgpt(tmp_path, [])
     data = {"proveedor": "chatgpt", "url": "https://no.es/x.jpg",
