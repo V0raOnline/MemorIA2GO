@@ -149,6 +149,30 @@ def peek_conv_id(path: str) -> str:
     return ""
 
 
+DATE_HDR_RX = re.compile(r'^date:\s*"?(\d{4}-\d{2}-\d{2})')
+
+
+def peek_date(path: str) -> str:
+    """Fecha (AAAA-MM-DD) de la cabecera, barato (mismo criterio que
+    peek_conv_id). La fecha no varia entre variantes de una misma conversacion,
+    asi que sirve para calcular el destino de salida en la deteccion de
+    colisiones sin re-parsear la nota entera."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            head = [next(f, "") for _ in range(15)]
+    except OSError:
+        return ""
+    if not head or head[0].strip() != "---":
+        return ""
+    for line in head[1:]:
+        if line.strip() == "---":
+            break
+        m = DATE_HDR_RX.match(line.strip())
+        if m:
+            return m.group(1)
+    return ""
+
+
 def main():
     ap = argparse.ArgumentParser(description="Fusiona variantes de un vault RAW en un vault MERGED sin perder mensajes.")
     ap.add_argument("raw_dir")
@@ -174,6 +198,31 @@ def main():
         # fallback para notas anteriores a la migracion.
         key = f"id:{cid}" if cid else base_name(os.path.basename(path))
         groups.setdefault(key, []).append(path)
+
+    # --- Pre-pass 1b: detectar colisiones de nombre de salida ---
+    # El grupo se identifica por conv_id (la identidad real), pero el nombre de
+    # salida sale de base_name+fecha, que NO deriva de esa identidad. Dos
+    # conversaciones DISTINTAS con el mismo titulo y mes producen el mismo
+    # fichero y la segunda pisa a la primera (bug 1b: 15 conversaciones reales
+    # no llegaban a MERGED). Aqui se marca que destinos reclama mas de un grupo,
+    # para desambiguarlos abajo con un fragmento derivado de la identidad.
+    destino_de_grupo = {}
+    for key, paths in groups.items():
+        reciente = max(paths, key=os.path.getmtime)
+        b = base_name(os.path.basename(reciente))
+        date = peek_date(reciente)
+        y, m = (date[:4], date[5:7]) if re.match(r"\d{4}-\d{2}-\d{2}", date) else ("0000", "00")
+        partes = []
+        if args.by_year:
+            partes.append(y)
+        if args.by_month:
+            partes.append(m if args.by_year else f"{y}-{m}")
+        partes.append(b)
+        destino_de_grupo[key] = "/".join(partes)
+    _conteo = {}
+    for d in destino_de_grupo.values():
+        _conteo[d] = _conteo.get(d, 0) + 1
+    destinos_en_colision = {d for d, n in _conteo.items() if n > 1}
 
     out_conv = os.path.join(args.merged_dir, "Conversations")
     os.makedirs(out_conv, exist_ok=True)
@@ -262,6 +311,15 @@ def main():
             out_dir = os.path.join(out_dir, y)
         if args.by_month:
             out_dir = os.path.join(out_dir, m if args.by_year else f"{y}-{m}")
+
+        # Desambiguacion 1b: si mas de un grupo (conversaciones distintas)
+        # reclama este destino, la identidad no llegaba al nombre y una pisaba
+        # a la otra. Se anade un fragmento corto y estable derivado de la
+        # identidad del grupo (sha1 de la key = conv_id) a TODAS las que chocan,
+        # asi el nombre es unico y reproducible entre reprocesos.
+        if destino_de_grupo.get(key) in destinos_en_colision:
+            frag = hashlib.sha1(key.encode("utf-8")).hexdigest()[:6]
+            base = f"{base} · {frag}"
 
         dst = os.path.join(out_dir, base + ".md")
         write_note(dst, front, final_messages)
