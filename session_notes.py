@@ -165,7 +165,7 @@ def _nota_madre(sesion: dict, nom: Dict[str, str], nivel: int,
             anclas.append("[[%s#^t%d|%d tool(s)]]"
                           % (nom["herramientas"], an, len(t["tools"])))
         if anclas:
-            L += ["", "`↳ " + "  ·  ".join(anclas) + "`"]
+            L += ["", "↳ " + "  ·  ".join(anclas)]
         L.append("")
     return "\n".join(L).rstrip() + "\n"
 
