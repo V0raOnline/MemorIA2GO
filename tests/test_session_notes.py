@@ -91,6 +91,27 @@ def test_numeracion_consistente_en_las_tres_notas(tmp_path):
         assert ("## Turno %d ^t%d" % (n, n)) in tools
 
 
+def test_pie_de_turno_no_va_envuelto_en_backticks(tmp_path):
+    """Regresion: el pie `↳ [[...pensó]] · [[...herramienta(s)]]` estuvo un
+    tiempo envuelto en backticks, lo que hacia que Obsidian lo tratara como
+    codigo inline y no resolviera los wiki links. Los enlaces tienen que
+    quedar sueltos para que el clic navegue."""
+    ses = _sesion([_user(), _asis(thinking=["p"], tools=[_tool()])])
+    esc = sn.generar_notas(ses, tmp_path, nivel=2)
+    madre = esc["madre"].read_text(encoding="utf-8")
+    for linea in madre.splitlines():
+        if "↳" in linea:
+            assert not linea.startswith("`"), (
+                "el pie con enlaces a las hijas no puede empezar por backtick "
+                "-- rompe la resolucion del wiki link en Obsidian")
+            assert not linea.endswith("`"), (
+                "el pie con enlaces a las hijas no puede acabar en backtick "
+                "-- rompe la resolucion del wiki link en Obsidian")
+            break
+    else:
+        raise AssertionError("no aparece el pie con ↳ en la madre")
+
+
 def test_verbosidad_0_no_escribe_herramientas(tmp_path):
     ses = _sesion([_user(), _asis(tools=[_tool()])])
     esc = sn.generar_notas(ses, tmp_path, nivel=0)
