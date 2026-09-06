@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<!--
+  M3M0R·IA (MemorIA2GO)  ·  https://v0raonline.github.io/MemorIA2GO/
+  Copyright (c) 2024-2026 V0ra (v0raonline)
+  Licencia CC BY-NC-SA 4.0 — sin fines comerciales.
+
+  El texto sale del articulo de V0ra en LinkedIn -"M3M0R·IA: mucho mas que un
+  extractor de conversaciones"- y del README. Son sus palabras publicadas.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="V0ra (v0raonline)">
+<meta name="copyright" content="CC BY-NC-SA 4.0">
+<link rel="license" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+<link rel="canonical" href="https://v0raonline.github.io/MemorIA2GO/">
+<title>M3M0R·IA — Tus conversaciones de ChatGPT, Claude y Grok en un vault local</title>
+<meta name="description" content="Convierte los exports oficiales de ChatGPT, Claude y Grok en un vault de Obsidian completamente local, organizado y navegable. Tambien tu Substack, tu musica y las sesiones de Claude Code y Codex, que no tienen export. Sin cuenta y sin nube.">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="M3M0R·IA">
+<meta property="og:locale" content="es_ES">
+<meta property="og:url" content="https://v0raonline.github.io/MemorIA2GO/">
+<meta property="og:title" content="M3M0R·IA — Mucho más que un extractor de conversaciones">
+<meta property="og:description" content="Vivimos confiando nuestra memoria digital a plataformas que no controlamos. M3M0R·IA la trae de vuelta: a tu disco, en Markdown, tuya.">
+<meta property="og:image" content="https://v0raonline.github.io/MemorIA2GO/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="El cerebrito de M3M0R·IA, un cerebro rosa en pixel art con destellos cian, junto al nombre de la aplicación">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%230b0d10'/%3E%3Ctext%20x='16'%20y='23'%20font-family='monospace'%20font-size='19'%20font-weight='700'%20fill='%23ff2d95'%20text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+
+<style>
+  /* Mismos tokens que el catalogo de v0raonline.github.io, a proposito: esto
+     tiene que verse como parte de la misma casa, no como una pagina suelta.
+     Magenta = identidad, manda. Cian = navegacion, solo enlaces. */
+  :root{
+    --bg:#0b0d10; --panel:#121519; --panel-hi:#181c22; --line:#242a32;
+    --fg:#e8eaed; --muted:#8f959e;
+    --accent:#ff2d95; --accent-dim:#a3175f;
+    --link:#22d3ee;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  /* Sin fuentes web: cero dependencias de red, carga instantanea. */
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 22px 64px}
+  a{color:var(--link)}
+  a:hover{text-decoration:none}
+  /* Ver donde esta el teclado es parte de poder usarlo. */
+  a:focus-visible{outline:2px solid var(--link);outline-offset:3px;border-radius:3px}
+
+  .volver{font-family:var(--mono);font-size:.8rem;color:var(--muted);text-decoration:none;display:inline-block;margin-bottom:38px}
+  .volver:hover{color:var(--fg)}
+
+  .cabecera{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  /* El cerebrito es pixel art: 200px de origen mostrados a 100 -la mitad
+     justa- para que cada pixel caiga en dos enteros, y `pixelated` para que
+     el navegador no lo suavice. Cualquier otro tamano lo emborrona.
+     El drop-shadow sigue el alfa del dibujo: su contorno es negro grueso y
+     sobre este fondo casi negro se perderia sin un resplandor detras. */
+  .cerebrito{
+    width:100px;height:100px;flex:none;
+    image-rendering:pixelated;
+    filter:drop-shadow(0 0 12px rgba(255,45,149,.5));
+  }
+  h1{font-family:var(--mono);font-size:clamp(2rem,6vw,2.9rem);font-weight:700;letter-spacing:-.02em;margin:0}
+  .claim{font-family:var(--mono);font-size:.86rem;color:var(--accent);margin:8px 0 0;letter-spacing:.02em}
+
+  .cita{border-left:2px solid var(--accent-dim);padding:2px 0 2px 18px;margin:30px 0 0;font-size:1.02rem}
+  .lead{font-size:1.08rem;margin:24px 0 0}
+  .lead b{color:var(--fg)}
+
+  .acciones{display:flex;flex-wrap:wrap;gap:12px;margin:30px 0 0}
+  .btn{
+    font-family:var(--mono);font-size:.84rem;text-decoration:none;
+    padding:11px 18px;border-radius:999px;border:1px solid var(--line);
+    color:var(--fg);background:var(--panel);
+    display:inline-flex;align-items:center;gap:8px;min-height:44px;
+    /* Sin esto, en estrecho el texto se parte y la pildora queda de tres
+       pisos. Caben todos a 375px, y .acciones ya envuelve por su cuenta. */
+    white-space:nowrap;
+  }
+  .btn:hover{background:var(--panel-hi);border-color:var(--accent-dim)}
+  .btn.principal{border-color:var(--accent-dim);color:var(--accent);background:rgba(255,45,149,.08)}
+  .btn.principal:hover{background:rgba(255,45,149,.16);border-color:var(--accent)}
+  .peso{color:var(--muted);font-size:.78rem}
+
+  h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:54px 0 16px;font-weight:400}
+
+  table{width:100%;border-collapse:collapse;font-size:.94rem}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:400}
+  td b{color:var(--accent)}
+  .tabla-scroll{overflow-x:auto}
+
+  .modulos{margin:0;padding:0;list-style:none;display:grid;gap:1px;background:var(--line);border:1px solid var(--line)}
+  .modulo{background:var(--panel);padding:14px 18px}
+  /* Captura real de la aplicacion. NO lleva `pixelated`: es una captura
+     normal, no pixel art, y ahi el suavizado es lo correcto. */
+  figure{margin:0 0 22px}
+  figure img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:12px}
+  figcaption{color:var(--muted);font-size:.88rem;margin-top:10px}
+  .modulo b{font-family:var(--mono);font-size:.82rem;color:var(--accent);letter-spacing:.06em}
+  .modulo span{display:block;color:var(--muted);font-size:.94rem;margin-top:3px}
+
+  .pacto{background:var(--panel);border:1px solid var(--accent-dim);border-radius:12px;padding:20px 22px;margin:0}
+  .pacto p{margin:0}
+  .pacto p+p{margin-top:10px;color:var(--muted);font-size:.94rem}
+
+  ul.claves{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  ul.claves li{padding-left:22px;position:relative;color:var(--muted)}
+  ul.claves li::before{content:"·";position:absolute;left:6px;color:var(--accent);font-weight:700}
+  ul.claves b{color:var(--fg);font-weight:600}
+
+  footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px 24px;font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="volver" href="https://v0raonline.github.io/">← V0ra</a>
+
+  <main>
+    <div class="cabecera">
+      <!-- Decorativo: el h1 de al lado ya dice el nombre, asi que un lector
+           de pantalla no gana nada anunciando el dibujo antes del titulo. -->
+      <img class="cerebrito" src="assets/M3M0R-IA_Small.png" alt="" aria-hidden="true" width="100" height="100">
+      <div>
+        <h1>M3M0R·IA</h1>
+        <p class="claim">mucho más que un extractor de conversaciones</p>
+      </div>
+    </div>
+
+    <p class="cita">
+      Vivimos confiando nuestra memoria digital a plataformas que no
+      controlamos. Invertimos horas en dar forma a ideas, desmontar supuestos,
+      investigar y construir modelos del mundo en forma de conversación.
+    </p>
+
+    <p class="lead">
+      Esos servidores no son nuestros: pueden cerrar, cambiar de dueño o dejar
+      de guardarla. <b>M3M0R·IA convierte los exports oficiales de esos
+      servicios en un vault de Obsidian completamente local, organizado y
+      navegable.</b>
+    </p>
+
+    <div class="acciones">
+      <a class="btn principal" href="https://github.com/V0raOnline/MemorIA2GO/releases/latest">
+        ⬇ Descargar para Windows <span class="peso">~21 MB</span>
+      </a>
+      <a class="btn" href="https://github.com/V0raOnline/MemorIA2GO">Código</a>
+    </div>
+    <p style="color:var(--muted);font-size:.9rem;margin:14px 0 0">
+      Descomprimes y haces doble clic. No hace falta saber programar ni instalar
+      nada: lleva su propio Python dentro.
+    </p>
+
+    <h2>No es un conversor: es arqueología</h2>
+    <p style="margin:0">
+      Los exports oficiales dan HTML innavegable y JSON incomprensible. M3M0R·IA
+      no traduce formatos: <strong>intenta entender cómo piensa cada
+      proveedor</strong> para reconstruir la conversación entera — texto,
+      imágenes, código, documentos y artefactos.
+    </p>
+    <p style="margin:14px 0 0;color:var(--muted)">
+      Los proveedores se reconocen por la estructura interna de su export, nunca
+      por el nombre del archivo. Las conversaciones duplicadas se fusionan sin
+      perder nada, y cada nota lleva <code>provider</code> y <code>source</code>
+      en su frontmatter: puedes filtrar por origen y recorrer un hilo de
+      pensamiento completo.
+    </p>
+
+    <h2>Un paseo por M3M0R·IA</h2>
+    <figure>
+      <img src="assets/observatorio.png" width="1200" height="964"
+           alt="El Observatorio de M3M0R·IA: barra lateral con los seis módulos más MUSIC·0LOGY y Tintero, la fecha de la última importación, una gráfica del crecimiento acumulado de notas y el recuento por proveedor.">
+      <figcaption>
+        El Observatorio. Abajo, el recuento por proveedor: ChatGPT, Claude
+        y <strong>claude-code</strong>, que no viene de ningún export.
+      </figcaption>
+    </figure>
+    <ul class="modulos">
+      <li class="modulo"><b>Observatorio</b><span>Un vistazo rápido al estado de tu memoria digital.</span></li>
+      <li class="modulo"><b>Configuración</b><span>Aquí se define dónde vivirá tu M3M0R·IA.</span></li>
+      <li class="modulo"><b>Verificación</b><span>Inspecciona los archivos y comprueba que sabe interpretarlos.</span></li>
+      <li class="modulo"><b>Construcción</b><span>Donde ocurre la magia: importar, reconstruir, actualizar índices.</span></li>
+      <li class="modulo"><b>Cartografía</b><span>Un mapa de temas que se va refinando con el tiempo.</span></li>
+      <li class="modulo"><b>Reconexión</b><span>Para volver a unir piezas de una historia.</span></li>
+    </ul>
+
+    <h2>Tres herramientas en la misma casa</h2>
+    <p style="color:var(--muted);margin:0 0 4px">
+      Con pipelines distintos a propósito: una conversación, un artículo y una
+      canción no son la misma cosa, y tratarlas igual las estropea a las tres.
+    </p>
+    <div class="tabla-scroll">
+      <table>
+        <thead>
+          <tr><th>Lo que tienes fuera</th><th>De dónde</th><th>A dónde llega</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Tus conversaciones</b></td>
+            <td>ChatGPT · Claude · Grok</td>
+            <td>Un vault navegable en Obsidian, por proyecto y fecha, listo para servir de contexto a otro modelo vía MCP.</td>
+          </tr>
+          <tr>
+            <td><b>Lo que publicaste</b></td>
+            <td>Substack</td>
+            <td><b>Tintero</b> — tu archivo editorial: distingue publicado, retirado y borrador.</td>
+          </tr>
+          <tr>
+            <td><b>Lo que compusiste</b></td>
+            <td>Suno · Flow Music</td>
+            <td><b>MUSIC·0LOGY</b> — con el linaje entre versiones, covers y remezclas resuelto como enlaces.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--muted);font-size:.94rem;margin:14px 0 0">
+      No hace falta usarlas todas. Cada una funciona por separado, y sin
+      configuración no aparecen.
+    </p>
+
+    <h2>Y las que no tienen export</h2>
+    <p style="margin:0">
+      Claude Code y Codex guardan tus sesiones en tu propia máquina, y esa
+      carpeta es efímera. <strong>No hay export oficial que pedir: si se
+      pierde, se perdió.</strong> M3M0R·IA copia el <code>.jsonl</code> crudo e
+      íntegro a su propio banco —es la única copia que va a existir— y genera
+      las notas a partir de ahí.
+    </p>
+    <ul class="claves" style="margin-top:16px">
+      <li><b>La sesión entra en la cartografía</b>, cruzada con tus temas como una conversación más.</li>
+      <li><b>Los razonamientos y las salidas de herramientas se quedan fuera</b>, en el banco: su vocabulario —git, rutas, comandos— contaminaría el mapa de temas.</li>
+      <li><b>Idempotente:</b> el banco deduplica por hash, así que reprocesar es seguro. La sesión en curso se omite, porque su captura sería parcial.</li>
+    </ul>
+    <p style="margin:16px 0 0;color:var(--muted);font-size:.94rem">
+      Es una herramienta hermana y se ejecuta a mano: el pipeline no la llama.
+      Si no la lanzas, todo se comporta exactamente igual que antes.
+    </p>
+
+    <h2>El pacto</h2>
+    <div class="pacto">
+      <p><strong>Nada se pierde.</strong></p>
+      <p>
+        Nunca se borra nada, los originales mandan sobre lo que se genera, y lo
+        que la herramienta no sabe leer lo dice en voz alta en vez de
+        inventárselo.
+      </p>
+    </div>
+    <ul class="claves" style="margin-top:18px">
+      <li><b>Los datos no salen de tu máquina.</b> Sin cuenta, sin nube, sin subir nada a ningún sitio.</li>
+      <li><b>El historial completo</b>, no solo las memorias guardadas: deduplicado, fusionado, con imágenes y adjuntos extraídos a sus propios bancos.</li>
+      <li><b>Una memoria que sigue creciendo:</b> se actualiza con exports nuevos sin rehacer lo anterior.</li>
+    </ul>
+
+    <h2>Antes de instalar nada</h2>
+    <p style="margin:0">
+      <a href="https://www.linkedin.com/pulse/m3m0ria-v0ra-online-xd1oe/">M3M0R·IA: mucho más que un extractor de conversaciones</a>
+      — el recorrido completo, módulo a módulo, con capturas.
+    </p>
+    <p style="margin:12px 0 0">
+      <a href="https://v0raonline.substack.com/p/test-de-recuperacion-de-extracto">Test de recuperación de extracto conversacional</a>
+      — una demostración redactada como informe clínico por una institución que
+      estudia a los organismos biológicos y su incapacidad para encontrar sus
+      propias conversaciones.
+    </p>
+  </main>
+
+  <footer>
+    <span>CC BY-NC-SA 4.0 · los datos se quedan en tu máquina</span>
+    <span><a href="https://v0raonline.github.io/">Catálogo</a></span>
+    <span><a href="https://v0raonline.substack.com">Substack</a></span>
+  </footer>
+
+</div>
+</body>
+</html>
