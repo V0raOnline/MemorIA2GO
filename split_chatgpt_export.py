@@ -1002,10 +1002,29 @@ def process_grok_media_posts(media_posts: List[dict], asset_index: "GrokAssetInd
 def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]] = None,
                         markers_ctx: Optional["MarkerContext"] = None) -> Tuple[List[Dict[str, Any]], Optional[zipfile.ZipFile]]:
     """Devuelve (conversaciones, zip_abierto_o_None). El zip se deja abierto para
-    poder extraer imágenes de él más tarde; el llamador debe cerrarlo al terminar."""
+    poder extraer imágenes de él más tarde; el llamador debe cerrarlo al terminar.
+
+    Desde el nuevo export de Claude (2026-09+), tambien acepta que
+    input_path sea una CARPETA (el layout descomprimido con las 5
+    subcarpetas <categoria>-NNN/). En ese caso se delega en
+    newclaude_adapter.parse_conversations y no hay zip que retornar; el
+    resto de categorias (memories, frames, projects) se procesan aparte
+    en su propia fase, esta ruta solo cubre las conversaciones."""
     p = os.path.abspath(input_path)
     if not os.path.exists(p):
         raise FileNotFoundError(f"No existe: {input_path}")
+
+    # Layout descomprimido del nuevo export de Claude: se evalua antes que
+    # la extension porque un directorio no tiene extension y caeria en el
+    # RuntimeError de abajo.
+    if os.path.isdir(p):
+        from providers import newclaude_adapter
+        if newclaude_adapter.detect_layout(p):
+            return newclaude_adapter.parse_conversations(p), None
+        raise RuntimeError(
+            "La carpeta no parece un export descomprimido de Claude "
+            "(falta conversations-NNN/conversations.json)."
+        )
 
     ext = os.path.splitext(p)[1].lower()
 

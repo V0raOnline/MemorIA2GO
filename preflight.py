@@ -67,10 +67,38 @@ def validate_export_file(path) -> dict:
         looks_claude = any(n.lower() == "users.json" for n in names) or \
                        any(n.lower().startswith("projects/") for n in names)
 
+        # Formato NUEVO de Claude (2026-09+, sin anuncio oficial): el zip
+        # de la categoria conversations trae SOLO conversations.json en su
+        # raiz, sin users.json, sin projects/, sin shards. Como esa forma
+        # es indistinguible del zip clasico de ChatGPT (un zip con solo
+        # conversations.json es tambien un formato historico) por
+        # contenido, se usa el nombre del zip como desempate:
+        # conversations-NNN.zip es el patron literal que emite Anthropic
+        # para este fragmento. Si alguien renombra el zip, cae en la rama
+        # chatgpt_zip -- que sigue funcionando porque _dispatch reconoce
+        # la conversations.json de Claude por estructura y despacha al
+        # adaptador correcto de todas formas. La distincion aqui es de
+        # etiqueta (UI/logs), no de correccion.
+        NC_FRAG_NAME_RX = re.compile(r"^conversations-\d+\.zip$", re.IGNORECASE)
+        looks_newclaude_convs_zip = (
+            NC_FRAG_NAME_RX.match(p.name) is not None
+            and has_conv
+            and not looks_claude
+            and not shards
+            and len(names) == 1
+            and names[0].lower().endswith("conversations.json")
+        )
         if shards:
             return {"valido": True,
                     "mensaje": f"Export de ChatGPT fragmentado reconocido ({len(shards)} fragmentos conversations-NNN.json).",
                     "tipo": "chatgpt_zip_fragmentado"}
+        if looks_newclaude_convs_zip:
+            return {"valido": True,
+                    "mensaje": "Fragmento CONVERSATIONS del nuevo export de Claude reconocido "
+                               "(conversations.json suelto, sin users.json/projects). "
+                               "Es solo una de las 5 partes; las otras (light_metadata, projects, "
+                               "memories, frames) llegan aparte.",
+                    "tipo": "newclaude_conversations_zip"}
         if has_conv and looks_claude:
             return {"valido": True, "mensaje": "Export de Claude reconocido (conversations.json + users.json/projects).", "tipo": "claude_zip"}
         if has_conv:
@@ -138,6 +166,29 @@ def validate_export_file(path) -> dict:
         except Exception as e:
             return {"valido": False, "mensaje": f"No pude leer el archivo: {e}"}
 
+        # Manifiesto del NUEVO export de Claude: no es un export en si mismo
+        # (no trae conversaciones), es un indice de descarga con URLs de un
+        # solo uso hacia los 5 zips reales. Se reconoce para no marcarlo
+        # como JSON invalido; valido=False porque no hay nada que importar
+        # de EL, y el mensaje dice que hace falta bajar los 5 zips.
+        from providers import newclaude_adapter as _nc
+        if _nc.detect_manifest(data):
+            cats = _nc.categorias_del_manifiesto(data)
+            aviso = ""
+            if cats["desconocidas"]:
+                aviso = (" ⚠ AVISO: categoria(s) nunca vistas en el manifiesto: "
+                         f"{', '.join(cats['desconocidas'])}. El formato puede "
+                         "haber derivado; revisa si el adaptador necesita "
+                         "actualizarse.")
+            return {"valido": False,
+                    "mensaje": "Manifiesto del NUEVO export de Claude reconocido "
+                               f"({len(cats['conocidas'])} categorias: "
+                               f"{', '.join(cats['conocidas'])}). No es un export "
+                               "en si: bajate los 5 zips desde sus export_url (de "
+                               "un solo uso) y ponlos aqui (o descomprime la "
+                               "carpeta entera) para poder importarlo." + aviso,
+                    "tipo": "newclaude_manifest"}
+
         looks_like_export = False
         tipo = "chatgpt_json"
         mensaje_ok = "Estructura de conversaciones de ChatGPT reconocida."
@@ -180,22 +231,86 @@ def validate_export_file(path) -> dict:
     return {"valido": False, "mensaje": f"Extension no soportada: {ext or '(sin extension)'}. Usa .zip, .json o .html."}
 
 
+def validate_export_directory(path) -> dict:
+    """Comprueba que una CARPETA sea el layout descomprimido del nuevo export
+    de Claude (2026-09+). El export nuevo llega troceado: manifiesto +
+    conversations-000.zip + projects-000.zip + memories-000.zip +
+    frames-000.zip + light_metadata-000.zip. Cuando el usuario los
+    descomprime todos hermanos, la carpeta resultante es el layout.
+
+    La marca minima es una subcarpeta conversations-NNN/ con
+    conversations.json dentro (mismo criterio que
+    newclaude_adapter.detect_layout). Se admiten layouts parciales (solo
+    conversations, sin el resto): el ingester procesara lo que haya."""
+    p = Path(path)
+    if not p.is_dir():
+        return {"valido": False, "mensaje": f"No existe la carpeta: {p}"}
+
+    from providers import newclaude_adapter as _nc
+    if not _nc.detect_layout(p):
+        return {"valido": False,
+                "mensaje": "La carpeta no parece ser un export descomprimido de Claude "
+                           "(falta una subcarpeta 'conversations-NNN/' con conversations.json)."}
+
+    # Enumeracion informativa: cuantas de las 5 categorias vienen. Se
+    # nombran en el mensaje para que la UI diga que trae y que no.
+    presentes = []
+    for cat in _nc.KNOWN_CATEGORIES:
+        prefijo = cat + "-"
+        if any(sub.is_dir() and sub.name.lower().startswith(prefijo) for sub in p.iterdir()):
+            presentes.append(cat)
+    presentes.sort()
+    return {"valido": True,
+            "mensaje": f"Layout del NUEVO export de Claude reconocido "
+                       f"({len(presentes)}/5 categorias presentes: "
+                       f"{', '.join(presentes) if presentes else 'ninguna'}).",
+            "tipo": "newclaude_layout",
+            "categorias_presentes": presentes}
+
+
+def _validar_candidato(candidato: Path) -> dict:
+    """Envoltorio que despacha a validate_export_file (ficheros) o
+    validate_export_directory (carpetas), asi los enumeradores tratan a
+    ambos por igual."""
+    if candidato.is_dir():
+        return validate_export_directory(candidato)
+    return validate_export_file(candidato)
+
+
+def _enumerar_candidatos(exports_dir: Path) -> list:
+    """Todos los candidatos de la carpeta (ficheros validos + subcarpetas
+    que sean layouts). Mas recientes primero. Es lo que consumen
+    list_export_candidates y list_pending_exports."""
+    files = []
+    for ext in ("*.zip", "*.json", "*.html", "*.htm"):
+        files.extend(exports_dir.glob(ext))
+    # Subcarpetas que casan con el layout del nuevo export de Claude
+    # (basta con newclaude_adapter.detect_layout: el resto de subcarpetas
+    # que la persona tenga en exports_dir no se toman como export).
+    from providers import newclaude_adapter as _nc
+    for sub in exports_dir.iterdir():
+        if sub.is_dir() and _nc.detect_layout(sub):
+            files.append(sub)
+    files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    return files
+
+
 def list_export_candidates(exports_dir, deep: bool = False) -> list:
     """Lista TODOS los .zip/.json/.html de la carpeta, mas recientes primero,
     cada uno ya validado. Con deep=True, ademas muestrea cada candidato
     valido con detect_new_keys y anexa el aviso al mensaje (ver su
     docstring: es una lectura completa del JSON, deliberadamente NO
-    automatica en cada poll de la UI)."""
+    automatica en cada poll de la UI).
+
+    Desde el nuevo export de Claude (2026-09+) tambien se enumeran las
+    SUBCARPETAS que casen con el layout descomprimido."""
     p = Path(exports_dir)
     if not p.is_dir():
         return []
-    all_files = []
-    for ext in ("*.zip", "*.json", "*.html", "*.htm"):
-        all_files.extend(p.glob(ext))
-    all_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    all_files = _enumerar_candidatos(p)
     out = []
     for f in all_files:
-        result = validate_export_file(f)
+        result = _validar_candidato(f)
         mensaje = result["mensaje"]
         aviso = False  # deriva de formato detectada (deep=True): valido sigue en True, solo es aviso
         if deep and result["valido"]:
@@ -233,6 +348,18 @@ def _load_raw_json_for_sampling(p: Path):
     codigo sensible con historial de incidentes (Nido_Delta); esta funcion
     es de solo lectura y, si falla, el peor caso es un aviso que no aparece
     -- nunca afecta a la importacion real."""
+    # Layout descomprimido del nuevo export de Claude: el JSON grande vive
+    # en <p>/conversations-NNN/conversations.json. Se lee ese, y las otras
+    # categorias (memories, frames, projects) NO participan del muestreo
+    # de deriva porque no son "conversaciones" ni tienen KNOWN_KEYS propio.
+    if p.is_dir():
+        for sub in p.iterdir():
+            if sub.is_dir() and sub.name.lower().startswith("conversations-"):
+                conv_json = sub / "conversations.json"
+                if conv_json.is_file():
+                    with conv_json.open("r", encoding="utf-8") as f:
+                        return json.load(f)
+        return None
     ext = p.suffix.lower()
     if ext == ".zip":
         with zipfile.ZipFile(p, "r") as zf:
@@ -333,7 +460,23 @@ def export_fingerprint(path: Path) -> str:
     proceso. No usa hash de contenido a proposito: reprocesar por error no
     tiene coste real (--keep-versions + merge por huella ya lo protegen),
     y hashear archivos de ~1GB en cada ejecucion solo para comprobar si son
-    'nuevos' seria caro sin necesidad."""
+    'nuevos' seria caro sin necesidad.
+
+    Para el layout del nuevo export de Claude (una CARPETA), no vale el
+    tamano de la entrada de directorio (no refleja el contenido); se usa
+    el tamano de conversations.json interno, que es la parte que crece
+    con cada export y sirve como fingerprint estable."""
+    if path.is_dir():
+        for sub in path.iterdir():
+            if sub.is_dir() and sub.name.lower().startswith("conversations-"):
+                conv_json = sub / "conversations.json"
+                if conv_json.is_file():
+                    return f"{path.name}|dir|{conv_json.stat().st_size}"
+        # Fallback: carpeta sin conversations-NNN reconocible. Improbable
+        # (esta funcion se invoca despues de validate_export_directory),
+        # pero si llega, usa el nombre como huella minima -- reprocesar
+        # en falso no tiene coste (idem que ficheros).
+        return f"{path.name}|dir|?"
     st = path.stat()
     return f"{path.name}|{st.st_size}"
 
@@ -364,24 +507,26 @@ def save_registry(raw_vault, registry: dict) -> None:
 
 
 def list_pending_exports(exports_dir, raw_vault, reprocess_all: bool = False) -> list:
-    """Devuelve la lista de archivos VALIDOS que aun no estan en el registro
-    (o todos los validos, si reprocess_all=True), ordenados del mas antiguo
-    al mas reciente -- asi el orden de importacion sigue la linea temporal
-    real de tus exports."""
+    """Devuelve la lista de exports VALIDOS (ficheros y layouts) que aun no
+    estan en el registro (o todos los validos, si reprocess_all=True),
+    ordenados del mas antiguo al mas reciente -- asi el orden de
+    importacion sigue la linea temporal real de tus exports.
+
+    Desde el nuevo export de Claude tambien acepta CARPETAS (el layout
+    descomprimido de las 5 categorias). El registro las guarda por
+    huella distinta que la de un fichero (ver export_fingerprint)."""
     p = Path(exports_dir)
     if not p.is_dir():
         return []
 
     registry = {} if reprocess_all else load_registry(raw_vault)
 
-    all_files = []
-    for ext in ("*.zip", "*.json", "*.html", "*.htm"):
-        all_files.extend(p.glob(ext))
+    all_files = _enumerar_candidatos(p)
     all_files.sort(key=lambda x: x.stat().st_mtime)  # mas antiguo primero
 
     pending = []
     for f in all_files:
-        if not validate_export_file(f)["valido"]:
+        if not _validar_candidato(f)["valido"]:
             continue
         if export_fingerprint(f) in registry:
             continue
