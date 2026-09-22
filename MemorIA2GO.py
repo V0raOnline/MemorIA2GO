@@ -311,6 +311,46 @@ def load_from_yaml(config_path: str | None = None,
 # Pasos del pipeline
 # ─────────────────────────────────────────
 
+def _ingerir_extras_newclaude_si_aplica(export_path: Path, base_vault: Path) -> dict:
+    """Hook del Paso 1 para el nuevo export de Claude (2026-09+).
+
+    Cuando `export_path` es una CARPETA que se ha reconocido como layout
+    descomprimido (`conversations-NNN/` + otras categorias), las
+    conversaciones ya se han importado por la ruta clasica. Aqui se
+    encadena la ingesta de las OTRAS categorias:
+        - projects  -> <base_vault>/PRJ_VAULT/<name>/          (D3)
+        - frames    -> <base_vault>/MERGED_VAULT/CLAUDE_WEB/FRAMES/
+        - memories  -> <base_vault>/Claude_Mem/                (D2 y D4)
+
+    Idempotente: reingestar el mismo layout no reescribe nada. Los
+    fallos NO abortan la cola: las conversaciones ya han entrado, los
+    zips crudos siguen en bck/ para reintentar. Devuelve las stats de
+    los tres writers (dict vacio si no aplica).
+
+    Diseño y decisiones cerradas en bck/NewClaude/PLAN.md (2026-09-22).
+    """
+    if not export_path.is_dir():
+        return {}
+    from providers import newclaude_adapter
+    if not newclaude_adapter.detect_layout(export_path):
+        return {}
+    try:
+        stats = newclaude_adapter.ingest_extras(export_path, base_vault)
+    except Exception as e:
+        error(f"  Fallo ingiriendo categorias extra ({type(e).__name__}: {e}). "
+              "Las conversaciones SI se importaron. Los otros datos "
+              "(projects/frames/memories) quedan sin escribir; reintenta con "
+              "--reprocess-all cuando el problema este resuelto.")
+        return {}
+    info(f"  projects: {stats['projects']['proyectos']} proyectos, "
+         f"{stats['projects']['docs']} docs")
+    info(f"  frames:   {stats['frames']['frames']} artifacts, "
+         f"{stats['frames']['versiones']} versiones")
+    info(f"  memories: {stats['memories']['secciones']} secciones, "
+         f"{stats['memories']['memory_files']} memory_files")
+    return stats
+
+
 def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
                  grok_adjuntos: Path, grok_generadas_imagen: Path, grok_generadas_video: Path,
                  grok_pendientes: Path, claude_artefactos: Path,
@@ -378,6 +418,11 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
         if not ok_flag:
             error(f"Failed importing {export_path.name}. Aborting the rest of the queue.")
             sys.exit(1)
+
+        # Nuevo export de Claude: si el export es un layout descomprimido,
+        # encadena la ingesta de las categorias que no son conversaciones.
+        _ingerir_extras_newclaude_si_aplica(export_path, params["vault_path"])
+
         procesados_ok.append(export_path)
 
     mark_processed(raw_vault, procesados_ok)
