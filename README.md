@@ -42,6 +42,45 @@ A diferencia de las herramientas genéricas de migración, que solo transfieren 
 
 Las conversaciones de los tres proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen y recorrer un hilo de pensamiento completo. Tintero y MUSIC·0LOGY construyen sus propios vaults: no tenía sentido tratar igual un archivo editorial que una biblioteca musical.
 
+### Novedad — Nuevo formato de export de Claude (2026-09+)
+
+Anthropic cambió en silencio el formato del export de Claude en septiembre
+de 2026: ya no es un único ZIP con `conversations.json` + `users.json` +
+`projects.json`, sino un **manifiesto JSON + cinco ZIPs de un solo uso**,
+uno por categoría: `light_metadata`, `projects`, `memories`, `frames` y
+`conversations`. Sin nota en el changelog, sin aviso en el centro de
+ayuda; la única señal pública es un [issue abierto de
+terceros](https://github.com/ukogan/claude-migration-assistant/issues/4)
+de gente sorprendida por el cambio.
+
+M3M0R·IA reconoce el formato nuevo y aprovecha lo que trae que el viejo
+no traía:
+
+- **`memories`** → un vault nuevo `Claude_Mem/` (hermano de MERGED_VAULT y
+  PRJ_VAULT). Contiene el dossier personal que Claude ha acumulado sobre
+  ti, los resúmenes textuales por proyecto, y las **notas de memoria
+  persistente** que Claude usa internamente — 71 ficheros con estructura
+  jerárquica `/areas /people /projects /topics /profile.md` que se
+  respeta tal cual, porque la estructura ES información.
+- **`frames`** (los artifacts) → `MERGED_VAULT/CLAUDE_WEB/FRAMES/` con
+  **historial de versiones y comentarios**. El export viejo perdía las
+  revisiones intermedias; el nuevo trae cada versión con su timestamp,
+  descripción y HTML íntegro, y M3M0R·IA los copia tal cual junto a una
+  nota-índice que rescata también los hilos de comentarios.
+- **`projects`** → nota-índice por proyecto en `PRJ_VAULT/<name>/` con
+  `description`, `prompt_template` (system prompt del proyecto),
+  metadatos y `_docs/` con el project knowledge que subiste inline.
+- **`conversations`** → forma interna idéntica al export viejo, mismo
+  adaptador. Las conversaciones que también aparecían en un export
+  anterior **no se duplican**: `vault_merge` las agrupa por `conv_id` y
+  fusiona lo que sea nuevo en el hilo. Solo cambia el empaquetado.
+
+Se ingesta desde la carpeta descomprimida (los cinco ZIPs se pueden dejar
+sueltos en `exports_dir` o dentro de una carpeta hermana). El manifiesto
+JSON se reconoce pero no se importa por sí solo — es solo un índice.
+`light_metadata` se conserva pero no se ingesta (metadatos de cuenta, sin
+valor para el vault).
+
 ¿Prefieres verlo funcionando antes de instalar nada? **[Test de recuperación de extracto conversacional](https://v0raonline.substack.com/p/test-de-recuperacion-de-extracto)** — una demostración con capturas, redactada como informe clínico por una institución que estudia a los organismos biológicos y su incapacidad para encontrar sus propias conversaciones.
 
 Y **no olvides descargar tu diploma** cuando completes tu primera extracción con éxito. Consta en acta.
@@ -83,7 +122,7 @@ Esto empieza **fuera** de la herramienta, y es lo único que no puede hacer por 
 | De dónde                                | Cómo se consigue                                                                                                                                                        |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **ChatGPT**                             | Configuración → Controles de datos → Exportar datos. Llega un ZIP por email                                                                                             |
-| **Claude**                              | Configuración → Privacidad → Exportar datos. Llega por email, a veces en varios ZIP                                                                                     |
+| **Claude**                              | Configuración → Privacidad → Exportar datos. Llega por email. Desde 2026-09 el export nuevo son **cinco ZIPs de un solo uso** (`conversations`, `projects`, `memories`, `frames`, `light_metadata`) descritos por un manifiesto JSON — se descargan todos a la carpeta de exports; el formato viejo (un ZIP único) sigue funcionando. Ver la sección *Novedad* arriba |
 | **Grok**                                | Configuración → Datos → Descarga tus datos. El export incluye conversaciones y una parte de tus generaciones de Imagine; algunas llegan solo como enlace y M3M0R·IA las descarga aparte con la herramienta de pendientes (pestaña Reconexión) |
 | **Substack**                            | Panel de control → Configuración → Importar/exportar                                                                                                                    |
 | **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV                                                          |
@@ -201,7 +240,7 @@ python MemorIA2GO.py --reprocess-all  # re-parsea todos los exports válidos des
 - `substack_vault` (en `memoria_config.yaml`) — dónde se construye el vault de Tintero. Es la **única** ruta que necesita: el export de Substack y su CSV de estadísticas viven en tu carpeta de exports de siempre, porque el pipeline de conversaciones los rechaza y Tintero los recoge de ahí. Una carpeta, dos puertas.
 - `suno_backup` / `suno_vault` y `flowmusic_backup` / `flowmusic_vault` (en `memoria_config.yaml`) — las rutas de MUSIC·0LOGY, un par por fuente: dónde vive el backup crudo y dónde se construye su vault de Obsidian. Las cuatro opcionales e independientes: puedes usar una fuente, las dos o ninguna. Sin el backup configurado, la tarjeta del Observatorio de esa fuente simplemente no aparece — no se pinta a cero, porque decir "0 pistas" sobre una biblioteca que no has descargado es mentir, no informar.
 
-Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas se organizan por temas (varios-a-varios), no por carpetas.
+Los exports de Claude y Grok no enlazan conversaciones a proyectos: esas notas se organizan por temas (varios-a-varios), no por carpetas. **Claude sí trae los proyectos como entidades propias desde el formato nuevo** (2026-09+): cada proyecto tiene su carpeta en `PRJ_VAULT/<name>/` con metadatos y project knowledge, aunque las conversaciones siguen sin poder vincularse a ellos automáticamente por falta de puente en el export.
 
 ---
 
