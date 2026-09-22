@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Tests del cablado del nuevo export de Claude al pipeline (Fase B).
+"""Tests of the new-Claude-export wiring to the pipeline (Phase B).
 
-Fija tres cosas que preflight y load_conversations tienen que garantizar
-para que el resto del pipeline no se entere de que hay un formato nuevo:
-  - el manifiesto se reconoce (informativamente, no como export importable);
-  - el zip fragmentado conversations-NNN.zip se reconoce con etiqueta
-    propia, pero solo por su nombre canonico -- renombrarlo lo hace caer
-    en la rama chatgpt_zip, que sigue funcionando porque _dispatch
-    despacha por estructura, no por etiqueta;
-  - la carpeta descomprimida se reconoce como layout, aparece en
-    list_pending_exports, tiene fingerprint estable, y load_conversations
-    la ingesta delegando en newclaude_adapter.parse_conversations.
+Pins three things preflight and load_conversations must guarantee so
+the rest of the pipeline doesn't notice a new format exists:
+
+  - the manifest is recognized (informationally, not as an importable
+    export);
+  - the conversations-NNN.zip fragment is recognized with its own
+    label, but only under its canonical name -- renaming it makes it
+    fall into the chatgpt_zip branch, which still works because
+    _dispatch dispatches by structure, not by label;
+  - the decompressed folder is recognized as a layout, appears in
+    list_pending_exports, has a stable fingerprint, and
+    load_conversations ingests it by delegating to
+    newclaude_adapter.parse_conversations.
 """
 import json
 import zipfile
@@ -23,11 +26,11 @@ import split_chatgpt_export as sce
 
 
 # ─────────────────────────────────────────
-# Fixtures minimos
+# Minimal fixtures
 # ─────────────────────────────────────────
 
 def _manifest_payload():
-    """Manifiesto valido con las 5 categorias del export real."""
+    """Valid manifest with the 5 categories of the real export."""
     cats = ["light_metadata", "projects", "memories", "frames", "conversations"]
     return {
         "instructions": "Download each file using the export_url. Note: Each export URL can only be used once.",
@@ -42,19 +45,19 @@ def _manifest_payload():
     }
 
 
-def _payload_conversations_claude():
-    """Una conversacion minima con la forma exacta del export de Claude
-    (usada para meter dentro de un zip fragmentado sintetico)."""
+def _claude_conversations_payload():
+    """A minimal conversation with the exact shape of Claude's export
+    (used to fill a synthetic fragmented zip)."""
     return json.dumps([{
         "uuid": "abc-def",
-        "name": "Hola",
+        "name": "Hi",
         "summary": "",
         "created_at": "2026-09-01T10:00:00+00:00",
         "updated_at": "2026-09-01T10:00:00+00:00",
         "account": {"uuid": "usr-1"},
         "chat_messages": [
-            {"uuid": "m1", "text": "hola",
-             "content": [{"type": "text", "text": "hola"}],
+            {"uuid": "m1", "text": "hi",
+             "content": [{"type": "text", "text": "hi"}],
              "sender": "human", "created_at": "2026-09-01T10:00:00+00:00",
              "updated_at": "2026-09-01T10:00:00+00:00",
              "attachments": [], "files": [], "parent_message_uuid": None},
@@ -62,9 +65,9 @@ def _payload_conversations_claude():
     }], ensure_ascii=False).encode("utf-8")
 
 
-def _crear_layout(base: Path, conversations: bytes | None = None) -> Path:
-    """Crea una carpeta con la marca minima del layout NewClaude:
-    conversations-000/conversations.json. Devuelve la carpeta raiz."""
+def _make_layout(base: Path, conversations: bytes | None = None) -> Path:
+    """Create a folder with the minimum layout marker:
+    conversations-000/conversations.json. Returns the root folder."""
     layout = base / "NewClaude"
     layout.mkdir()
     conv_dir = layout / "conversations-000"
@@ -76,104 +79,106 @@ def _crear_layout(base: Path, conversations: bytes | None = None) -> Path:
 
 
 # ─────────────────────────────────────────
-# Manifiesto JSON
+# Manifest JSON
 # ─────────────────────────────────────────
 
-def test_manifiesto_reconocido_como_no_importable(tmp_path):
-    """El manifiesto en si no lleva conversaciones. Lo importante: el
-    usuario recibe un mensaje que le dice que bajar los 5 zips, no un
-    'JSON invalido' que le confunda."""
+def test_manifest_recognized_as_non_importable(tmp_path):
+    """The manifest itself carries no conversations. What matters: the
+    user gets a message telling them to download the 5 zips, not an
+    'invalid JSON' that confuses them."""
     m = tmp_path / "manifest-uuid-2026-09-20-20-17-00.json"
     m.write_text(json.dumps(_manifest_payload()), encoding="utf-8")
     result = preflight.validate_export_file(m)
     assert result["valido"] is False
     assert result["tipo"] == "newclaude_manifest"
-    assert "Manifiesto" in result["mensaje"]
+    assert "Manifest" in result["mensaje"]
     assert "5 zips" in result["mensaje"] or "5" in result["mensaje"]
 
 
-def test_manifiesto_con_categoria_desconocida_lanza_aviso(tmp_path):
+def test_manifest_with_unknown_category_raises_warning(tmp_path):
     m = tmp_path / "manifest-x.json"
     payload = _manifest_payload()
     payload["data_files"].append({
         "batch_index": 5, "export_url": "https://x/download/5",
-        "category": "categoria_nueva", "part": 0, "filename": "categoria_nueva-000.zip"
+        "category": "new_category", "part": 0, "filename": "new_category-000.zip"
     })
     m.write_text(json.dumps(payload), encoding="utf-8")
     result = preflight.validate_export_file(m)
     assert result["tipo"] == "newclaude_manifest"
-    assert "categoria_nueva" in result["mensaje"]
+    assert "new_category" in result["mensaje"]
 
 
 # ─────────────────────────────────────────
 # conversations-NNN.zip
 # ─────────────────────────────────────────
 
-def test_conversations_zip_reconocido_por_nombre_canonico(tmp_path):
+def test_conversations_zip_recognized_by_canonical_name(tmp_path):
     z = tmp_path / "conversations-000.zip"
     with zipfile.ZipFile(z, "w") as zf:
-        zf.writestr("conversations.json", _payload_conversations_claude())
+        zf.writestr("conversations.json", _claude_conversations_payload())
     result = preflight.validate_export_file(z)
     assert result["valido"] is True
     assert result["tipo"] == "newclaude_conversations_zip"
 
 
-def test_conversations_zip_renombrado_cae_en_chatgpt_zip(tmp_path):
-    """Si alguien renombra el zip, la etiqueta cambia pero SIGUE siendo
-    importable: _dispatch despachara al adaptador de Claude por
-    estructura, no por etiqueta. Este test defiende explicitamente esa
-    red -- no queremos ser estrictos con el nombre y perder el export."""
-    z = tmp_path / "algo_random.zip"
+def test_conversations_zip_renamed_falls_back_to_chatgpt_zip(tmp_path):
+    """If someone renames the zip, the label changes but it is STILL
+    importable: _dispatch will hand it to Claude's adapter by
+    structure, not by label. This test explicitly defends that
+    safety net -- we don't want to be strict about the name and lose
+    the export."""
+    z = tmp_path / "random_name.zip"
     with zipfile.ZipFile(z, "w") as zf:
-        zf.writestr("conversations.json", _payload_conversations_claude())
+        zf.writestr("conversations.json", _claude_conversations_payload())
     result = preflight.validate_export_file(z)
     assert result["valido"] is True
-    assert result["tipo"] == "chatgpt_zip"  # fallback correcto
+    assert result["tipo"] == "chatgpt_zip"  # correct fallback
 
 
 # ─────────────────────────────────────────
-# Layout de carpeta
+# Folder layout
 # ─────────────────────────────────────────
 
-def test_layout_carpeta_reconocido_por_validate_export_directory(tmp_path):
-    layout = _crear_layout(tmp_path, _payload_conversations_claude())
+def test_folder_layout_recognized_by_validate_export_directory(tmp_path):
+    layout = _make_layout(tmp_path, _claude_conversations_payload())
     result = preflight.validate_export_directory(layout)
     assert result["valido"] is True
     assert result["tipo"] == "newclaude_layout"
     assert "conversations" in result["categorias_presentes"]
 
 
-def test_layout_incompleto_sigue_siendo_valido_con_solo_conversations(tmp_path):
-    """El usuario puede haber bajado solo el zip de conversations y no
-    los otros. El layout parcial se acepta -- solo se procesara lo que
-    haya. El mensaje lo indica en 'categorias_presentes'."""
-    layout = _crear_layout(tmp_path)
+def test_incomplete_layout_still_valid_with_only_conversations(tmp_path):
+    """The user may have only downloaded the conversations zip and
+    not the others. A partial layout is accepted -- only what's
+    there gets processed. The message reports it via
+    'categorias_presentes'."""
+    layout = _make_layout(tmp_path)
     result = preflight.validate_export_directory(layout)
     assert result["valido"] is True
     assert result["categorias_presentes"] == ["conversations"]
 
 
-def test_layout_rechaza_carpetas_ajenas(tmp_path):
-    (tmp_path / "cualquier_carpeta").mkdir()
-    (tmp_path / "cualquier_carpeta" / "no_hay_conversations_aqui.txt").write_text("x")
-    result = preflight.validate_export_directory(tmp_path / "cualquier_carpeta")
+def test_layout_rejects_alien_folders(tmp_path):
+    (tmp_path / "any_folder").mkdir()
+    (tmp_path / "any_folder" / "no_conversations_here.txt").write_text("x")
+    result = preflight.validate_export_directory(tmp_path / "any_folder")
     assert result["valido"] is False
 
 
 # ─────────────────────────────────────────
-# Enumeracion en exports_dir (files + directorios)
+# Enumeration in exports_dir (files + directories)
 # ─────────────────────────────────────────
 
-def test_list_pending_incluye_layouts_como_carpetas(tmp_path):
-    """El export nuevo llega como CARPETA. list_pending_exports tiene que
-    enumerarlas junto a los .zip/.json de siempre para que MemorIA2GO.py
-    (paso 1) las procese como cualquier otro export."""
+def test_list_pending_includes_layouts_as_folders(tmp_path):
+    """The new export arrives as a FOLDER. list_pending_exports must
+    enumerate them alongside the usual .zip/.json so MemorIA2GO.py
+    (step 1) processes them like any other export."""
     exports = tmp_path / "exports"
     exports.mkdir()
     raw = tmp_path / "RAW"
     raw.mkdir()
 
-    _crear_layout(exports, _payload_conversations_claude())
+    _make_layout(exports, _claude_conversations_payload())
 
     pending = preflight.list_pending_exports(exports, raw)
     assert len(pending) == 1
@@ -181,34 +186,34 @@ def test_list_pending_incluye_layouts_como_carpetas(tmp_path):
     assert pending[0].name == "NewClaude"
 
 
-def test_list_pending_mezcla_ficheros_y_carpetas(tmp_path):
-    """En el mismo exports_dir puede coexistir un zip clasico y una
-    carpeta del nuevo formato. Los dos aparecen como pendientes."""
+def test_list_pending_mixes_files_and_folders(tmp_path):
+    """The same exports_dir may hold a classic zip and a new-format
+    folder side by side. Both come out as pending."""
     exports = tmp_path / "exports"
     exports.mkdir()
     raw = tmp_path / "RAW"
     raw.mkdir()
 
-    # Un zip clasico de ChatGPT
+    # A classic ChatGPT zip
     zpath = exports / "chatgpt.zip"
     with zipfile.ZipFile(zpath, "w") as zf:
         zf.writestr("conversations.json", b'[{"title":"x","mapping":{}}]')
-    # Y una carpeta layout
-    _crear_layout(exports, _payload_conversations_claude())
+    # And a layout folder
+    _make_layout(exports, _claude_conversations_payload())
 
     pending = preflight.list_pending_exports(exports, raw)
-    nombres = sorted(p.name for p in pending)
-    assert nombres == ["NewClaude", "chatgpt.zip"]
+    names = sorted(p.name for p in pending)
+    assert names == ["NewClaude", "chatgpt.zip"]
 
 
-def test_export_fingerprint_de_carpeta_usa_tamano_de_conversations_json(tmp_path):
-    """La huella tiene que cambiar cuando cambia el contenido, no cuando
-    cambian metadatos irrelevantes (mtime). Para directorios, el tamano
-    de conversations.json es el proxy usado."""
-    layout = _crear_layout(tmp_path, b'[{"chat_messages":[]}]')
+def test_folder_export_fingerprint_uses_conversations_json_size(tmp_path):
+    """The fingerprint must change when content changes, not when
+    irrelevant metadata (mtime) does. For directories, the size of
+    conversations.json is the proxy used."""
+    layout = _make_layout(tmp_path, b'[{"chat_messages":[]}]')
     fp1 = preflight.export_fingerprint(layout)
     assert "|dir|" in fp1
-    # Cambia el contenido -> cambia la huella
+    # Change content -> change fingerprint
     (layout / "conversations-000" / "conversations.json").write_bytes(
         b'[{"chat_messages":[]}, {"chat_messages":[]}]'
     )
@@ -217,26 +222,26 @@ def test_export_fingerprint_de_carpeta_usa_tamano_de_conversations_json(tmp_path
 
 
 # ─────────────────────────────────────────
-# split_chatgpt_export.load_conversations desde carpeta
+# split_chatgpt_export.load_conversations from a folder
 # ─────────────────────────────────────────
 
-def test_load_conversations_desde_carpeta_produce_convs_de_claude(tmp_path):
-    """Punto a punto: load_conversations en una carpeta layout devuelve
-    conversaciones con provider='claude' y conv_id -- las dos piezas que
-    hacen que write_md las escriba con el mismo source que el export
-    viejo y que vault_merge las agrupe por conv_id (dedup gratis)."""
-    layout = _crear_layout(tmp_path, _payload_conversations_claude())
+def test_load_conversations_from_folder_yields_claude_convs(tmp_path):
+    """End-to-end: load_conversations on a layout folder returns
+    conversations with provider='claude' and conv_id -- the two
+    pieces that make write_md emit the same source as the legacy
+    export and let vault_merge group them by conv_id (dedup gratis)."""
+    layout = _make_layout(tmp_path, _claude_conversations_payload())
     convs, zf = sce.load_conversations(str(layout))
-    assert zf is None  # no hay zip asociado al layout
+    assert zf is None  # no zip attached to the layout
     assert len(convs) == 1
     assert convs[0]["provider"] == "claude"
     assert convs[0]["conv_id"] == "abc-def"
 
 
-def test_load_conversations_carpeta_sin_layout_grita(tmp_path):
-    """Una carpeta ajena tiene que fallar RUIDOSAMENTE, mismo criterio
-    que un zip corrupto: si el usuario apunta al sitio equivocado, mejor
-    que se entere ya que perder conversaciones en silencio."""
-    (tmp_path / "cualquier_cosa").mkdir()
+def test_load_conversations_folder_without_layout_yells(tmp_path):
+    """A stray folder must fail LOUD, same as a corrupt zip: if the
+    user points to the wrong place, better they hear it now than
+    lose conversations silently."""
+    (tmp_path / "any_thing").mkdir()
     with pytest.raises(RuntimeError):
-        sce.load_conversations(str(tmp_path / "cualquier_cosa"))
+        sce.load_conversations(str(tmp_path / "any_thing"))

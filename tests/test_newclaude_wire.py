@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Test del cablado de ingest_extras al Paso 1 del pipeline.
+"""Test of the ingest_extras wire-up to the pipeline's Step 1.
 
-El hook vive en MemorIA2GO._ingerir_extras_newclaude_si_aplica y lo
-invoca paso1_split despues de importar las conversaciones. Esto no
-prueba paso1_split de punta a punta (llamaria a split_chatgpt_export
-como subproceso, es pesado); prueba que el hook hace lo que dice:
+The hook lives in MemorIA2GO._ingest_newclaude_extras_if_applies and is
+called by paso1_split after importing the conversations. This does NOT
+test paso1_split end-to-end (that would call split_chatgpt_export as a
+subprocess -- heavy); it tests that the hook does what it says:
 
-  - carpeta que ES layout      -> se disparan los tres writers,
-                                   devuelve stats;
-  - carpeta que NO es layout    -> se sale limpio (dict vacio), sin
-                                   escribir nada;
-  - fichero (no directorio)     -> se sale limpio;
-  - fallo interno del writer    -> se registra pero no se propaga
-                                   (las conversaciones ya han entrado
-                                   por la ruta clasica).
+  - a folder that IS a layout    -> the three writers fire, stats returned;
+  - a folder that ISN'T a layout -> it exits clean (empty dict), writes nothing;
+  - a file (not a directory)     -> it exits clean;
+  - internal writer failure      -> it's logged but not propagated
+                                     (conversations already went in via
+                                     the classic path).
 """
 import json
 from pathlib import Path
@@ -23,23 +21,24 @@ import pytest
 import MemorIA2GO
 
 
-def _crear_layout(base: Path) -> Path:
-    """Layout minimo con solo conversations-000/ para pasar detect_layout."""
+def _make_layout(base: Path) -> Path:
+    """Minimum layout with only conversations-000/ so detect_layout passes."""
     layout = base / "NewClaude"
     layout.mkdir()
     (layout / "conversations-000").mkdir()
-    (layout / "conversations-000" / "conversations.json").write_text("[]",
-                                                                       encoding="utf-8")
+    (layout / "conversations-000" / "conversations.json").write_text(
+        "[]", encoding="utf-8"
+    )
     return layout
 
 
-def test_hook_dispara_los_tres_writers_con_layout_real(tmp_path):
-    """Un layout real con proyectos + memories deja rastro en las tres
-    ubicaciones canonicas: PRJ_VAULT, MERGED_VAULT/CLAUDE_WEB/FRAMES,
+def test_hook_fires_all_three_writers_with_real_layout(tmp_path):
+    """A real layout with projects + memories leaves a trace in the
+    three canonical locations: PRJ_VAULT, MERGED_VAULT/CLAUDE_WEB/FRAMES,
     Claude_Mem."""
-    layout = _crear_layout(tmp_path)
-    # Anadir un proyecto y unas memorias mini para que los writers
-    # tengan algo que escribir.
+    layout = _make_layout(tmp_path)
+    # Add a project and mini memories so the writers have something
+    # to write.
     pdir = layout / "projects-000" / "projects"
     pdir.mkdir(parents=True)
     (pdir / "p1.json").write_text(json.dumps({
@@ -58,54 +57,54 @@ def test_hook_dispara_los_tres_writers_con_layout_real(tmp_path):
     }), encoding="utf-8")
 
     base_vault = tmp_path / "vault"
-    stats = MemorIA2GO._ingerir_extras_newclaude_si_aplica(layout, base_vault)
+    stats = MemorIA2GO._ingest_newclaude_extras_if_applies(layout, base_vault)
 
-    assert stats["projects"]["proyectos"] == 1
-    assert stats["memories"]["secciones"] == 1
-    # Rastro en disco -- los sitios canonicos para D2/D3/D4
-    assert (base_vault / "PRJ_VAULT" / "TestProj" / "00_proyecto.md").exists()
+    assert stats["projects"]["projects"] == 1
+    assert stats["memories"]["sections"] == 1
+    # On-disk trace -- the canonical spots for D2/D3/D4
+    assert (base_vault / "PRJ_VAULT" / "TestProj" / "00_project.md").exists()
     assert (base_vault / "Claude_Mem" / "conversations.md").exists()
 
 
-def test_hook_no_hace_nada_si_no_es_layout(tmp_path):
-    """Una carpeta que no es un layout (o un zip clasico, un json, o
-    cualquier cosa distinta del nuevo formato) tiene que salir del
-    hook devolviendo dict vacio, sin crear rastro en el vault."""
-    fake_export = tmp_path / "cualquier_cosa"
+def test_hook_does_nothing_if_not_a_layout(tmp_path):
+    """A folder that isn't a layout (or a classic zip, or a json, or
+    anything else that isn't the new format) must exit the hook
+    returning an empty dict, without creating anything in the vault."""
+    fake_export = tmp_path / "whatever"
     fake_export.mkdir()
     base_vault = tmp_path / "vault"
 
-    stats = MemorIA2GO._ingerir_extras_newclaude_si_aplica(fake_export, base_vault)
+    stats = MemorIA2GO._ingest_newclaude_extras_if_applies(fake_export, base_vault)
 
     assert stats == {}
-    # El hook no debe haber creado NADA en el vault
+    # The hook must have created NOTHING in the vault
     assert not base_vault.exists() or not any(base_vault.iterdir())
 
 
-def test_hook_no_hace_nada_si_export_es_fichero(tmp_path):
-    """Un .zip o .json en la cola de pendientes tambien pasa por el
-    hook. Para esos, no aplica: el hook devuelve dict vacio."""
+def test_hook_does_nothing_if_export_is_a_file(tmp_path):
+    """A .zip or .json in the pending queue also goes through the
+    hook. It doesn't apply for those: the hook returns an empty dict."""
     fichero = tmp_path / "chatgpt.zip"
-    fichero.write_bytes(b"PK\x03\x04")  # bytes cualquiera, no importan aqui
+    fichero.write_bytes(b"PK\x03\x04")  # arbitrary bytes, they don't matter here
     base_vault = tmp_path / "vault"
-    assert MemorIA2GO._ingerir_extras_newclaude_si_aplica(fichero, base_vault) == {}
+    assert MemorIA2GO._ingest_newclaude_extras_if_applies(fichero, base_vault) == {}
 
 
-def test_hook_captura_fallos_del_writer_sin_propagar(tmp_path, monkeypatch):
-    """Si ingest_extras revienta por lo que sea, el hook lo captura y
-    solo emite el error via error(). No lanza excepcion hacia arriba
-    porque las conversaciones YA han entrado y no tiene sentido
-    abortar la cola del Paso 1 por un fallo en las categorias
-    secundarias."""
-    layout = _crear_layout(tmp_path)
+def test_hook_captures_writer_failures_without_propagating(tmp_path, monkeypatch):
+    """If ingest_extras blows up for any reason, the hook captures it
+    and only emits via error(). It doesn't propagate an exception
+    upward because conversations HAVE already been imported and there
+    is no point in aborting the Step 1 queue over a failure in the
+    secondary categories."""
+    layout = _make_layout(tmp_path)
     base_vault = tmp_path / "vault"
 
     from providers import newclaude_adapter
 
-    def _revienta(*_a, **_kw):
-        raise RuntimeError("simulando fallo del writer")
-    monkeypatch.setattr(newclaude_adapter, "ingest_extras", _revienta)
+    def _blows_up(*_a, **_kw):
+        raise RuntimeError("simulating writer failure")
+    monkeypatch.setattr(newclaude_adapter, "ingest_extras", _blows_up)
 
-    # No lanza excepcion, devuelve {}
-    result = MemorIA2GO._ingerir_extras_newclaude_si_aplica(layout, base_vault)
+    # Doesn't raise, returns {}
+    result = MemorIA2GO._ingest_newclaude_extras_if_applies(layout, base_vault)
     assert result == {}

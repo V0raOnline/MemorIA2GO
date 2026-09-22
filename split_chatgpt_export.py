@@ -1004,26 +1004,27 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
     """Devuelve (conversaciones, zip_abierto_o_None). El zip se deja abierto para
     poder extraer imágenes de él más tarde; el llamador debe cerrarlo al terminar.
 
-    Desde el nuevo export de Claude (2026-09+), tambien acepta que
-    input_path sea una CARPETA (el layout descomprimido con las 5
-    subcarpetas <categoria>-NNN/). En ese caso se delega en
-    newclaude_adapter.parse_conversations y no hay zip que retornar; el
-    resto de categorias (memories, frames, projects) se procesan aparte
-    en su propia fase, esta ruta solo cubre las conversaciones."""
+    From the new Claude export (2026-09+), it also accepts input_path
+    as a DIRECTORY (the decompressed layout with the 5 subfolders
+    <category>-NNN/). In that case it delegates to
+    newclaude_adapter.parse_conversations and there's no zip to
+    return; the other categories (memories, frames, projects) are
+    processed separately in their own phase — this path only covers
+    the conversations."""
     p = os.path.abspath(input_path)
     if not os.path.exists(p):
-        raise FileNotFoundError(f"No existe: {input_path}")
+        raise FileNotFoundError(f"Does not exist: {input_path}")
 
-    # Layout descomprimido del nuevo export de Claude: se evalua antes que
-    # la extension porque un directorio no tiene extension y caeria en el
-    # RuntimeError de abajo.
+    # Decompressed layout of the new Claude export: evaluated before
+    # the extension check because a directory has no extension and
+    # would fall into the RuntimeError below.
     if os.path.isdir(p):
         from providers import newclaude_adapter
         if newclaude_adapter.detect_layout(p):
             return newclaude_adapter.parse_conversations(p), None
         raise RuntimeError(
-            "La carpeta no parece un export descomprimido de Claude "
-            "(falta conversations-NNN/conversations.json)."
+            "The folder does not look like a decompressed Claude export "
+            "(missing conversations-NNN/conversations.json)."
         )
 
     ext = os.path.splitext(p)[1].lower()

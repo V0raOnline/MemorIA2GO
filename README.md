@@ -42,6 +42,47 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 The conversations from all three providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell and MUSIC·0LOGY build vaults of their own: it made no sense to treat an editorial archive the same as a music library.
 
+### New — Claude export format (2026-09+)
+
+Anthropic quietly changed the Claude export format in September 2026:
+it's no longer a single ZIP holding `conversations.json` +
+`users.json` + `projects.json`, but a **JSON manifest + five
+single-use ZIPs**, one per category: `light_metadata`, `projects`,
+`memories`, `frames` and `conversations`. No changelog entry, no
+notice on the help center; the only public signal is a [third-party
+issue](https://github.com/ukogan/claude-migration-assistant/issues/4)
+from people caught off guard by the change.
+
+M3M0R·IA recognizes the new format and takes advantage of what it
+brings that the old one didn't:
+
+- **`memories`** → a new vault `Claude_Mem/` (sibling of MERGED_VAULT
+  and PRJ_VAULT). Holds the personal dossier Claude has built about
+  you, the per-project textual summaries, and the **persistent memory
+  notes** Claude uses internally — 71 files with a hierarchical
+  structure `/areas /people /projects /topics /profile.md` preserved
+  as-is, because the structure IS information.
+- **`frames`** (the artifacts) → `MERGED_VAULT/CLAUDE_WEB/FRAMES/`
+  with **version history and comments**. The old export lost the
+  intermediate revisions; the new one carries every version with its
+  timestamp, description and full HTML, and M3M0R·IA copies them
+  verbatim next to an index note that also rescues the comment
+  threads.
+- **`projects`** → a per-project index note in `PRJ_VAULT/<name>/`
+  with `description`, `prompt_template` (the project's system
+  prompt), metadata, and `_docs/` for the inline project knowledge
+  you uploaded.
+- **`conversations`** → internal shape identical to the old export,
+  same adapter. Conversations that also appeared in an earlier export
+  **are not duplicated**: `vault_merge` groups them by `conv_id` and
+  fuses whatever's new in the thread. Only the packaging changed.
+
+Ingest is done from the decompressed folder (the five ZIPs can sit
+loose in `exports_dir` or inside a sibling folder). The JSON manifest
+is recognized but not imported on its own — it's just an index.
+`light_metadata` is preserved but not ingested (account metadata, no
+vault value).
+
 Rather see it working before installing anything? **[Test de recuperación de extracto conversacional](https://v0raonline.substack.com/p/test-de-recuperacion-de-extracto)** *(in Spanish)* — a walkthrough with screenshots, written up as a clinical report by an institution that studies biological organisms and their inability to find their own conversations.
 
 And **don't forget to collect your diploma** once you complete your first successful extraction. It goes on record.
@@ -85,7 +126,7 @@ This starts **outside** the tool, and it's the one thing it can't do for you. Yo
 | Where from | How to get it |
 |---|---|
 | **ChatGPT** | Settings → Data controls → Export data. A ZIP arrives by email |
-| **Claude** | Settings → Privacy → Export data. Arrives by email, sometimes as several ZIPs |
+| **Claude** | Settings → Privacy → Export data. Arrives by email. Since 2026-09 the new export is **five single-use ZIPs** (`conversations`, `projects`, `memories`, `frames`, `light_metadata`) described by a JSON manifest — download all of them to the exports folder; the old format (a single ZIP) still works. See the *New* section above |
 | **Grok** | Settings → Data → Download your data. The export includes conversations and part of your Imagine generations; some arrive only as a link and M3M0R·IA downloads them separately with the pending-downloads tool (Reconnection tab) |
 | **Substack** | Dashboard → Settings → Import/Export |
 | **Substack**, stats *(optional)* | Dashboard → Stats → Posts → Show, **ticking every column**, then download the CSV |
@@ -203,7 +244,7 @@ python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
 - `substack_vault` (in `memoria_config.yaml`) — where the Inkwell vault gets built. It's the **only** path it needs: the Substack export and its stats CSV live in your usual exports folder, because the conversation pipeline rejects them and Inkwell picks them up from there. One folder, two doors.
 - `suno_backup` / `suno_vault` and `flowmusic_backup` / `flowmusic_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's paths, one pair per source: where the raw backup lives, and where its Obsidian vault is built. All four optional and independent: use one source, both, or neither. With no backup path configured, that source's Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
 
-Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders.
+Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders. **Claude does bring projects as first-class entities from the new format** (2026-09+): each project has its folder in `PRJ_VAULT/<name>/` with metadata and project knowledge, though the conversations themselves still can't be linked to them automatically for lack of a bridge in the export.
 
 ---
 

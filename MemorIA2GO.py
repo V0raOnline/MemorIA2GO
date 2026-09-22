@@ -311,23 +311,23 @@ def load_from_yaml(config_path: str | None = None,
 # Pasos del pipeline
 # ─────────────────────────────────────────
 
-def _ingerir_extras_newclaude_si_aplica(export_path: Path, base_vault: Path) -> dict:
-    """Hook del Paso 1 para el nuevo export de Claude (2026-09+).
+def _ingest_newclaude_extras_if_applies(export_path: Path, base_vault: Path) -> dict:
+    """Step 1 hook for the new Claude export (2026-09+).
 
-    Cuando `export_path` es una CARPETA que se ha reconocido como layout
-    descomprimido (`conversations-NNN/` + otras categorias), las
-    conversaciones ya se han importado por la ruta clasica. Aqui se
-    encadena la ingesta de las OTRAS categorias:
+    When `export_path` is a DIRECTORY that's been recognized as a
+    decompressed layout (`conversations-NNN/` + other categories), the
+    conversations have already been imported through the classic path.
+    This chains the ingest of the OTHER categories:
         - projects  -> <base_vault>/PRJ_VAULT/<name>/          (D3)
         - frames    -> <base_vault>/MERGED_VAULT/CLAUDE_WEB/FRAMES/
-        - memories  -> <base_vault>/Claude_Mem/                (D2 y D4)
+        - memories  -> <base_vault>/Claude_Mem/                (D2 and D4)
 
-    Idempotente: reingestar el mismo layout no reescribe nada. Los
-    fallos NO abortan la cola: las conversaciones ya han entrado, los
-    zips crudos siguen en bck/ para reintentar. Devuelve las stats de
-    los tres writers (dict vacio si no aplica).
+    Idempotent: reingesting the same layout doesn't rewrite anything.
+    Failures do NOT abort the queue: conversations are already in, and
+    the raw zips stay in bck/ for retrying. Returns the stats of the
+    three writers (empty dict if not applicable).
 
-    Diseño y decisiones cerradas en bck/NewClaude/PLAN.md (2026-09-22).
+    Design and decisions closed in bck/NewClaude/PLAN.md (2026-09-22).
     """
     if not export_path.is_dir():
         return {}
@@ -337,16 +337,16 @@ def _ingerir_extras_newclaude_si_aplica(export_path: Path, base_vault: Path) -> 
     try:
         stats = newclaude_adapter.ingest_extras(export_path, base_vault)
     except Exception as e:
-        error(f"  Fallo ingiriendo categorias extra ({type(e).__name__}: {e}). "
-              "Las conversaciones SI se importaron. Los otros datos "
-              "(projects/frames/memories) quedan sin escribir; reintenta con "
-              "--reprocess-all cuando el problema este resuelto.")
+        error(f"  Failed ingesting extra categories ({type(e).__name__}: {e}). "
+              "Conversations WERE imported. The other data "
+              "(projects/frames/memories) is left unwritten; retry with "
+              "--reprocess-all once the problem is fixed.")
         return {}
-    info(f"  projects: {stats['projects']['proyectos']} proyectos, "
+    info(f"  projects: {stats['projects']['projects']} projects, "
          f"{stats['projects']['docs']} docs")
     info(f"  frames:   {stats['frames']['frames']} artifacts, "
-         f"{stats['frames']['versiones']} versiones")
-    info(f"  memories: {stats['memories']['secciones']} secciones, "
+         f"{stats['frames']['versions']} versions")
+    info(f"  memories: {stats['memories']['sections']} sections, "
          f"{stats['memories']['memory_files']} memory_files")
     return stats
 
@@ -419,9 +419,9 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
             error(f"Failed importing {export_path.name}. Aborting the rest of the queue.")
             sys.exit(1)
 
-        # Nuevo export de Claude: si el export es un layout descomprimido,
-        # encadena la ingesta de las categorias que no son conversaciones.
-        _ingerir_extras_newclaude_si_aplica(export_path, params["vault_path"])
+        # New Claude export: if the export is a decompressed layout,
+        # chain the ingest of the categories that are not conversations.
+        _ingest_newclaude_extras_if_applies(export_path, params["vault_path"])
 
         procesados_ok.append(export_path)
 

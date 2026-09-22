@@ -1,44 +1,41 @@
 # -*- coding: utf-8 -*-
-"""providers/newclaude_adapter.py -- Adaptador del NUEVO formato de export
-de Claude (claude.ai) al modelo intermedio de MemorIA2GO.
+"""providers/newclaude_adapter.py -- Adapter for the NEW Claude (claude.ai)
+export format, feeding MemorIA2GO's intermediate model.
 
-Anthropic cambio silenciosamente el formato del export en agosto/septiembre
-de 2026 (unificacion de memoria entre chat y Cowork, ver
-https://support.claude.com/en/articles/12123587). Lo que antes era UN zip
-con conversations.json + users.json + projects.json ahora es un
-MANIFIESTO JSON + 5 ZIPS DE UN SOLO USO, cada uno con su categoria:
+Anthropic quietly changed the export format in August/September 2026
+(memory unification between chat and Cowork, see
+https://support.claude.com/en/articles/12123587). What used to be ONE
+zip with conversations.json + users.json + projects.json is now a
+JSON MANIFEST + 5 SINGLE-USE ZIPS, one per category:
 
-    manifest-<uuid>-<ts>-<sig>-<AAAA-MM-DD-HH-MM-SS>.json
+    manifest-<uuid>-<ts>-<sig>-<YYYY-MM-DD-HH-MM-SS>.json
     ├── light_metadata-000.zip  (users.json + login_history.json)
-    ├── projects-000.zip        (projects/<uuid>.json, uno por proyecto)
-    ├── memories-000.zip        (memories/<user_uuid>.json, memoria persistente)
-    ├── frames-000.zip          (artifacts/<uuid>/... versiones + comentarios)
-    └── conversations-000.zip   (conversations.json monolitico, mismo formato)
+    ├── projects-000.zip        (projects/<uuid>.json, one per project)
+    ├── memories-000.zip        (memories/<user_uuid>.json, persistent memory)
+    ├── frames-000.zip          (artifacts/<uuid>/... versions + comments)
+    └── conversations-000.zip   (monolithic conversations.json, same shape)
 
-No hay anuncio oficial (comprobado en el Privacy Center y en changelogs
-publicos, 2026-09-21). El unico rastro publico es un issue de terceros:
+No official announcement (checked against the Privacy Center and public
+changelogs, 2026-09-21). The only public trail is a third-party issue:
 https://github.com/ukogan/claude-migration-assistant/issues/4
 
-DECISIONES DE DISEÑO (ver bck/NewClaude/PLAN.md):
+DESIGN DECISIONS (see bck/NewClaude/PLAN.md):
 
-- `conversations.json` interno TIENE la misma forma que el export viejo.
-  Verificado contra el export real de V0ra 2026-09-20 (264 convs, 13.935
-  mensajes): claves de conversacion y de mensaje identicas a KNOWN_KEYS
-  del claude_adapter. Este adaptador delega en `claude_adapter.parse`
-  para las conversaciones y no re-implementa nada.
-- El `source` que se emite es `claude_export`, NO `newclaude_export`.
-  Motivo: el pipeline usa `conv_id` como identidad de conversacion en
-  vault_merge (verificado en vault_merge.py:199, `key = f"id:{cid}"`);
-  si el `source` divergiera, las variantes del mismo `conv_id` de dos
-  exports (viejo y nuevo) no se fusionarian coherentemente. Con el
-  mismo `source`, vault_merge las fusiona y recupera mensajes nuevos.
-- `memories`, `frames`, `projects` y `light_metadata` NO se ingestan en
-  esta version del adaptador. Se preservan en su banco crudo y se
-  atacan por fases (ver plan).
-
-Este adaptador NO se conecta al detector automatico
-(split_chatgpt_export._dispatch) todavia: la Fase A del plan es
-fundacional (parseo + tests), la Fase B lo cablea al pipeline.
+- The inner `conversations.json` HAS the same shape as the old export.
+  Verified against a real export (264 conversations, 13,935 messages):
+  conversation and message keys identical to claude_adapter's
+  KNOWN_KEYS. This adapter delegates to `claude_adapter.parse` for
+  conversations and reimplements nothing.
+- The emitted `source` is `claude_export`, NOT `newclaude_export`.
+  Reason: the pipeline uses `conv_id` as the conversation identity in
+  vault_merge (verified in vault_merge.py:199, `key = f"id:{cid}"`);
+  if `source` diverged, variants of the same `conv_id` across the
+  old and the new export wouldn't be merged coherently. With the same
+  `source`, vault_merge merges them and recovers any new messages.
+- `memories`, `frames`, `projects` and `light_metadata` are handled by
+  the writers at the bottom of this file (write_projects, write_frames,
+  write_memories). `light_metadata` is preserved raw but not ingested
+  (account metadata, no vault value).
 """
 from __future__ import annotations
 
@@ -50,30 +47,29 @@ from typing import Any, Dict, List, Optional
 
 from providers import claude_adapter
 
-# Caracteres que Windows no acepta en nombres de fichero/carpeta. Se
-# sustituyen por "_"; los acentos y espacios se conservan (Obsidian
-# los maneja bien y son parte del nombre humano que V0ra quiere ver).
+# Characters Windows doesn't allow in file/folder names. They get
+# replaced with "_"; accents and spaces are kept (Obsidian handles
+# them fine and they belong to the human name the user wants to see).
 _WIN_UNSAFE_RX = re.compile(r'[\\/:*?"<>|]')
 
 
-def _sanear_nombre_windows(nombre: str) -> str:
-    """Sanea un nombre para uso como carpeta/fichero en Windows sin
-    aplanarlo a slug agresivo. Solo sustituye los 9 caracteres
-    prohibidos y colapsa espacios en blanco duplicados; no toca
-    mayusculas, acentos, guiones ni espacios sueltos."""
-    s = _WIN_UNSAFE_RX.sub("_", nombre or "").strip()
+def _sanitize_windows_name(name: str) -> str:
+    """Sanitize a name for use as a Windows folder/file without slugging
+    it aggressively. Only substitutes the 9 forbidden characters and
+    collapses duplicate whitespace; leaves case, accents, dashes and
+    single spaces alone."""
+    s = _WIN_UNSAFE_RX.sub("_", name or "").strip()
     s = re.sub(r"\s+", " ", s)
-    # Puntos y espacios finales tampoco valen (Windows los recorta al
-    # crear la ruta y produce colisiones invisibles).
+    # Trailing dots and spaces are also invalid (Windows trims them
+    # when creating the path and produces invisible collisions).
     s = s.rstrip(". ")
-    return s or "sin_nombre"
+    return s or "unnamed"
 
 
 def _yaml_val(v: Any) -> str:
-    """Serializa un valor Python a un YAML minimo suficiente para el
-    frontmatter de las notas: string entre comillas dobles con las
-    comillas escapadas a simples, bool/None sin comillas, numeros
-    directos."""
+    """Serialize a Python value to the minimal YAML needed for note
+    frontmatter: strings in double quotes with inner quotes escaped to
+    single quotes, bool/None unquoted, numbers as-is."""
     if v is None:
         return "null"
     if isinstance(v, bool):
@@ -82,35 +78,37 @@ def _yaml_val(v: Any) -> str:
         return str(v)
     return '"' + str(v).replace('"', "'") + '"'
 
-# Las cinco categorias que el manifiesto debe listar. Si aparece una
-# categoria fuera de este conjunto, o si falta alguna esperada, es señal
-# de que Anthropic volvio a mover el formato -- preflight avisa, no
-# bloquea (misma disciplina que KNOWN_KEYS en el adaptador viejo).
+
+# The five categories the manifest must list. If a category outside
+# this set shows up, or if an expected one is missing, that's the sign
+# that Anthropic moved the format again -- preflight warns, doesn't
+# block (same discipline as KNOWN_KEYS in the older adapter and Grok).
 KNOWN_CATEGORIES = frozenset({
     "light_metadata", "projects", "memories", "frames", "conversations",
 })
 
-# Claves esperadas en el manifiesto JSON. `version` puede subir sin
-# romper compatibilidad; se mira, no se exige valor concreto.
+# Keys expected in the manifest JSON. `version` may bump without
+# breaking compatibility; it's inspected, not required at a specific
+# value.
 MANIFEST_KEYS = frozenset({
     "instructions", "created_at", "total_files", "data_files", "version",
 })
 
-# Claves esperadas en cada entrada de `data_files` del manifiesto.
+# Keys expected in each entry of the manifest's `data_files`.
 DATA_FILE_KEYS = frozenset({
     "batch_index", "export_url", "category", "part", "filename",
 })
 
 
 def detect_manifest(data: Any) -> bool:
-    """True si `data` (JSON ya cargado) es el manifiesto del nuevo export.
+    """True if `data` (already-loaded JSON) is the new export's manifest.
 
-    Se identifica por la combinacion: dict raiz con `data_files` (lista),
-    cada entrada un dict con `category` y `filename`, y por lo menos una
-    categoria del conjunto conocido. Deliberadamente PERMISIVO en las
-    claves opcionales (`instructions`, `version`, `total_files`,
-    `created_at`) para que un cambio menor del formato no rompa la
-    deteccion; el aviso de deriva es responsabilidad del que llame."""
+    Identified by the combination: root dict with `data_files` (list),
+    each entry a dict with `category` and `filename`, and at least one
+    category from the known set. Deliberately PERMISSIVE with the
+    optional keys (`instructions`, `version`, `total_files`,
+    `created_at`) so that a minor format change doesn't break
+    detection; drift warnings are the caller's responsibility."""
     if not isinstance(data, dict):
         return False
     dfs = data.get("data_files")
@@ -123,49 +121,49 @@ def detect_manifest(data: Any) -> bool:
     return bool(cats & KNOWN_CATEGORIES)
 
 
-def detect_layout(carpeta: Any) -> bool:
-    """True si `carpeta` (Path o str) es una carpeta descomprimida del
-    nuevo export.
+def detect_layout(folder: Any) -> bool:
+    """True if `folder` (Path or str) is a decompressed directory of the
+    new export.
 
-    Reconoce la estructura resultante de descomprimir los 5 zips: cinco
-    subcarpetas hermanas `<categoria>-NNN/` (habitualmente `-000`), cada
-    una con el contenido de su zip. Se admite que falte alguna categoria
-    (por ejemplo, si el usuario solo descomprimio conversations-000.zip
-    para probar): la señal minima es que exista `conversations-NNN/` con
-    un `conversations.json` dentro."""
-    p = Path(carpeta)
+    Recognizes the layout that results from decompressing the 5 zips:
+    five sibling subfolders `<category>-NNN/` (usually `-000`), each
+    holding the contents of its zip. A missing category is tolerated
+    (e.g. if the user only decompressed conversations-000.zip to try
+    it): the minimum signal is that `conversations-NNN/` exists with
+    a `conversations.json` inside."""
+    p = Path(folder)
     if not p.is_dir():
         return False
-    # Buscar la subcarpeta de conversaciones (el minimo viable).
+    # Look for the conversations subfolder (the minimum viable marker).
     for sub in p.iterdir():
         if not sub.is_dir():
             continue
-        nombre = sub.name.lower()
-        if nombre.startswith("conversations-") and (sub / "conversations.json").is_file():
+        name = sub.name.lower()
+        if name.startswith("conversations-") and (sub / "conversations.json").is_file():
             return True
     return False
 
 
-def _find_subdir(carpeta: Path, categoria: str) -> Optional[Path]:
-    """Busca la subcarpeta `<categoria>-NNN/` dentro de `carpeta`. Devuelve
-    la primera que encuentre (habitualmente `-000`); None si no existe."""
-    prefijo = categoria.lower() + "-"
-    for sub in carpeta.iterdir():
-        if sub.is_dir() and sub.name.lower().startswith(prefijo):
+def _find_subdir(folder: Path, category: str) -> Optional[Path]:
+    """Find the `<category>-NNN/` subfolder inside `folder`. Returns the
+    first one found (usually `-000`); None if it doesn't exist."""
+    prefix = category.lower() + "-"
+    for sub in folder.iterdir():
+        if sub.is_dir() and sub.name.lower().startswith(prefix):
             return sub
     return None
 
 
-def parse_conversations(carpeta: Any) -> List[Dict[str, Any]]:
-    """Lee conversations.json de una carpeta descomprimida del nuevo
-    export y lo devuelve ya parseado por `claude_adapter.parse`.
+def parse_conversations(folder: Any) -> List[Dict[str, Any]]:
+    """Read conversations.json from a decompressed new-export folder and
+    return it already parsed by `claude_adapter.parse`.
 
-    Delega TODO el trabajo semantico al adaptador viejo: el formato
-    interno de conversations.json no cambio, y re-implementarlo aqui
-    seria duplicar 230 lineas de logica (threading por
-    parent_message_uuid, resolucion de artefactos, attachments,
-    rendering...) que ya estan probadas."""
-    p = Path(carpeta)
+    Delegates ALL semantic work to the older adapter: the internal
+    shape of conversations.json didn't change, and re-implementing it
+    here would duplicate 230 lines of tested logic (threading by
+    parent_message_uuid, artifact resolution, attachments, rendering,
+    ...)."""
+    p = Path(folder)
     conv_dir = _find_subdir(p, "conversations")
     if conv_dir is None:
         return []
@@ -178,28 +176,27 @@ def parse_conversations(carpeta: Any) -> List[Dict[str, Any]]:
     return claude_adapter.parse(data)
 
 
-def categorias_del_manifiesto(data: Dict[str, Any]) -> Dict[str, List[str]]:
-    """Dado un manifiesto valido (`detect_manifest(data)` True), devuelve
-    `{"conocidas": [...], "desconocidas": [...]}` en el orden en que
-    aparecen en `data_files`. Util para que preflight avise si Anthropic
-    añade una categoria nueva (misma señal que las claves nuevas)."""
-    conocidas, desconocidas = [], []
+def categories_from_manifest(data: Dict[str, Any]) -> Dict[str, List[str]]:
+    """Given a valid manifest (`detect_manifest(data)` True), return
+    `{"known": [...], "unknown": [...]}` in the order they appear in
+    `data_files`. Used by preflight to warn when Anthropic adds a new
+    category (same signal as newly seen keys)."""
+    known, unknown = [], []
     for d in data.get("data_files") or []:
         cat = d.get("category")
         if cat in KNOWN_CATEGORIES:
-            conocidas.append(cat)
+            known.append(cat)
         elif cat:
-            desconocidas.append(cat)
-    return {"conocidas": conocidas, "desconocidas": desconocidas}
+            unknown.append(cat)
+    return {"known": known, "unknown": unknown}
 
 
 # ─────────────────────────────────────────
-# projects: un JSON por proyecto en projects-NNN/projects/<uuid>.json
+# projects: one JSON per project in projects-NNN/projects/<uuid>.json
 # ─────────────────────────────────────────
-# Claves observadas contra el export real de V0ra (24 proyectos,
-# 2026-09-20). Mismo criterio de KNOWN_KEYS que el resto de adaptadores:
-# si aparece una clave fuera de este set, es señal de deriva y preflight
-# lo dira. No bloquea la ingesta.
+# Keys observed against a real export (24 projects, 2026-09-20). Same
+# KNOWN_KEYS discipline as the other adapters: if a key outside this
+# set appears, that's drift and preflight says so. Doesn't block ingest.
 
 KNOWN_PROJECT_KEYS = frozenset({
     "uuid", "name", "description", "is_private", "is_starter_project",
@@ -211,29 +208,28 @@ KNOWN_DOC_KEYS = frozenset({
 })
 
 
-def parse_projects(carpeta: Any) -> List[Dict[str, Any]]:
-    """Recorre projects-NNN/projects/*.json y devuelve un dict normalizado
-    por proyecto. NO escribe nada al vault: la decision de ubicacion (D3
-    del PLAN) queda para cuando V0ra elija entre `Proyectos/` (existente)
-    o `CLAUDE_WEB/PROJECTS/` (banco propio).
+def parse_projects(folder: Any) -> List[Dict[str, Any]]:
+    """Walk projects-NNN/projects/*.json and return a normalized dict
+    per project. Writes NOTHING to the vault: the location decision
+    (D3 in the PLAN) lives in write_projects.
 
-    Forma de salida:
+    Output shape:
         {"uuid": str,
          "name": str,
          "description": str,
-         "prompt_template": str,       # instrucciones del proyecto (system prompt)
+         "prompt_template": str,       # project instructions (system prompt)
          "is_private": bool,
          "is_starter_project": bool,
-         "created_at": float | None,   # epoch en segundos (formato del pipeline)
+         "created_at": float | None,   # epoch seconds (pipeline convention)
          "updated_at": float | None,
          "creator": {"uuid": str, "full_name": str},
          "docs": [{"uuid","filename","content","created_at"}, ...],
          "provider": "claude"}
 
-    Un proyecto vacio (sin docs) tambien se emite: sigue siendo un
-    proyecto real de la cuenta de la persona; el pipeline decide luego
-    si merece nota."""
-    p = Path(carpeta)
+    An empty project (no docs) is still emitted: it's still a real
+    project in the account; downstream code decides if it deserves a
+    note."""
+    p = Path(folder)
     proj_dir = _find_subdir(p, "projects")
     if proj_dir is None:
         return []
@@ -246,7 +242,7 @@ def parse_projects(carpeta: Any) -> List[Dict[str, Any]]:
         try:
             d = json.loads(fp.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            # Un proyecto ilegible no debe tumbar el resto; se salta.
+            # An unreadable project shouldn't take down the rest; skip it.
             continue
         docs_out: List[Dict[str, Any]] = []
         for doc in d.get("docs") or []:
@@ -279,21 +275,21 @@ def parse_projects(carpeta: Any) -> List[Dict[str, Any]]:
 
 
 # ─────────────────────────────────────────
-# frames = artifacts, con historial de versiones y comentarios
+# frames = artifacts, with version history and comments
 # ─────────────────────────────────────────
-# Estructura por artifact (verificada contra el export real 2026-09-20):
+# Per-artifact structure (verified against a real export 2026-09-20):
 #   frames-NNN/artifacts/<artifact_id>/
-#     artifact.json          -- metadatos: id, kind, visibility, versions[],
+#     artifact.json          -- metadata: id, kind, visibility, versions[],
 #                               owner_account, updated_at, active_version
-#     artifact_comments.json -- OPCIONAL (2/10 en el export real): dict
-#                               con "threads": [{comments:[...], resolved,
+#     artifact_comments.json -- OPTIONAL (2/10 in the real export): dict
+#                               with "threads": [{comments:[...], resolved,
 #                               carried, created_at}]
-#     versions/<ver_id>.html -- fichero real de cada version, servido
-#                               como HTML autocontenido
+#     versions/<ver_id>.html -- the file for each version, served as
+#                               self-contained HTML
 #
-# El adaptador solo *inventaria* las versiones (id, titulo, tamaño,
-# ruta a disco). NO lee el contenido HTML aqui: son 118 ficheros en
-# el export real y el consumidor los abrira segun necesite.
+# The adapter only *inventories* the versions (id, title, size, disk
+# path). It does NOT read the HTML content here: there are 118 files
+# in the real export and the consumer opens them as needed.
 
 KNOWN_FRAME_KEYS = frozenset({
     "id", "kind", "visibility", "versions", "owner_account",
@@ -314,22 +310,22 @@ KNOWN_COMMENT_KEYS = frozenset({
 })
 
 
-def parse_frames(carpeta: Any) -> List[Dict[str, Any]]:
-    """Recorre frames-NNN/artifacts/<uuid>/ y devuelve un inventario
-    normalizado por artifact. NO escribe nada.
+def parse_frames(folder: Any) -> List[Dict[str, Any]]:
+    """Walk frames-NNN/artifacts/<uuid>/ and return a normalized
+    inventory per artifact. Writes nothing.
 
-    Forma de salida por artifact:
+    Per-artifact output shape:
         {"id": str,
-         "kind": str,               # 'artifact' hasta ahora, deja el hueco
+         "kind": str,               # 'artifact' so far, leaves room
          "visibility": str,         # 'private'/'public'/...
-         "owner_account": str,      # uuid de la persona
+         "owner_account": str,      # user's uuid
          "updated_at": float | None,
-         "active_version": str,     # id de la version activa
-         "versions": [               # metadatos + ruta al HTML en disco
+         "active_version": str,     # id of the active version
+         "versions": [               # metadata + on-disk HTML path
              {"id": str, "title": str, "description": str,
               "created_at": float | None, "path": Path, "size": int}, ...
          ],
-         "threads": [                # comentarios (vacio si no hay fichero)
+         "threads": [                # comments (empty if no file)
              {"created_at","resolved","carried",
               "comments":[{"author_index","author_role",
                            "author_is_artifact_owner","text",
@@ -337,10 +333,10 @@ def parse_frames(carpeta: Any) -> List[Dict[str, Any]]:
          ],
          "provider": "claude"}
 
-    Las versiones se devuelven en el mismo orden que artifact.json las
-    lista; esa lista suele ir de mas antigua a mas reciente pero no se
-    reordena aqui (el consumidor decide como pintarlo)."""
-    p = Path(carpeta)
+    Versions come back in the same order artifact.json lists them; that
+    list usually runs oldest-to-newest but isn't reordered here (the
+    consumer decides how to render it)."""
+    p = Path(folder)
     frames_dir = _find_subdir(p, "frames")
     if frames_dir is None:
         return []
@@ -366,7 +362,7 @@ def parse_frames(carpeta: Any) -> List[Dict[str, Any]]:
             if not isinstance(v, dict):
                 continue
             vid = v.get("id")
-            # Localizar el HTML en disco por su id (nombre = <id>.html).
+            # Locate the HTML on disk by its id (filename = <id>.html).
             vpath = None
             vsize = 0
             if vid and versions_dir.is_dir():
@@ -394,11 +390,11 @@ def parse_frames(carpeta: Any) -> List[Dict[str, Any]]:
                 for th in cdata.get("threads") or []:
                     if not isinstance(th, dict):
                         continue
-                    comentarios = []
+                    comments = []
                     for co in th.get("comments") or []:
                         if not isinstance(co, dict):
                             continue
-                        comentarios.append({
+                        comments.append({
                             "author_index": co.get("author_index"),
                             "author_role": (co.get("author_role") or "").strip(),
                             "author_is_artifact_owner": bool(co.get("author_is_artifact_owner")),
@@ -410,7 +406,7 @@ def parse_frames(carpeta: Any) -> List[Dict[str, Any]]:
                         "created_at": claude_adapter._epoch(th.get("created_at")),
                         "resolved": bool(th.get("resolved")),
                         "carried": bool(th.get("carried")),
-                        "comments": comentarios,
+                        "comments": comments,
                     })
 
         out.append({
@@ -428,24 +424,23 @@ def parse_frames(carpeta: Any) -> List[Dict[str, Any]]:
 
 
 # ─────────────────────────────────────────
-# memories: dossier personal + memoria vault-style + resumenes por proyecto
+# memories: personal dossier + vault-style memory + per-project summaries
 # ─────────────────────────────────────────
-# Este JSON es sensible: contiene el perfil personal que Claude ha
-# acumulado (V0ra: 25 anios en infra/identity, BNP Paribas, familia,
-# perfil ND...). Va aparte del vault principal.
+# This JSON is sensitive: it holds the personal profile Claude has
+# accumulated. It lives outside the main vault (in Claude_Mem/).
 
-def parse_memories(carpeta: Any) -> Optional[Dict[str, Any]]:
-    """Lee el unico JSON dentro de memories-NNN/memories/ y devuelve las
-    cuatro secciones:
-        {"conversations_memory": str,   # dossier personal
-         "project_memories": {uuid: str, ...},  # resumen por proyecto
+def parse_memories(folder: Any) -> Optional[Dict[str, Any]]:
+    """Read the single JSON inside memories-NNN/memories/ and return the
+    four sections:
+        {"conversations_memory": str,   # personal dossier
+         "project_memories": {uuid: str, ...},  # per-project summary
          "memory_files": [{"path", "content", "updated_at"}, ...],
          "account_uuid": str}
 
-    Devuelve None si no hay JSON (layout parcial sin memories). Los
-    campos individuales pueden faltar del JSON: se rellenan a valor
-    vacio para que el consumidor no tenga que defenderse por cada uno."""
-    p = Path(carpeta)
+    Returns None if there's no JSON (partial layout without memories).
+    Individual fields can be missing from the JSON: they default to
+    empty so the consumer doesn't have to defend each one."""
+    p = Path(folder)
     mem_dir = _find_subdir(p, "memories")
     if mem_dir is None:
         return None
@@ -456,10 +451,10 @@ def parse_memories(carpeta: Any) -> Optional[Dict[str, Any]]:
     files = sorted(inner.glob("*.json"))
     if not files:
         return None
-    # En el export real solo hay UN fichero (nombrado por account_uuid).
-    # Si Anthropic diera algun dia varios, procesamos el primero y el
-    # resto queda para una futura decision -- no se pierde nada (el
-    # zip crudo esta preservado).
+    # The real export only has ONE file (named by account_uuid). If
+    # Anthropic ever ships several, we process the first one and the
+    # rest waits on a future decision -- nothing is lost (the raw zip
+    # is preserved).
     try:
         d = json.loads(files[0].read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -482,71 +477,71 @@ def parse_memories(carpeta: Any) -> Optional[Dict[str, Any]]:
 
 
 # ─────────────────────────────────────────
-# ESCRITURA: los tres writers, uno por categoria
+# WRITERS: three writers, one per category
 # ─────────────────────────────────────────
-# Todos son idempotentes por contenido: releen el fichero destino antes
-# de reescribirlo y saltan si no ha cambiado. No borran ficheros
-# preexistentes (una reingesta no destruye ediciones a mano de V0ra en
-# el vault entre pasadas).
+# All are idempotent by content: they re-read the target file before
+# rewriting it and skip if unchanged. They never delete pre-existing
+# files (a reingest doesn't destroy the user's hand-edits in the vault
+# between runs).
 
 
-def _escribe_si_cambio(p: Path, texto: str) -> bool:
-    """Escribe `texto` en `p` solo si el contenido difiere del actual.
-    Devuelve True si escribio, False si salto. Crea el directorio padre
-    si hace falta. Encoding UTF-8, newline LF (mismo criterio que
-    write_md)."""
-    texto = texto.replace("\r\n", "\n").replace("\r", "\n")
+def _write_if_changed(p: Path, text: str) -> bool:
+    """Write `text` to `p` only if the content differs from what's
+    there. Returns True if it wrote, False if it skipped. Creates the
+    parent directory if needed. UTF-8 encoding, LF newlines (same rule
+    as write_md)."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     if p.exists():
         try:
-            if p.read_text(encoding="utf-8") == texto:
+            if p.read_text(encoding="utf-8") == text:
                 return False
         except OSError:
             pass
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("w", encoding="utf-8", newline="\n") as f:
-        f.write(texto)
+        f.write(text)
     return True
 
 
-def _copia_si_cambio(origen: Path, destino: Path) -> bool:
-    """Copia binaria de un fichero al destino solo si el destino no
-    existe o su tamaño no coincide. Se compara por tamaño y no por
-    hash para no leer 100 MB de HTML en cada pasada; el caso adverso
-    (contenido distinto con mismo tamaño) es teorico -- el HTML lleva
-    timestamp+hash en el nombre, cambia siempre."""
-    if destino.exists() and destino.stat().st_size == origen.stat().st_size:
+def _copy_if_changed(src: Path, dst: Path) -> bool:
+    """Binary copy of a file to the destination only if the destination
+    does not exist or its size does not match. Comparison is by size,
+    not by hash, to avoid reading 100 MB of HTML on every pass; the
+    adverse case (different content with same size) is theoretical --
+    the HTML filename embeds timestamp+hash, so it always changes."""
+    if dst.exists() and dst.stat().st_size == src.stat().st_size:
         return False
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(origen, destino)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
     return True
 
 
-def _fmt_fecha(epoch: Optional[float]) -> str:
-    """Epoch -> AAAA-MM-DD HH:MM para el frontmatter. Sin timezone: el
-    resto del vault es tz-local implicito (ver iso_date en
+def _fmt_date(epoch: Optional[float]) -> str:
+    """Epoch -> YYYY-MM-DD HH:MM for the frontmatter. No timezone: the
+    rest of the vault is implicit local tz (see iso_date in
     split_chatgpt_export)."""
     if not epoch:
         return ""
     return datetime.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
 
 
-def write_projects(carpeta: Any, prj_vault: Any) -> Dict[str, Any]:
-    """Escribe los proyectos del export nuevo a `<prj_vault>/<name>/`.
-    Ver D3 en bck/NewClaude/PLAN.md.
+def write_projects(folder: Any, prj_vault: Any) -> Dict[str, Any]:
+    """Write the new export's projects to `<prj_vault>/<name>/`.
+    See D3 in bck/NewClaude/PLAN.md.
 
-    Por cada proyecto:
-        <prj_vault>/<name>/00_proyecto.md
-        <prj_vault>/<name>/_docs/<filename>   (uno por doc, si los hay)
+    Per project:
+        <prj_vault>/<name>/00_project.md
+        <prj_vault>/<name>/_docs/<filename>   (one per doc, if any)
 
-    Devuelve stats {"proyectos": n, "docs": n, "escritas": n, "saltadas": n}."""
+    Returns stats {"projects": n, "docs": n, "written": n, "skipped": n}."""
     prj_vault = Path(prj_vault)
-    stats = {"proyectos": 0, "docs": 0, "escritas": 0, "saltadas": 0}
-    for pr in parse_projects(carpeta):
-        nombre_carp = _sanear_nombre_windows(pr["name"])
-        raiz = prj_vault / nombre_carp
-        # 00_proyecto.md
-        pares = [
-            ("tipo", "proyecto-claude"),
+    stats = {"projects": 0, "docs": 0, "written": 0, "skipped": 0}
+    for pr in parse_projects(folder):
+        folder_name = _sanitize_windows_name(pr["name"])
+        root = prj_vault / folder_name
+        # 00_project.md
+        pairs = [
+            ("type", "claude-project"),
             ("name", pr["name"]),
             ("uuid", pr["uuid"]),
             ("provider", "claude"),
@@ -554,264 +549,263 @@ def write_projects(carpeta: Any, prj_vault: Any) -> Dict[str, Any]:
             ("starter", pr["is_starter_project"]),
             ("creator", pr["creator"].get("full_name") or ""),
             ("creator_uuid", pr["creator"].get("uuid") or ""),
-            ("created_at", _fmt_fecha(pr["created_at"])),
-            ("updated_at", _fmt_fecha(pr["updated_at"])),
+            ("created_at", _fmt_date(pr["created_at"])),
+            ("updated_at", _fmt_date(pr["updated_at"])),
             ("source", "claude_export"),
         ]
         L = ["---"]
-        for k, v in pares:
+        for k, v in pairs:
             L.append(f"{k}: {_yaml_val(v)}")
         L += ["---", "", f"# {pr['name']}", ""]
         if pr["description"]:
             L += ["> " + pr["description"].replace("\n", "\n> "), ""]
         if pr["prompt_template"]:
-            L += ["## Instrucciones del proyecto", "",
+            L += ["## Project instructions", "",
                   "```", pr["prompt_template"], "```", ""]
-        # Enlace a la memoria de Claude sobre este proyecto (D4).
-        L += ["## Memoria de Claude sobre este proyecto", "",
-              f"Ver `Claude_Mem/projects/{pr['uuid']}/index.md` y "
-              f"`Claude_Mem/projects/{pr['uuid']}/overview.md` (si existen).",
+        # Link to Claude's memory about this project (D4).
+        L += ["## Claude's memory of this project", "",
+              f"See `Claude_Mem/projects/{pr['uuid']}/index.md` and "
+              f"`Claude_Mem/projects/{pr['uuid']}/overview.md` (if present).",
               ""]
-        # Lista de docs
+        # Docs list
         if pr["docs"]:
-            L += [f"## Docs del project knowledge ({len(pr['docs'])})", ""]
+            L += [f"## Project knowledge docs ({len(pr['docs'])})", ""]
             for d in pr["docs"]:
-                fn = _sanear_nombre_windows(d["filename"]) or "sin_nombre"
+                fn = _sanitize_windows_name(d["filename"]) or "unnamed"
                 L.append(f"- [[_docs/{fn}]]")
             L.append("")
         else:
-            L += ["## Docs del project knowledge", "",
-                  "*(este proyecto no tiene project knowledge en el export)*", ""]
-        texto = "\n".join(L).rstrip() + "\n"
-        if _escribe_si_cambio(raiz / "00_proyecto.md", texto):
-            stats["escritas"] += 1
+            L += ["## Project knowledge docs", "",
+                  "*(this project has no project knowledge in the export)*", ""]
+        text = "\n".join(L).rstrip() + "\n"
+        if _write_if_changed(root / "00_project.md", text):
+            stats["written"] += 1
         else:
-            stats["saltadas"] += 1
+            stats["skipped"] += 1
         # _docs/<filename>
         for d in pr["docs"]:
-            fn = _sanear_nombre_windows(d["filename"]) or "sin_nombre"
-            # El contenido va tal cual: son ficheros de conocimiento
-            # subidos por V0ra al proyecto, no notas del vault. No
-            # se anaden frontmatter ni cabeceras -- solo se preserva.
-            if _escribe_si_cambio(raiz / "_docs" / fn, d["content"]):
-                stats["escritas"] += 1
+            fn = _sanitize_windows_name(d["filename"]) or "unnamed"
+            # The doc goes as-is: these are knowledge files uploaded to
+            # the project, not vault notes. No frontmatter or headings
+            # are added -- they're preserved verbatim.
+            if _write_if_changed(root / "_docs" / fn, d["content"]):
+                stats["written"] += 1
             else:
-                stats["saltadas"] += 1
+                stats["skipped"] += 1
             stats["docs"] += 1
-        stats["proyectos"] += 1
+        stats["projects"] += 1
     return stats
 
 
-def write_frames(carpeta: Any, banco_dir: Any) -> Dict[str, Any]:
-    """Escribe los artifacts del export nuevo a `<banco_dir>/<id>/`.
-    banco_dir tipico: `<base_vault>/MERGED_VAULT/CLAUDE_WEB/FRAMES/`.
+def write_frames(folder: Any, banco_dir: Any) -> Dict[str, Any]:
+    """Write the new export's artifacts to `<banco_dir>/<id>/`.
+    Typical banco_dir: `<base_vault>/MERGED_VAULT/CLAUDE_WEB/FRAMES/`.
 
-    Por cada artifact:
-        <banco>/<id>/00_frame.md          (metadatos + comentarios)
-        <banco>/<id>/versions/<ver>.html  (copia binaria de cada version)
+    Per artifact:
+        <banco>/<id>/00_frame.md          (metadata + comments)
+        <banco>/<id>/versions/<ver>.html  (binary copy of each version)
 
-    Devuelve stats {"frames": n, "versiones": n, "comentarios": n,
-                    "escritas": n, "saltadas": n}."""
+    Returns stats {"frames": n, "versions": n, "comments": n,
+                   "written": n, "skipped": n}."""
     banco_dir = Path(banco_dir)
-    stats = {"frames": 0, "versiones": 0, "comentarios": 0,
-             "escritas": 0, "saltadas": 0}
-    for fr in parse_frames(carpeta):
-        aid = fr["id"] or "sin_id"
-        raiz = banco_dir / aid
-        # Titulo humano: la version activa suele tener uno legible.
-        titulo = ""
+    stats = {"frames": 0, "versions": 0, "comments": 0,
+             "written": 0, "skipped": 0}
+    for fr in parse_frames(folder):
+        aid = fr["id"] or "no_id"
+        root = banco_dir / aid
+        # Human title: the active version usually has a readable one.
+        title = ""
         for v in fr["versions"]:
             if v["id"] == fr["active_version"] and v["title"]:
-                titulo = v["title"]
+                title = v["title"]
                 break
-        if not titulo and fr["versions"]:
-            titulo = fr["versions"][-1]["title"] or aid
-        titulo = titulo or aid
+        if not title and fr["versions"]:
+            title = fr["versions"][-1]["title"] or aid
+        title = title or aid
 
-        pares = [
-            ("tipo", "frame-claude"),
+        pairs = [
+            ("type", "claude-frame"),
             ("id", aid),
             ("kind", fr["kind"]),
             ("visibility", fr["visibility"]),
             ("owner_account", fr["owner_account"]),
             ("active_version", fr["active_version"]),
-            ("updated_at", _fmt_fecha(fr["updated_at"])),
+            ("updated_at", _fmt_date(fr["updated_at"])),
             ("provider", "claude"),
             ("source", "claude_export"),
         ]
         L = ["---"]
-        for k, v in pares:
+        for k, v in pairs:
             L.append(f"{k}: {_yaml_val(v)}")
-        L += ["---", "", f"# {titulo}", ""]
+        L += ["---", "", f"# {title}", ""]
 
-        # Lista de versiones (mas reciente arriba)
-        L += [f"## Versiones ({len(fr['versions'])})", ""]
+        # Version list (most recent first)
+        L += [f"## Versions ({len(fr['versions'])})", ""]
         for v in sorted(fr["versions"], key=lambda x: x["created_at"] or 0, reverse=True):
-            marca = "  ← activa" if v["id"] == fr["active_version"] else ""
-            fecha = _fmt_fecha(v["created_at"])
-            tam_kb = f"{v['size']/1024:.1f} KB" if v["size"] else ""
-            L.append(f"- `{v['id']}` · {v['title'] or '(sin titulo)'} · {fecha} · {tam_kb}{marca}")
+            marker = "  ← active" if v["id"] == fr["active_version"] else ""
+            date = _fmt_date(v["created_at"])
+            size_kb = f"{v['size']/1024:.1f} KB" if v["size"] else ""
+            L.append(f"- `{v['id']}` · {v['title'] or '(no title)'} · {date} · {size_kb}{marker}")
             if v["description"] and v["description"] != v["title"]:
                 L.append(f"  {v['description']}")
         L.append("")
 
-        # Comentarios (si los hay)
+        # Comments (if any)
         if fr["threads"]:
-            L += [f"## Comentarios ({sum(len(t['comments']) for t in fr['threads'])})", ""]
+            L += [f"## Comments ({sum(len(t['comments']) for t in fr['threads'])})", ""]
             for th in sorted(fr["threads"], key=lambda t: t["created_at"] or 0):
-                estado = "resuelto" if th["resolved"] else "abierto"
-                L += [f"### Hilo del {_fmt_fecha(th['created_at'])} · {estado}", ""]
+                status = "resolved" if th["resolved"] else "open"
+                L += [f"### Thread from {_fmt_date(th['created_at'])} · {status}", ""]
                 for co in th["comments"]:
-                    autor = co["author_role"] or "usuario"
-                    marca_owner = " (owner)" if co["author_is_artifact_owner"] else ""
-                    L += [f"**{autor}{marca_owner}** — {_fmt_fecha(co['created_at'])}", ""]
+                    author = co["author_role"] or "user"
+                    owner_mark = " (owner)" if co["author_is_artifact_owner"] else ""
+                    L += [f"**{author}{owner_mark}** — {_fmt_date(co['created_at'])}", ""]
                     L += [co["text"], ""]
-                    stats["comentarios"] += 1
-        texto = "\n".join(L).rstrip() + "\n"
-        if _escribe_si_cambio(raiz / "00_frame.md", texto):
-            stats["escritas"] += 1
+                    stats["comments"] += 1
+        text = "\n".join(L).rstrip() + "\n"
+        if _write_if_changed(root / "00_frame.md", text):
+            stats["written"] += 1
         else:
-            stats["saltadas"] += 1
+            stats["skipped"] += 1
 
-        # Copia binaria de cada version HTML
+        # Binary copy of each HTML version
         for v in fr["versions"]:
             if v["path"] is None:
                 continue
-            destino = raiz / "versions" / f"{v['id']}.html"
-            if _copia_si_cambio(v["path"], destino):
-                stats["escritas"] += 1
+            dst = root / "versions" / f"{v['id']}.html"
+            if _copy_if_changed(v["path"], dst):
+                stats["written"] += 1
             else:
-                stats["saltadas"] += 1
-            stats["versiones"] += 1
+                stats["skipped"] += 1
+            stats["versions"] += 1
 
         stats["frames"] += 1
     return stats
 
 
-def write_memories(carpeta: Any, claude_mem_dir: Any) -> Dict[str, Any]:
-    """Escribe las memorias a `<claude_mem_dir>/`. claude_mem_dir tipico:
-    `<base_vault>/Claude_Mem/`. Ver D2 y D4 en bck/NewClaude/PLAN.md.
+def write_memories(folder: Any, claude_mem_dir: Any) -> Dict[str, Any]:
+    """Write memories to `<claude_mem_dir>/`. Typical claude_mem_dir:
+    `<base_vault>/Claude_Mem/`. See D2 and D4 in bck/NewClaude/PLAN.md.
 
-    Estructura respetada (D4, path literal):
-        <claude_mem>/profile.md            (dossier personal breve)
-        <claude_mem>/conversations.md      (conversations_memory largo)
-        <claude_mem>/projects/<uuid>/…     (memoria por proyecto)
-        <claude_mem>/areas/…               (temas de trabajo)
-        <claude_mem>/people/…              (personas cercanas)
-        <claude_mem>/topics/…              (temas personales)
-        <claude_mem>/project_summaries.md  (resumenes textuales por proyecto)
+    Structure preserved (D4, literal path):
+        <claude_mem>/profile.md            (short personal dossier)
+        <claude_mem>/conversations.md      (long conversations_memory)
+        <claude_mem>/projects/<uuid>/…     (per-project memory)
+        <claude_mem>/areas/…               (work topics)
+        <claude_mem>/people/…              (close people)
+        <claude_mem>/topics/…              (personal topics)
+        <claude_mem>/project_summaries.md  (textual per-project summaries)
 
-    Devuelve stats {"secciones", "memory_files", "escritas", "saltadas"}."""
+    Returns stats {"sections", "memory_files", "written", "skipped"}."""
     claude_mem_dir = Path(claude_mem_dir)
-    stats = {"secciones": 0, "memory_files": 0, "escritas": 0, "saltadas": 0}
-    mem = parse_memories(carpeta)
+    stats = {"sections": 0, "memory_files": 0, "written": 0, "skipped": 0}
+    mem = parse_memories(folder)
     if mem is None:
         return stats
 
-    # 1) conversations_memory: el dossier personal largo. Se escribe
-    # como fichero unico con encabezado, no como parte de profile.md,
-    # porque puede ser muy largo (6.7 KB en el export real) y merece
-    # su nota propia con historial de cambios via reingestas.
+    # 1) conversations_memory: the long personal dossier. Written as
+    # a single file with a heading, not folded into profile.md,
+    # because it can get long (6.7 KB in the real export) and deserves
+    # its own note with a change history via reingests.
     if mem["conversations_memory"]:
         L = ["---",
-             'tipo: "memoria-conversaciones"',
+             'type: "conversation-memory"',
              'provider: "claude"',
              f'account_uuid: "{mem["account_uuid"]}"',
              'source: "claude_export"',
              "---", "",
-             "# Memoria de Claude sobre las conversaciones", "",
-             "> Dossier personal que Claude ha acumulado a partir de las "
-             "conversaciones de V0ra. Se regenera desde el proveedor en cada "
-             "export; para editarlo/borrarlo, usar la UI de claude.ai.",
+             "# Claude's memory of conversations", "",
+             "> Personal dossier Claude has accumulated from the user's "
+             "conversations. It's regenerated by the provider on each "
+             "export; to edit or delete it, use the claude.ai UI.",
              "",
              mem["conversations_memory"].strip(), ""]
-        if _escribe_si_cambio(claude_mem_dir / "conversations.md",
-                              "\n".join(L).rstrip() + "\n"):
-            stats["escritas"] += 1
+        if _write_if_changed(claude_mem_dir / "conversations.md",
+                             "\n".join(L).rstrip() + "\n"):
+            stats["written"] += 1
         else:
-            stats["saltadas"] += 1
-        stats["secciones"] += 1
+            stats["skipped"] += 1
+        stats["sections"] += 1
 
-    # 2) project_memories: resumen textual por proyecto (dict
-    # uuid->texto). Se escribe una nota unica con todos, para que sea
-    # facil escanear la vista de conjunto que Claude tiene de los
-    # proyectos de V0ra.
+    # 2) project_memories: textual per-project summary (dict
+    # uuid->text). Written as a single note with all of them, so the
+    # aggregate view Claude has of the user's projects is easy to scan.
     if mem["project_memories"]:
         L = ["---",
-             'tipo: "memoria-proyectos"',
+             'type: "project-memory"',
              'provider: "claude"',
              f'account_uuid: "{mem["account_uuid"]}"',
              'source: "claude_export"',
              "---", "",
-             "# Memoria de Claude por proyecto", "",
-             f"> {len(mem['project_memories'])} proyectos con resumen textual. "
-             "El UUID enlaza con los proyectos en `PRJ_VAULT/` y con las "
-             "carpetas `projects/<uuid>/` de este mismo vault.",
+             "# Claude's memory by project", "",
+             f"> {len(mem['project_memories'])} projects with a text "
+             "summary. The UUID connects to the projects in `PRJ_VAULT/` "
+             "and to the `projects/<uuid>/` folders in this same vault.",
              ""]
-        for uuid_, texto in sorted(mem["project_memories"].items()):
-            L += [f"## {uuid_}", "", texto.strip(), ""]
-        if _escribe_si_cambio(claude_mem_dir / "project_summaries.md",
-                              "\n".join(L).rstrip() + "\n"):
-            stats["escritas"] += 1
+        for uuid_, text in sorted(mem["project_memories"].items()):
+            L += [f"## {uuid_}", "", text.strip(), ""]
+        if _write_if_changed(claude_mem_dir / "project_summaries.md",
+                             "\n".join(L).rstrip() + "\n"):
+            stats["written"] += 1
         else:
-            stats["saltadas"] += 1
-        stats["secciones"] += 1
+            stats["skipped"] += 1
+        stats["sections"] += 1
 
-    # 3) memory_files: 71 notas con path literal. Se replica la
-    # estructura tal cual (D4). Cada fichero ya lleva su propio
-    # frontmatter dentro del content -- no se aumenta, solo se
-    # preserva.
+    # 3) memory_files: 71 notes with a literal path. The structure is
+    # replicated as-is (D4). Each file already carries its own
+    # frontmatter inside the content -- nothing is added, just
+    # preserved.
     for m in mem["memory_files"]:
-        # El path llega como '/areas/foo.md'. lstrip('/') para
-        # convertirlo en relativo. Luego se sanea cada segmento por
-        # separado (por si algun path tuviera caracteres prohibidos
-        # en Windows -- no vistos en el export real pero robusto).
+        # The path arrives as '/areas/foo.md'. lstrip('/') to turn it
+        # into a relative path. Each segment is then sanitized
+        # separately (in case any segment held Windows-forbidden chars
+        # -- not seen in the real export but robust).
         rel = m["path"].lstrip("/").lstrip("\\")
         if not rel:
             continue
-        segmentos = [_sanear_nombre_windows(s) for s in rel.replace("\\", "/").split("/")]
-        # Defensa contra path traversal ("..") aunque el export no lo
-        # traiga: nunca escribir fuera del claude_mem_dir.
-        segmentos = [s for s in segmentos if s and s != ".."]
-        if not segmentos:
+        segments = [_sanitize_windows_name(s) for s in rel.replace("\\", "/").split("/")]
+        # Guard against path traversal ("..") even if the export
+        # never carries it: never write outside claude_mem_dir.
+        segments = [s for s in segments if s and s != ".."]
+        if not segments:
             continue
-        destino = claude_mem_dir.joinpath(*segmentos)
-        # Comprobacion final: destino tiene que estar bajo claude_mem_dir.
+        dst = claude_mem_dir.joinpath(*segments)
+        # Final check: dst must be under claude_mem_dir.
         try:
-            destino.resolve().relative_to(claude_mem_dir.resolve())
+            dst.resolve().relative_to(claude_mem_dir.resolve())
         except ValueError:
             continue
-        if _escribe_si_cambio(destino, m["content"]):
-            stats["escritas"] += 1
+        if _write_if_changed(dst, m["content"]):
+            stats["written"] += 1
         else:
-            stats["saltadas"] += 1
+            stats["skipped"] += 1
         stats["memory_files"] += 1
 
     return stats
 
 
 # ─────────────────────────────────────────
-# Orquestador: ingesta las cuatro categorias no-conversation
+# Orchestrator: ingest the four non-conversation categories
 # ─────────────────────────────────────────
-# Las conversaciones ya van por la ruta existente (load_conversations +
-# write_md + vault_merge). Esta funcion cubre lo que sobra: projects,
-# frames, memories. light_metadata sigue sin ingestar (metadatos de
-# cuenta, sin valor de vault).
+# Conversations go through the existing path (load_conversations +
+# write_md + vault_merge). This function covers the rest: projects,
+# frames, memories. light_metadata remains uningested (account
+# metadata, no vault value).
 
-def ingest_extras(carpeta: Any, base_vault: Any,
+def ingest_extras(folder: Any, base_vault: Any,
                   prj_vault_name: str = "PRJ_VAULT") -> Dict[str, Any]:
-    """Ingesta las categorias del layout nuevo que no son conversaciones.
-    Idempotente: se puede reejecutar sin duplicar.
+    """Ingest the categories in the new layout that are not
+    conversations. Idempotent: safe to rerun without duplicating.
 
-    Rutas fijadas (segun D2/D3/D4 en bck/NewClaude/PLAN.md):
+    Fixed paths (per D2/D3/D4 in bck/NewClaude/PLAN.md):
         base_vault/PRJ_VAULT/<name>/…               (D3)
-        base_vault/MERGED_VAULT/CLAUDE_WEB/FRAMES/…  (banco propio)
-        base_vault/Claude_Mem/…                     (D2, vault nuevo)
+        base_vault/MERGED_VAULT/CLAUDE_WEB/FRAMES/…  (own bank)
+        base_vault/Claude_Mem/…                     (D2, new vault)
 
-    Devuelve {"projects": stats, "frames": stats, "memories": stats}."""
+    Returns {"projects": stats, "frames": stats, "memories": stats}."""
     base_vault = Path(base_vault)
     return {
-        "projects": write_projects(carpeta, base_vault / prj_vault_name),
-        "frames": write_frames(carpeta, base_vault / "MERGED_VAULT" / "CLAUDE_WEB" / "FRAMES"),
-        "memories": write_memories(carpeta, base_vault / "Claude_Mem"),
+        "projects": write_projects(folder, base_vault / prj_vault_name),
+        "frames": write_frames(folder, base_vault / "MERGED_VAULT" / "CLAUDE_WEB" / "FRAMES"),
+        "memories": write_memories(folder, base_vault / "Claude_Mem"),
     }

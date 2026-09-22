@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Tests de los writers del nuevo export de Claude (Fases C-E, D2-D4).
+"""Tests for the new-Claude-export writers (Phases C-E, D2-D4).
 
-Fija los tres contratos que resuelven las tres decisiones del plan:
-  - D3: projects van a PRJ_VAULT/<name>/ con 00_proyecto.md + _docs/;
-  - D4: memory_files van a Claude_Mem/ respetando el path literal;
-  - D2: conversations_memory y project_memories tambien van a Claude_Mem/,
-    en su propio fichero.
+Locks the three contracts that resolve the three plan decisions:
+  - D3: projects go to PRJ_VAULT/<name>/ with 00_project.md + _docs/;
+  - D4: memory_files go to Claude_Mem/ preserving the literal path;
+  - D2: conversations_memory and project_memories also go to Claude_Mem/,
+    in their own files.
 
-Todos los writers son idempotentes por contenido y toleran capas parciales
-(un layout sin memories, un proyecto sin docs, etc). Verificado contra el
-export real de V0ra al final.
+All writers are idempotent by content and tolerate partial layers (a
+layout without memories, a project without docs, etc). Verified against
+the real export at the end.
 """
 import json
 from pathlib import Path
@@ -20,44 +20,44 @@ from providers import newclaude_adapter as nc
 
 
 # ─────────────────────────────────────────
-# Fixtures reutilizables
+# Reusable fixtures
 # ─────────────────────────────────────────
 
-def _crear_layout(tmp_path: Path, *, con_projects=None, con_memories=None,
-                  con_frames=None, con_conversations=None) -> Path:
-    """Monta un layout completo de NewClaude sobre tmp_path con las
-    categorias que le pasen. Devuelve la carpeta raiz."""
+def _make_layout(tmp_path: Path, *, with_projects=None, with_memories=None,
+                 with_frames=None, with_conversations=None) -> Path:
+    """Build a full NewClaude layout under tmp_path with the categories
+    provided. Returns the root folder."""
     layout = tmp_path / "NewClaude"
     layout.mkdir()
 
-    # conversations siempre presente para pasar detect_layout (aunque
-    # los tests no las usen aqui).
+    # conversations always present so detect_layout passes (even if the
+    # tests here don't use them).
     conv_dir = layout / "conversations-000"
     conv_dir.mkdir()
     (conv_dir / "conversations.json").write_text(
-        json.dumps(con_conversations if con_conversations is not None else []),
+        json.dumps(with_conversations if with_conversations is not None else []),
         encoding="utf-8",
     )
 
-    if con_projects is not None:
+    if with_projects is not None:
         pdir = layout / "projects-000" / "projects"
         pdir.mkdir(parents=True)
-        for pr in con_projects:
+        for pr in with_projects:
             (pdir / f"{pr['uuid']}.json").write_text(
                 json.dumps(pr, ensure_ascii=False), encoding="utf-8"
             )
 
-    if con_memories is not None:
+    if with_memories is not None:
         mdir = layout / "memories-000" / "memories"
         mdir.mkdir(parents=True)
-        (mdir / f"{con_memories.get('account_uuid', 'x')}.json").write_text(
-            json.dumps(con_memories, ensure_ascii=False), encoding="utf-8"
+        (mdir / f"{with_memories.get('account_uuid', 'x')}.json").write_text(
+            json.dumps(with_memories, ensure_ascii=False), encoding="utf-8"
         )
 
-    if con_frames is not None:
+    if with_frames is not None:
         fdir = layout / "frames-000" / "artifacts"
         fdir.mkdir(parents=True)
-        for fr in con_frames:
+        for fr in with_frames:
             adir = fdir / fr["id"]
             adir.mkdir()
             (adir / "artifact.json").write_text(
@@ -78,11 +78,11 @@ def _crear_layout(tmp_path: Path, *, con_projects=None, con_memories=None,
     return layout
 
 
-def _proyecto_minimo(**overrides):
+def _minimal_project(**overrides):
     base = {
         "uuid": "019a-proj-uuid",
-        "name": "Un proyecto",
-        "description": "Descripcion del proyecto",
+        "name": "A project",
+        "description": "Project description",
         "is_private": True,
         "is_starter_project": False,
         "prompt_template": "",
@@ -99,114 +99,114 @@ def _proyecto_minimo(**overrides):
 # write_projects
 # ─────────────────────────────────────────
 
-def test_write_projects_crea_carpeta_con_nota_indice_y_docs(tmp_path):
-    """Un proyecto con 2 docs -> carpeta con 00_proyecto.md + _docs/*."""
-    layout = _crear_layout(tmp_path, con_projects=[
-        _proyecto_minimo(name="MemorIA2GO", docs=[
-            {"uuid": "d1", "filename": "guia.md", "content": "# Guia\ntexto",
+def test_write_projects_creates_folder_with_index_note_and_docs(tmp_path):
+    """A project with 2 docs -> folder with 00_project.md + _docs/*."""
+    layout = _make_layout(tmp_path, with_projects=[
+        _minimal_project(name="MemorIA2GO", docs=[
+            {"uuid": "d1", "filename": "guide.md", "content": "# Guide\ntext",
              "created_at": "2026-02-01T00:00:00+00:00"},
-            {"uuid": "d2", "filename": "notas.md", "content": "notas planas",
+            {"uuid": "d2", "filename": "notes.md", "content": "flat notes",
              "created_at": "2026-02-02T00:00:00+00:00"},
         ]),
     ])
     prj = tmp_path / "PRJ_VAULT"
     stats = nc.write_projects(layout, prj)
-    assert stats["proyectos"] == 1
+    assert stats["projects"] == 1
     assert stats["docs"] == 2
-    carp = prj / "MemorIA2GO"
-    nota = (carp / "00_proyecto.md").read_text(encoding="utf-8")
-    assert 'name: "MemorIA2GO"' in nota
-    assert 'uuid: "019a-proj-uuid"' in nota
-    assert "Descripcion del proyecto" in nota
-    # Los docs son ficheros literales en _docs/
-    assert (carp / "_docs" / "guia.md").read_text(encoding="utf-8") == "# Guia\ntexto"
-    assert (carp / "_docs" / "notas.md").read_text(encoding="utf-8") == "notas planas"
+    folder = prj / "MemorIA2GO"
+    note = (folder / "00_project.md").read_text(encoding="utf-8")
+    assert 'name: "MemorIA2GO"' in note
+    assert 'uuid: "019a-proj-uuid"' in note
+    assert "Project description" in note
+    # The docs are literal files under _docs/
+    assert (folder / "_docs" / "guide.md").read_text(encoding="utf-8") == "# Guide\ntext"
+    assert (folder / "_docs" / "notes.md").read_text(encoding="utf-8") == "flat notes"
 
 
-def test_write_projects_incluye_prompt_template_como_bloque_codigo(tmp_path):
-    """El prompt_template es el system prompt del proyecto. Va como
-    bloque de codigo para que sea legible tal cual, sin interpretar
-    markdown que pudiera contener."""
-    layout = _crear_layout(tmp_path, con_projects=[
-        _proyecto_minimo(name="X", prompt_template="Eres un asistente que...")
+def test_write_projects_includes_prompt_template_as_code_block(tmp_path):
+    """The prompt_template is the project's system prompt. It goes into
+    a code block so it reads verbatim, without interpreting any markdown
+    it might contain."""
+    layout = _make_layout(tmp_path, with_projects=[
+        _minimal_project(name="X", prompt_template="You are an assistant that...")
     ])
     prj = tmp_path / "PRJ_VAULT"
     nc.write_projects(layout, prj)
-    nota = (prj / "X" / "00_proyecto.md").read_text(encoding="utf-8")
-    assert "Instrucciones del proyecto" in nota
-    assert "Eres un asistente que..." in nota
-    assert "```" in nota
+    note = (prj / "X" / "00_project.md").read_text(encoding="utf-8")
+    assert "Project instructions" in note
+    assert "You are an assistant that..." in note
+    assert "```" in note
 
 
-def test_write_projects_es_idempotente(tmp_path):
-    """Reingesta con contenido identico: cero escrituras nuevas."""
-    layout = _crear_layout(tmp_path, con_projects=[_proyecto_minimo()])
+def test_write_projects_is_idempotent(tmp_path):
+    """Reingest with identical content: zero new writes."""
+    layout = _make_layout(tmp_path, with_projects=[_minimal_project()])
     prj = tmp_path / "PRJ_VAULT"
     s1 = nc.write_projects(layout, prj)
     s2 = nc.write_projects(layout, prj)
-    assert s1["escritas"] > 0
-    assert s2["escritas"] == 0
-    assert s2["saltadas"] == s1["escritas"]
+    assert s1["written"] > 0
+    assert s2["written"] == 0
+    assert s2["skipped"] == s1["written"]
 
 
-def test_write_projects_sanea_nombres_prohibidos_en_windows(tmp_path):
-    """Windows no acepta \\ / : * ? " < > | en nombres. Se sustituyen
-    por '_' pero acentos, mayusculas y espacios se conservan."""
-    layout = _crear_layout(tmp_path, con_projects=[
-        _proyecto_minimo(uuid="pu1", name='Un/proyecto"raro?', docs=[]),
-        _proyecto_minimo(uuid="pu2", name="Tiro Parabólico", docs=[]),
+def test_write_projects_sanitizes_windows_forbidden_names(tmp_path):
+    """Windows rejects \\ / : * ? " < > | in names. They're replaced by
+    '_' but accents, case and spaces are preserved."""
+    layout = _make_layout(tmp_path, with_projects=[
+        _minimal_project(uuid="pu1", name='One/weird"project?', docs=[]),
+        _minimal_project(uuid="pu2", name="Tiro Parabólico", docs=[]),
     ])
     prj = tmp_path / "PRJ_VAULT"
     nc.write_projects(layout, prj)
-    # El primero cae con los prohibidos sustituidos
-    assert (prj / "Un_proyecto_raro_" / "00_proyecto.md").exists()
-    # El segundo respeta acento y mayusculas
-    assert (prj / "Tiro Parabólico" / "00_proyecto.md").exists()
+    # The first one has forbidden chars substituted
+    assert (prj / "One_weird_project_" / "00_project.md").exists()
+    # The second one keeps accent and case
+    assert (prj / "Tiro Parabólico" / "00_project.md").exists()
 
 
-def test_write_projects_enlaza_a_claude_mem_por_uuid(tmp_path):
-    """La nota-indice tiene que enlazar a Claude_Mem/projects/<uuid>/
-    para que V0ra vea la memoria de Claude sobre ESE proyecto sin
-    tener que buscarla."""
-    layout = _crear_layout(tmp_path, con_projects=[_proyecto_minimo(uuid="019a")])
+def test_write_projects_links_to_claude_mem_by_uuid(tmp_path):
+    """The index note must link to Claude_Mem/projects/<uuid>/ so the
+    user sees Claude's memory about THAT project without having to
+    hunt for it."""
+    layout = _make_layout(tmp_path, with_projects=[_minimal_project(uuid="019a")])
     prj = tmp_path / "PRJ_VAULT"
     nc.write_projects(layout, prj)
-    nota = (prj / "Un proyecto" / "00_proyecto.md").read_text(encoding="utf-8")
-    assert "Claude_Mem/projects/019a/" in nota
+    note = (prj / "A project" / "00_project.md").read_text(encoding="utf-8")
+    assert "Claude_Mem/projects/019a/" in note
 
 
 # ─────────────────────────────────────────
 # write_frames
 # ─────────────────────────────────────────
 
-def test_write_frames_crea_nota_y_copia_versiones(tmp_path):
-    layout = _crear_layout(tmp_path, con_frames=[{
+def test_write_frames_creates_note_and_copies_versions(tmp_path):
+    layout = _make_layout(tmp_path, with_frames=[{
         "id": "art-1", "kind": "artifact", "visibility": "private",
         "owner_account": "usr-1", "active_version": "v-b",
         "updated_at": "2026-08-01T10:00:00+00:00",
         "versions": [
-            {"id": "v-a", "title": "Primera", "description": "",
+            {"id": "v-a", "title": "First", "description": "",
              "created_at": "2026-07-01T00:00:00+00:00"},
-            {"id": "v-b", "title": "Segunda", "description": "mejora del acento",
+            {"id": "v-b", "title": "Second", "description": "accent improvement",
              "created_at": "2026-08-01T10:00:00+00:00"},
         ],
-        "_versions_html": {"v-a": "<html>1</html>", "v-b": "<html>2 mejor</html>"},
+        "_versions_html": {"v-a": "<html>1</html>", "v-b": "<html>2 better</html>"},
     }])
     banco = tmp_path / "FRAMES"
     stats = nc.write_frames(layout, banco)
     assert stats["frames"] == 1
-    assert stats["versiones"] == 2
-    nota = (banco / "art-1" / "00_frame.md").read_text(encoding="utf-8")
-    assert 'id: "art-1"' in nota
-    assert "activa" in nota  # la marca de version activa aparece
-    assert "Segunda" in nota
-    # Las versiones se copian tal cual, sin modificar
+    assert stats["versions"] == 2
+    note = (banco / "art-1" / "00_frame.md").read_text(encoding="utf-8")
+    assert 'id: "art-1"' in note
+    assert "active" in note  # the active-version marker appears
+    assert "Second" in note
+    # Versions are copied as-is, unmodified
     assert (banco / "art-1" / "versions" / "v-a.html").read_text(encoding="utf-8") == "<html>1</html>"
-    assert (banco / "art-1" / "versions" / "v-b.html").read_text(encoding="utf-8") == "<html>2 mejor</html>"
+    assert (banco / "art-1" / "versions" / "v-b.html").read_text(encoding="utf-8") == "<html>2 better</html>"
 
 
-def test_write_frames_incluye_hilos_de_comentarios_si_los_hay(tmp_path):
-    layout = _crear_layout(tmp_path, con_frames=[{
+def test_write_frames_includes_comment_threads_when_present(tmp_path):
+    layout = _make_layout(tmp_path, with_frames=[{
         "id": "art-2", "kind": "artifact", "visibility": "private",
         "owner_account": "usr-1", "active_version": "v-x",
         "updated_at": "2026-08-01T10:00:00+00:00",
@@ -219,12 +219,12 @@ def test_write_frames_incluye_hilos_de_comentarios_si_los_hay(tmp_path):
              "comments": [
                  {"author_index": 1, "author_role": "",
                   "author_is_artifact_owner": False,
-                  "text": "El verde no me convence",
+                  "text": "The green doesn't convince me",
                   "created_at": "2026-08-02T09:00:00+00:00",
                   "to_claude_at": "2026-08-02T09:00:00+00:00"},
                  {"author_index": 1, "author_role": "assistant",
                   "author_is_artifact_owner": False,
-                  "text": "Cambiado a cian oscuro",
+                  "text": "Changed to dark cyan",
                   "created_at": "2026-08-02T09:05:00+00:00",
                   "to_claude_at": "2026-08-02T09:05:00+00:00"},
              ]}
@@ -232,15 +232,15 @@ def test_write_frames_incluye_hilos_de_comentarios_si_los_hay(tmp_path):
     }])
     banco = tmp_path / "FRAMES"
     stats = nc.write_frames(layout, banco)
-    assert stats["comentarios"] == 2
-    nota = (banco / "art-2" / "00_frame.md").read_text(encoding="utf-8")
-    assert "El verde no me convence" in nota
-    assert "Cambiado a cian oscuro" in nota
-    assert "resuelto" in nota
+    assert stats["comments"] == 2
+    note = (banco / "art-2" / "00_frame.md").read_text(encoding="utf-8")
+    assert "The green doesn't convince me" in note
+    assert "Changed to dark cyan" in note
+    assert "resolved" in note
 
 
-def test_write_frames_es_idempotente(tmp_path):
-    layout = _crear_layout(tmp_path, con_frames=[{
+def test_write_frames_is_idempotent(tmp_path):
+    layout = _make_layout(tmp_path, with_frames=[{
         "id": "art-3", "kind": "artifact", "visibility": "private",
         "owner_account": "usr-1", "active_version": "v-x",
         "updated_at": "2026-08-01T10:00:00+00:00",
@@ -251,103 +251,103 @@ def test_write_frames_es_idempotente(tmp_path):
     banco = tmp_path / "FRAMES"
     s1 = nc.write_frames(layout, banco)
     s2 = nc.write_frames(layout, banco)
-    assert s2["escritas"] == 0
-    assert s2["saltadas"] == s1["escritas"]
+    assert s2["written"] == 0
+    assert s2["skipped"] == s1["written"]
 
 
 # ─────────────────────────────────────────
 # write_memories
 # ─────────────────────────────────────────
 
-def test_write_memories_replica_path_literal(tmp_path):
-    """D4: los 71 memory_files conservan su jerarquia (/areas /people
-    /projects /topics /profile.md). Aplanar destruiria la organizacion
-    que Claude ha inventado, que es informacion en si misma."""
-    layout = _crear_layout(tmp_path, con_memories={
+def test_write_memories_replicates_literal_path(tmp_path):
+    """D4: the 71 memory_files keep their hierarchy (/areas /people
+    /projects /topics /profile.md). Flattening would destroy the
+    organization Claude has built, which is information in itself."""
+    layout = _make_layout(tmp_path, with_memories={
         "account_uuid": "usr-1",
         "conversations_memory": "",
         "project_memories": {},
         "memory_files": [
-            {"path": "/profile.md", "content": "perfil general",
+            {"path": "/profile.md", "content": "general profile",
              "updated_at": "2026-01-01T00:00:00+00:00"},
             {"path": "/areas/foo.md", "content": "area foo",
              "updated_at": "2026-01-01T00:00:00+00:00"},
-            {"path": "/projects/uuid-x/index.md", "content": "index del proyecto",
+            {"path": "/projects/uuid-x/index.md", "content": "project index",
              "updated_at": "2026-01-01T00:00:00+00:00"},
         ],
     })
     mem = tmp_path / "Claude_Mem"
     stats = nc.write_memories(layout, mem)
     assert stats["memory_files"] == 3
-    assert (mem / "profile.md").read_text(encoding="utf-8") == "perfil general"
+    assert (mem / "profile.md").read_text(encoding="utf-8") == "general profile"
     assert (mem / "areas" / "foo.md").read_text(encoding="utf-8") == "area foo"
-    assert (mem / "projects" / "uuid-x" / "index.md").read_text(encoding="utf-8") == "index del proyecto"
+    assert (mem / "projects" / "uuid-x" / "index.md").read_text(encoding="utf-8") == "project index"
 
 
-def test_write_memories_dossier_personal_va_a_conversations_md(tmp_path):
-    """conversations_memory es el dossier personal largo (~6.7 KB en el
-    export real). Se aisla en su propio fichero para poder verlo/
-    editarlo sin diluirlo en profile.md."""
-    layout = _crear_layout(tmp_path, con_memories={
+def test_write_memories_dossier_goes_to_conversations_md(tmp_path):
+    """conversations_memory is the long personal dossier (~6.7 KB in
+    the real export). It's isolated into its own file so it can be
+    read/edited without being diluted into profile.md."""
+    layout = _make_layout(tmp_path, with_memories={
         "account_uuid": "usr-1",
-        "conversations_memory": "**Work context**\n\nV0ra works...",
+        "conversations_memory": "**Work context**\n\nThe user works...",
         "project_memories": {},
         "memory_files": [],
     })
     mem = tmp_path / "Claude_Mem"
     stats = nc.write_memories(layout, mem)
-    assert stats["secciones"] >= 1
+    assert stats["sections"] >= 1
     text = (mem / "conversations.md").read_text(encoding="utf-8")
     assert "Work context" in text
-    assert "V0ra works" in text
-    assert 'account_uuid: "usr-1"' in text  # frontmatter con la identidad
+    assert "The user works" in text
+    assert 'account_uuid: "usr-1"' in text  # frontmatter carries the identity
 
 
-def test_write_memories_project_memories_va_a_summary_agregado(tmp_path):
-    """project_memories es dict {uuid: resumen textual}. Se junta en un
-    unico project_summaries.md para escanear la vista de conjunto sin
-    saltar entre 20 ficheros."""
-    layout = _crear_layout(tmp_path, con_memories={
+def test_write_memories_project_memories_go_to_aggregated_summary(tmp_path):
+    """project_memories is a dict {uuid: text summary}. It's collected
+    into a single project_summaries.md so the aggregate view is easy
+    to scan without jumping between 20 files."""
+    layout = _make_layout(tmp_path, with_memories={
         "account_uuid": "usr-1",
         "conversations_memory": "",
         "project_memories": {
-            "uuid-alpha": "Contexto del proyecto alfa",
-            "uuid-beta": "Contexto del proyecto beta",
+            "uuid-alpha": "Alpha project context",
+            "uuid-beta": "Beta project context",
         },
         "memory_files": [],
     })
     mem = tmp_path / "Claude_Mem"
     stats = nc.write_memories(layout, mem)
     text = (mem / "project_summaries.md").read_text(encoding="utf-8")
-    assert "uuid-alpha" in text and "Contexto del proyecto alfa" in text
-    assert "uuid-beta" in text and "Contexto del proyecto beta" in text
+    assert "uuid-alpha" in text and "Alpha project context" in text
+    assert "uuid-beta" in text and "Beta project context" in text
 
 
-def test_write_memories_defiende_de_path_traversal(tmp_path):
-    """Un path malicioso con '..' no puede escribir fuera de
-    claude_mem_dir. El export real no lo hace, pero el guard es
-    barato y evita convertirse en un vector de escritura arbitraria."""
-    layout = _crear_layout(tmp_path, con_memories={
+def test_write_memories_guards_against_path_traversal(tmp_path):
+    """A malicious path with '..' must not be able to write outside
+    claude_mem_dir. The real export never does this, but the guard is
+    cheap and prevents this from becoming an arbitrary-write vector."""
+    layout = _make_layout(tmp_path, with_memories={
         "account_uuid": "usr-1",
         "conversations_memory": "",
         "project_memories": {},
         "memory_files": [
-            {"path": "/../../fuera.md", "content": "no debería crearse",
+            {"path": "/../../outside.md", "content": "should not be created",
              "updated_at": "2026-01-01T00:00:00+00:00"},
         ],
     })
     mem = tmp_path / "Claude_Mem"
     nc.write_memories(layout, mem)
-    # Fuera del Claude_Mem no aparece nada
-    assert not (tmp_path.parent / "fuera.md").exists()
-    assert not (tmp_path / "fuera.md").exists()
+    # Nothing appears outside Claude_Mem
+    assert not (tmp_path.parent / "outside.md").exists()
+    assert not (tmp_path / "outside.md").exists()
 
 
-def test_write_memories_es_idempotente(tmp_path):
-    layout = _crear_layout(tmp_path, con_memories={
+def test_write_memories_is_idempotent(tmp_path):
+    layout = _make_layout(tmp_path, with_memories={
         "account_uuid": "usr-1",
         "conversations_memory": "dossier",
-        "project_memories": {"u1": "resumen"},
+        "project_memories": {"u1": "summary"},
         "memory_files": [
             {"path": "/areas/a.md", "content": "x",
              "updated_at": "2026-01-01T00:00:00+00:00"},
@@ -356,82 +356,80 @@ def test_write_memories_es_idempotente(tmp_path):
     mem = tmp_path / "Claude_Mem"
     s1 = nc.write_memories(layout, mem)
     s2 = nc.write_memories(layout, mem)
-    assert s1["escritas"] > 0
-    assert s2["escritas"] == 0
+    assert s1["written"] > 0
+    assert s2["written"] == 0
 
 
-def test_parse_memories_devuelve_none_sin_layout_de_memories(tmp_path):
-    layout = _crear_layout(tmp_path)  # sin memories
+def test_parse_memories_returns_none_without_memories_layout(tmp_path):
+    layout = _make_layout(tmp_path)  # no memories
     assert nc.parse_memories(layout) is None
 
 
 # ─────────────────────────────────────────
-# Orquestador
+# Orchestrator
 # ─────────────────────────────────────────
 
-def test_ingest_extras_lanza_los_tres_writers(tmp_path):
-    """El orquestador tiene que llamar a los tres y devolver stats
-    agregadas. Se comprueba que las tres carpetas de destino existen
-    despues de la ejecucion."""
-    layout = _crear_layout(
+def test_ingest_extras_fires_all_three_writers(tmp_path):
+    """The orchestrator must call all three and return aggregated
+    stats. Verified: all three destination folders exist after the run."""
+    layout = _make_layout(
         tmp_path,
-        con_projects=[_proyecto_minimo(uuid="pu", name="P")],
-        con_memories={"account_uuid": "u", "conversations_memory": "d",
-                      "project_memories": {}, "memory_files": []},
-        con_frames=[{"id": "af", "kind": "artifact", "visibility": "private",
-                     "owner_account": "u", "active_version": "v",
-                     "updated_at": "2026-01-01T00:00:00+00:00",
-                     "versions": [{"id": "v", "title": "t", "description": "",
-                                   "created_at": "2026-01-01T00:00:00+00:00"}],
-                     "_versions_html": {"v": "<html/>"}}],
+        with_projects=[_minimal_project(uuid="pu", name="P")],
+        with_memories={"account_uuid": "u", "conversations_memory": "d",
+                        "project_memories": {}, "memory_files": []},
+        with_frames=[{"id": "af", "kind": "artifact", "visibility": "private",
+                       "owner_account": "u", "active_version": "v",
+                       "updated_at": "2026-01-01T00:00:00+00:00",
+                       "versions": [{"id": "v", "title": "t", "description": "",
+                                      "created_at": "2026-01-01T00:00:00+00:00"}],
+                       "_versions_html": {"v": "<html/>"}}],
     )
     base = tmp_path / "vault"
     stats = nc.ingest_extras(layout, base)
-    assert stats["projects"]["proyectos"] == 1
-    assert stats["memories"]["secciones"] >= 1
+    assert stats["projects"]["projects"] == 1
+    assert stats["memories"]["sections"] >= 1
     assert stats["frames"]["frames"] == 1
-    assert (base / "PRJ_VAULT" / "P" / "00_proyecto.md").exists()
+    assert (base / "PRJ_VAULT" / "P" / "00_project.md").exists()
     assert (base / "Claude_Mem" / "conversations.md").exists()
     assert (base / "MERGED_VAULT" / "CLAUDE_WEB" / "FRAMES" / "af" / "00_frame.md").exists()
 
 
-def test_ingest_extras_admite_layout_parcial(tmp_path):
-    """Si el layout solo trae conversations, los otros writers no
-    encuentran nada y devuelven stats en cero -- sin explotar."""
-    layout = _crear_layout(tmp_path)  # solo conversations
+def test_ingest_extras_accepts_partial_layout(tmp_path):
+    """If the layout only carries conversations, the other writers
+    find nothing and return stats at zero -- without blowing up."""
+    layout = _make_layout(tmp_path)  # only conversations
     base = tmp_path / "vault"
     stats = nc.ingest_extras(layout, base)
-    assert stats["projects"]["proyectos"] == 0
+    assert stats["projects"]["projects"] == 0
     assert stats["frames"]["frames"] == 0
-    assert stats["memories"]["secciones"] == 0
+    assert stats["memories"]["sections"] == 0
 
 
 # ─────────────────────────────────────────
-# Prueba contra el export REAL de V0ra
+# Test against V0ra's REAL export
 # ─────────────────────────────────────────
 
 _BCK = Path(__file__).resolve().parent.parent / "bck" / "NewClaude"
 
 
-@pytest.mark.skipif(not _BCK.is_dir(), reason="bck/NewClaude/ no disponible")
-def test_ingest_extras_contra_export_real(tmp_path):
-    """La prueba de la disciplina del skill: contra el export real de
-    V0ra, no contra sinteticos. Se ingesta a un vault de prueba en
-    tmp_path para no contaminar el suyo. Se verifican los conteos
-    minimos que el export debe producir (24 proyectos, 10 frames,
+@pytest.mark.skipif(not _BCK.is_dir(), reason="bck/NewClaude/ not available")
+def test_ingest_extras_against_real_export(tmp_path):
+    """The disciplined test: against V0ra's real export, not synthetic
+    fixtures. Ingest goes to a test vault under tmp_path so her real
+    vault stays clean. Minimum counts checked (24 projects, 10 frames,
     71 memory_files)."""
     base = tmp_path / "vault"
     stats = nc.ingest_extras(_BCK, base)
-    assert stats["projects"]["proyectos"] == 24
+    assert stats["projects"]["projects"] == 24
     assert stats["frames"]["frames"] == 10
-    assert stats["frames"]["versiones"] == 118  # medido antes contra el zip
+    assert stats["frames"]["versions"] == 118  # measured earlier against the zip
     assert stats["memories"]["memory_files"] == 71
-    # conversations_memory (dossier), project_memories (agregado)
-    assert stats["memories"]["secciones"] == 2
-    # 18 UUIDs distintos bajo /projects/ en el export real (medido:
-    # distribucion desigual, 2-4 ficheros por UUID; algunos proyectos
-    # aparecen en projects/*.json pero sin memoria en memory_files).
-    algun_proj = list((base / "Claude_Mem" / "projects").iterdir())
-    assert len(algun_proj) == 18
+    # conversations_memory (dossier), project_memories (aggregate)
+    assert stats["memories"]["sections"] == 2
+    # 18 distinct UUIDs under /projects/ in the real export (measured:
+    # uneven distribution, 2-4 files per UUID; some projects appear in
+    # projects/*.json but with no memory in memory_files).
+    some_proj = list((base / "Claude_Mem" / "projects").iterdir())
+    assert len(some_proj) == 18
     assert (base / "Claude_Mem" / "conversations.md").exists()
-    assert (base / "Claude_Mem" / "profile.md").exists()  # esta en la raiz de memory_files
+    assert (base / "Claude_Mem" / "profile.md").exists()  # sits at the root of memory_files
