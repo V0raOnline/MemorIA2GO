@@ -26,8 +26,8 @@
   --brand: #FC4FB1;        /* magenta — solo identidad (logo, wordmark) */
   --brand-soft: rgba(252, 79, 177, 0.10);
   --bg-purple: #463039;    /* --bg-panel con un ~12% de --brand mezclado */
-  --cyan: #22D3EE;         /* contrapunto frío en enlaces/interactivo */
-  --cyan-dim: #1A7F94;
+  --cyan: #c47c9a;         /* rosa palo, un stop mas vivo — enlaces, indicadores, hovers (nombre historico) */
+  --cyan-dim: #7f4b6a;     /* stop mas oscuro para focus rings y estados dim */
   --green: #7ba54f;        /* status ok, retonado a registro cálido */
   --yellow: #d4a13c;       /* warning en mostaza para no chocar con ámbar */
   --red: #c85c4f;          /* error, retonado a registro cálido */
@@ -266,7 +266,7 @@ main {
 
 .path-suggest .opt:hover,
 .path-suggest .opt.active {
-  background: rgba(34, 211, 238, 0.16);
+  background: rgba(196, 124, 154, 0.20);
   color: var(--text);
 }
 
