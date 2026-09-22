@@ -1,24 +1,36 @@
 /* ─────────────────────────────────────────
-   M3M0R·IA — v2
-   Paleta (spec interfaz.md): 80% grafito, 15% cian, 5% magenta.
-   Magenta = acción. Cian = hover / indicadores. Fondo #0F1117.
+   M3M0R·IA — v3, paleta warm (2026-09-22)
+   Neutros cálidos (stone), ámbar para acción/estructura, magenta
+   reservado a la identidad de marca. Cian se conserva como
+   contrapunto frío en enlaces y estados interactivos.
+
+   Antes: neutros fríos + magenta como acento estructural (el conjunto
+   leia "IDE oscuro"). Ahora: la casa cálida — el ámbar hace de
+   subrayado, botón primario, borde activo y foco de sección; el
+   magenta aparece solo en la marca (logo, wordmark) y por eso pesa
+   más cuando aparece.
+
    Iconos: Lucide (MIT), inline con stroke="currentColor".
    ───────────────────────────────────────── */
 :root {
-  --bg: #0F1117;
-  --bg-panel: #161923;
-  --bg-inset: #0B0D12;
-  --border: #262B38;
-  --text: #E6E8EE;
-  --text-dim: #8B92A5;
-  --magenta: #FC4FB1;      /* color de acción — sacado del logo */
-  --magenta-soft: rgba(252, 79, 177, 0.10);
-  --bg-purple: #241726;    /* morado oscuro, --bg-panel con un ~12% de --magenta mezclado */
-  --cyan: #22D3EE;
+  --bg: #171717;
+  --bg-panel: #2e2c29;
+  --bg-inset: #1f1c1b;
+  --border: #3a3634;
+  --text: #f5f4f0;
+  --text-dim: #a8a29e;
+  --accent: #e99641;       /* ámbar — acción y estructura */
+  --accent-hover: #f0a961; /* +1 stop cálido para hover */
+  --accent-active: #c47e35;/* -1 stop para pressed/active */
+  --accent-soft: rgba(233, 150, 65, 0.15);
+  --brand: #FC4FB1;        /* magenta — solo identidad (logo, wordmark) */
+  --brand-soft: rgba(252, 79, 177, 0.10);
+  --bg-purple: #463039;    /* --bg-panel con un ~12% de --brand mezclado */
+  --cyan: #22D3EE;         /* contrapunto frío en enlaces/interactivo */
   --cyan-dim: #1A7F94;
-  --green: #5FD88F;
-  --yellow: #E8C15C;
-  --red: #E2685F;
+  --green: #7ba54f;        /* status ok, retonado a registro cálido */
+  --yellow: #d4a13c;       /* warning en mostaza para no chocar con ámbar */
+  --red: #c85c4f;          /* error, retonado a registro cálido */
   --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }
 
@@ -69,7 +81,7 @@ body {
   letter-spacing: 0.02em;
 }
 
-.brand-ia { color: var(--magenta); }
+.brand-ia { color: var(--brand); }
 
 .sidebar nav {
   display: flex;
@@ -104,8 +116,8 @@ body {
 }
 
 .sidebar nav button.active {
-  color: var(--magenta);
-  background: var(--magenta-soft);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .sidebar-footer {
@@ -145,7 +157,7 @@ main {
   margin: 0 0 6px;
   font-size: 22px;
   font-weight: 700;
-  color: var(--magenta);
+  color: var(--accent);
   letter-spacing: -0.01em;
 }
 
@@ -157,7 +169,7 @@ main {
   max-width: 480px;
 }
 
-.panel-header-desc .brand-ia { color: var(--magenta); }
+.panel-header-desc .brand-ia { color: var(--brand); }
 
 .panel-header-brand {
   margin: 0;
@@ -294,22 +306,28 @@ main {
   cursor: pointer;
 }
 
-.checkbox-row input[type="checkbox"] { accent-color: var(--magenta); }
+.checkbox-row input[type="checkbox"] { accent-color: var(--accent); }
 
 /* ─── Botones ───
-   Regla de la spec: botón principal magenta, secundarios discretos con hover cian. */
+   Regla de la paleta warm: boton principal en ambar sobre texto oscuro
+   (var(--bg)), secundarios discretos con hover cian frio como contrapunto.
+   Los estados hover/active usan los stops explicitos --accent-hover /
+   --accent-active en vez de un filter: brightness() para que el color
+   se controle desde el token, no desde una derivacion opaca. */
 
 button.btn {
-  background: var(--magenta);
-  color: #14060E;
+  background: var(--accent);
+  color: var(--bg);
   border: none;
   border-radius: 7px;
   padding: 9px 18px;
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.12s ease;
 }
-button.btn:hover { filter: brightness(1.1); }
+button.btn:hover { background: var(--accent-hover); }
+button.btn:active { background: var(--accent-active); }
 button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 button.btn.secondary {
@@ -376,18 +394,18 @@ button.btn.secondary:hover {
 .chart-toggle button:hover { color: var(--cyan); border-color: var(--cyan-dim); }
 
 .chart-toggle button.active {
-  color: var(--magenta);
-  border-color: var(--magenta);
-  background: var(--magenta-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 #evolution-chart svg { width: 100%; height: auto; display: block; }
 
 .ch-grid { stroke: var(--border); stroke-width: 1; }
 .ch-label { fill: var(--text-dim); font-size: 10px; font-family: var(--mono); }
-.ch-area { fill: rgba(252, 79, 177, 0.10); stroke: none; }
-.ch-line { fill: none; stroke: var(--magenta); stroke-width: 2; stroke-linejoin: round; }
-.ch-dot { fill: var(--magenta); }
+.ch-area { fill: var(--accent-soft); stroke: none; }
+.ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.ch-dot { fill: var(--accent); }
 
 .chart-note {
   font-size: 11.5px;
@@ -446,9 +464,9 @@ button.btn.secondary:hover {
   font-size: 11.5px;
   font-weight: 600;
 }
-.badge.ok { background: rgba(95, 216, 143, 0.12); color: var(--green); }
-.badge.warn { background: rgba(232, 193, 92, 0.12); color: var(--yellow); }
-.badge.err { background: rgba(226, 104, 95, 0.12); color: var(--red); }
+.badge.ok { background: rgba(123, 165, 79, 0.15); color: var(--green); }
+.badge.warn { background: rgba(212, 161, 60, 0.15); color: var(--yellow); }
+.badge.err { background: rgba(200, 92, 79, 0.15); color: var(--red); }
 
 /* ─── Verificaciones colapsables por export (título=estado, subtítulo=resumen) ─── */
 
@@ -625,8 +643,8 @@ button.btn.secondary:hover {
 }
 
 .metro-dot.metro-origen {
-  border-color: var(--magenta);
-  color: var(--magenta);
+  border-color: var(--accent);
+  color: var(--accent);
   font-size: 10px;
 }
 
@@ -674,7 +692,7 @@ button.btn.secondary:hover {
 .cloud-term:hover { text-decoration: underline; }
 
 .cloud-term.prj {
-  color: var(--magenta);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -890,7 +908,7 @@ footer {
 }
 
 .footer-right a {
-  color: var(--magenta);
+  color: var(--accent);
   text-decoration: none;
   transition: opacity 0.2s;
 }
