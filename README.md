@@ -89,6 +89,28 @@ And **don't forget to collect your diploma** once you complete your first succes
 
 Want to know how each flow works inside, what each adapter does, and why the sister tools aren't "just another provider"? It's all in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
+### Refresh visual — paleta warm (2026-09)
+
+La interfaz web ha pasado de un dark cool con acento magenta ("IDE
+oscuro") a un dark warm con acentos en ámbar y rosa palo — el registro
+que buscabas cuando abrías el vault por la tarde con un café al lado.
+Los roles cromáticos se han separado:
+
+- **Ámbar `#e99641`** hace todo lo estructural: pestaña activa,
+  cabecera de sección, botón primario, borde de foco, línea del chart.
+- **Magenta `#FC4FB1`** se reserva a la identidad — el wordmark
+  `M3M0R·IA` y sus repeticiones. Aparece poco, y por eso pesa.
+- **Rosa palo `#c47c9a`** cubre los indicadores y enlaces (stats,
+  hovers, links) — misma familia magenta que la marca pero un stop
+  más apagado, así el wordmark sigue siendo el punto más saturado de
+  la pantalla.
+- Neutros stone (`#171717` fondo, `#2e2c29` panel, `#1f1c1b` fila
+  interna) leen como papel oscuro/archivo en vez de terminal.
+
+El pipeline no cambia: es solo `web/style.css`. Si prefieres la paleta
+anterior, el commit está atrás en el historial (`git show
+release/es~N -- web/style.css`).
+
 ---
 
 ## Language editions
