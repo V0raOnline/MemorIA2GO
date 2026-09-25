@@ -1,19 +1,88 @@
 // ─────────────────────────────────────────
-// Navegación entre pestañas
+// Navegación de dos niveles: sidebar (globales + apps) + top-tabs por app
 // ─────────────────────────────────────────
+// Sidebar: Observatorio (global) + apps (chat.ia, music.ia, Substack) +
+// Configuracion (global, al pie). Cada app puede tener sub-pasos en una
+// tira de top-tabs encima del panel. Hoy solo chat.ia los tiene:
+// Verificacion / Construccion / Cartografia / Reconexion.
+//
+// Estado: no hay variables globales; la fuente de verdad es la clase
+// .active en los botones y paneles. showTab() sigue siendo el punto de
+// entrada -- se le pasa el data-tab del boton clicado; para las apps es
+// un "chat-app" / "music-app" / "substack-app" que se resuelve al panel
+// canonico de esa app.
+//
+// APP_DEFAULT_TAB: al abrir una app, a que sub-panel entra por defecto.
+// Para chat.ia entramos por Verificacion (primer paso del flujo); para
+// music.ia y Substack no hay sub-tabs todavia, asi que el data-tab es
+// el propio panel completo.
+const APP_DEFAULT_TAB = {
+  "chat-app":     "verificar",
+  "music-app":    "musicology",
+  "substack-app": "substack",
+};
+
+// Mapeo inverso: dado un sub-panel de una app, a que app pertenece.
+// Sirve para que si alguien navega a "verificar" por otra via (por
+// ejemplo desde un enlace interno o el estado inicial), la sidebar
+// marque la app correcta como activa.
+const TAB_TO_APP = {
+  "verificar":  "chat",
+  "run":        "chat",
+  "gizmos":     "chat",
+  "reconexion": "chat",
+  "musicology": "music",
+  "substack":   "substack",
+};
+
 const tabButtons = document.querySelectorAll(".tab-btn");
+const topTabs = document.querySelectorAll(".top-tab");
 const panels = document.querySelectorAll(".panel");
 
 function showTab(name) {
-  tabButtons.forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  panels.forEach(p => p.classList.toggle("active", p.id === `panel-${name}`));
-  if (name === "dashboard") loadDashboard();
-  if (name === "gizmos") loadGizmos();
-  if (name === "verificar") loadVerificarBadge();
-  if (name === "reconexion") loadReconexion();
+  // Resolver "-app" a su panel canonico si viene del sidebar.
+  const isAppEntry = name.endsWith("-app");
+  const targetPanel = isAppEntry ? APP_DEFAULT_TAB[name] || name : name;
+
+  // 1) Sidebar: marcar boton activo. Un sub-tab de una app (verificar,
+  //    run, gizmos, reconexion) hace que el boton de esa app en la
+  //    sidebar quede activo -- porque desde el punto de vista del
+  //    usuario, sigue "dentro" de esa app.
+  const appOwning = TAB_TO_APP[targetPanel] || null;
+  tabButtons.forEach(b => {
+    const bTab = b.dataset.tab;
+    let active = bTab === name;
+    if (!active && appOwning && b.dataset.app === appOwning) active = true;
+    b.classList.toggle("active", active);
+  });
+
+  // 2) Top-tabs de chat.ia: solo visibles cuando la app activa es chat.
+  const chatTabs = document.getElementById("chat-tabs");
+  if (chatTabs) {
+    chatTabs.style.display = (appOwning === "chat") ? "flex" : "none";
+    chatTabs.querySelectorAll(".top-tab").forEach(t => {
+      t.classList.toggle("active", t.dataset.tab === targetPanel);
+    });
+  }
+
+  // 3) Panel: mostrar el que toca.
+  panels.forEach(p => p.classList.toggle("active", p.id === `panel-${targetPanel}`));
+
+  // 4) Hooks de carga por panel (badges, listas, etc). Se disparan
+  //    con el panel canonico, no con "-app".
+  if (targetPanel === "dashboard") loadDashboard();
+  if (targetPanel === "gizmos") loadGizmos();
+  if (targetPanel === "verificar") loadVerificarBadge();
+  if (targetPanel === "reconexion") loadReconexion();
 }
 
+// Sidebar: cualquier .tab-btn dispara showTab con su data-tab.
 tabButtons.forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+// Top-tabs de chat.ia: cada sub-tab dispara showTab con su data-tab
+// canonico (verificar/run/gizmos/reconexion), y showTab se encarga
+// del resto -- incluido mantener activo el boton chat.ia en el sidebar.
+topTabs.forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
 // ─────────────────────────────────────────
 // Config

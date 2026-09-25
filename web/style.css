@@ -929,19 +929,95 @@ footer {
   flex: none;
 }
 
-/* Caja alta SOLO en las dos herramientas hermanas (MUSIC·0LOGY y Tintero),
-   no en toda la barra: decision de V0ra 2026-07-31 tras ver las dos
-   variantes maquetadas. Las secciones del pipeline se quedan en caja normal
-   porque "Configuracion", "Verificacion" y "Reconexion" son largas y en
-   mayusculas pierden silueta -- se leen letra a letra justo donde interesa
-   reconocer sin leer. Va por CSS y no escrito en el HTML para que las
-   cadenas sigan siendo traducibles en release/en sin duplicarlas, y para
-   que los acentos salgan correctos. */
-.sidebar nav button.tool {
+/* Etiqueta de zona en la sidebar ("Apps"). Pequeña, en versalitas
+   dim, sin ocupar altura de fila. Se apoya en el separador de arriba
+   y en el siguiente boton sin repetir bordes. */
+.nav-heading {
+  padding: 4px 14px 2px;
+  font-size: 10px;
+  color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-size: 12.5px;
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+  flex: none;
 }
+
+/* Spacer flexible que empuja lo que venga debajo (Configuracion +
+   separador previo) al pie del sidebar. Convencion estandar en
+   sidebars: settings al final. */
+.nav-spacer {
+  flex: 1;
+}
+
+/* Labels de las tres apps (chat.ia, music.ia, Substack). El
+   white-space: nowrap es CRITICO: sin esto, cuando la anchura del
+   sidebar se comprime o el zoom cambia, "chat" y ".ia" se separan
+   en dos lineas y la marca queda rota. Con nowrap el conjunto viaja
+   siempre unido, y si no cabe se recorta (overflow del boton) en
+   vez de partirse en dos. */
+.app-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Badge pequeño junto al nombre de una app (agregado de los sub-tabs
+   que reclaman atencion). Por ahora sin contenido; queda enganchado
+   por si en fase 2 quieres agregar los conteos de Cartografia + Reconexion
+   como badge de chat.ia. */
+.app-badge {
+  font-size: 10.5px;
+  color: var(--accent);
+  flex: none;
+}
+.app-badge:empty { display: none; }
+
+/* ─── Top-tabs por app (aparecen dentro de main) ───
+   Fila horizontal encima de los paneles. Solo se muestra cuando la
+   app activa tiene sub-pasos (hoy: chat.ia). Pestaña activa con
+   subrayado ambar; inactivas en texto dim con hover a texto claro. */
+.top-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin: -8px 6px 20px;
+  padding: 0 2px;
+  overflow-x: auto;
+}
+
+.top-tab {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+
+.top-tab:hover {
+  color: var(--text);
+}
+
+.top-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+
+.top-tab .app-badge,
+.top-tab span:not(.brand-ia) {
+  font-size: 11px;
+  margin-left: 6px;
+  color: var(--accent);
+  vertical-align: 1px;
+}
+.top-tab span:empty { display: none; }
 
 .sb-check {
   display: flex;

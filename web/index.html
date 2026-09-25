@@ -22,35 +22,30 @@
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
       <span>Observatory</span>
     </button>
+
+    <div class="nav-sep" aria-hidden="true"></div>
+    <div class="nav-heading" aria-hidden="true">Apps</div>
+
+    <button class="tab-btn" data-tab="chat-app" data-app="chat">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+      <span class="app-label">chat<span class="brand-ia">.ia</span></span>
+      <span id="chat-app-badge" class="app-badge"></span>
+    </button>
+    <button class="tab-btn" data-tab="music-app" data-app="music">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+      <span class="app-label">music<span class="brand-ia">.ia</span></span>
+    </button>
+    <button class="tab-btn" data-tab="substack-app" data-app="substack">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg>
+      <span class="app-label">Substack</span>
+    </button>
+
+    <div class="nav-spacer" aria-hidden="true"></div>
+    <div class="nav-sep" aria-hidden="true"></div>
+
     <button class="tab-btn" data-tab="config">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg>
       <span>Configuration</span> <span id="config-badge"></span>
-    </button>
-    <button class="tab-btn" data-tab="verificar">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><path d="m9 12 2 2 4-4" /></svg>
-      <span>Verification</span> <span id="verificar-badge"></span>
-    </button>
-    <button class="tab-btn" data-tab="run">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" /></svg>
-      <span>Construction</span> <span id="pipeline-badge"></span>
-    </button>
-    <button class="tab-btn" data-tab="gizmos">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 19a5 5 0 0 1-5-5v8" /><path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" /><circle cx="13" cy="12" r="2" /><circle cx="20" cy="19" r="2" /></svg>
-      <span>Cartography</span> <span id="gizmo-count-badge"></span>
-    </button>
-    <button class="tab-btn" data-tab="reconexion">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-      <span>Reconnection</span> <span id="pendientes-count-badge"></span>
-    </button>
-    <div class="nav-sep" aria-hidden="true"></div>
-    <button class="tab-btn tool" data-tab="musicology">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-      <span>MUSIC<span class="brand-ia">·0</span>LOGY</span>
-    </button>
-    <div class="nav-sep" aria-hidden="true"></div>
-    <button class="tab-btn tool" data-tab="substack">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg>
-      <span>Inkwell</span>
     </button>
   </nav>
 
@@ -59,6 +54,29 @@
 </aside>
 
 <main>
+
+  <!--
+    Top-tabs por app. Solo se muestra cuando la app seleccionada en la
+    sidebar tiene sub-pasos de flujo. Hoy: chat.ia. music.ia y Substack
+    dejan la tira oculta y muestran su panel completo (music tiene
+    Suno/Flow como folds internos; Substack tiene sus cards inline).
+    Los data-tab siguen apuntando a los mismos panel-* de siempre, para
+    que el resto del js (badges, loaders) no se entere del cambio.
+  -->
+  <div class="top-tabs" id="chat-tabs" data-app="chat" style="display:none;">
+    <button class="top-tab active" data-tab="verificar">
+      Verificación <span id="verificar-badge"></span>
+    </button>
+    <button class="top-tab" data-tab="run">
+      Construcción <span id="pipeline-badge"></span>
+    </button>
+    <button class="top-tab" data-tab="gizmos">
+      Cartografía <span id="gizmo-count-badge"></span>
+    </button>
+    <button class="top-tab" data-tab="reconexion">
+      Reconexión <span id="pendientes-count-badge"></span>
+    </button>
+  </div>
 
   <!-- DASHBOARD -->
   <section id="panel-dashboard" class="panel active">
