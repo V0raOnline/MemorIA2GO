@@ -105,6 +105,23 @@
   figcaption{color:var(--muted);font-size:.88rem;margin-top:10px}
   .modulo b{font-family:var(--mono);font-size:.82rem;color:var(--accent);letter-spacing:.06em}
   .modulo span{display:block;color:var(--muted);font-size:.94rem;margin-top:3px}
+  /* Sufijo .ia en magenta separado del nombre, para hacer eco al wordmark
+     de la app. El name-part queda en --fg para que no se coma el acento.
+     Los spans dentro del <b> se fuerzan a inline: la regla general
+     .modulo span usa `display: block` para separar titulo/descripcion,
+     y sin esta correccion "chat" y ".ia" caen a dos lineas. */
+  .modulo b span{display:inline}
+  .modulo b .ia{color:var(--accent)}
+  .modulo b .name{color:var(--fg)}
+
+  /* Vitrina de los tres temas. Grid de 3 columnas en desktop, 1 en movil.
+     Las capturas ya llevan su propio fondo oscuro/claro, un hairline las
+     bordea contra el panel de la landing. */
+  .temas{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .temas figure{margin:0}
+  .temas img{width:100%;height:auto;display:block;border-radius:8px;border:1px solid var(--line)}
+  .temas figcaption{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-top:8px;text-align:center;letter-spacing:.08em}
+  @media (max-width:640px){.temas{grid-template-columns:1fr}}
 
   .pacto{background:var(--panel);border:1px solid var(--accent-dim);border-radius:12px;padding:20px 22px;margin:0}
   .pacto p{margin:0}
@@ -174,21 +191,22 @@
     </p>
 
     <h2>Un paseo por M3M0R·IA</h2>
-    <figure>
-      <img src="assets/observatorio.png" width="1200" height="964"
-           alt="El Observatorio de M3M0R·IA: barra lateral con los seis módulos más MUSIC·0LOGY y Tintero, la fecha de la última importación, una gráfica del crecimiento acumulado de notas y el recuento por proveedor.">
-      <figcaption>
-        El Observatorio. Abajo, el recuento por proveedor: ChatGPT, Claude
-        y <strong>claude-code</strong>, que no viene de ningún export.
-      </figcaption>
-    </figure>
     <ul class="modulos">
-      <li class="modulo"><b>Observatorio</b><span>Un vistazo rápido al estado de tu memoria digital.</span></li>
-      <li class="modulo"><b>Configuración</b><span>Aquí se define dónde vivirá tu M3M0R·IA.</span></li>
-      <li class="modulo"><b>Verificación</b><span>Inspecciona los archivos y comprueba que sabe interpretarlos.</span></li>
-      <li class="modulo"><b>Construcción</b><span>Donde ocurre la magia: importar, reconstruir, actualizar índices.</span></li>
-      <li class="modulo"><b>Cartografía</b><span>Un mapa de temas que se va refinando con el tiempo.</span></li>
-      <li class="modulo"><b>Reconexión</b><span>Para volver a unir piezas de una historia.</span></li>
+      <li class="modulo"><b>Observatorio</b><span>Un vistazo rápido al estado de tu memoria digital: cuándo fue el último export, cuánto ha crecido, qué proveedores viven ahí.</span></li>
+      <li class="modulo"><b><span class="name">chat</span><span class="ia">.ia</span></b><span>Tus conversaciones. Verifica el export, construye el vault, cartografía los temas y reconecta lo que quedó suelto.</span></li>
+      <li class="modulo"><b><span class="name">music</span><span class="ia">.ia</span></b><span>Tu música con historia. Suno y Flow Music, cada una con su propia captura, verificación y construcción.</span></li>
+      <li class="modulo"><b>Substack</b><span>Tu archivo editorial. Tintero distingue publicado, retirado y borrador.</span></li>
+      <li class="modulo"><b>Configuración</b><span>Donde se define dónde vivirá tu M3M0R·IA — con tres temas de color a elegir.</span></li>
+    </ul>
+
+    <h2>Tres temas, la misma casa</h2>
+    <p style="color:var(--muted);margin:0 0 16px">
+      Warm por defecto, cool y claro. Se cambian desde Configuración → Apariencia y se aplican al instante.
+    </p>
+    <ul class="temas">
+      <li><figure><img src="assets/theme-warm.png" alt="Tema warm de M3M0R·IA — dark warm con acentos en ámbar"><figcaption>warm</figcaption></figure></li>
+      <li><figure><img src="assets/theme-cool.png" alt="Tema cool de M3M0R·IA — dark cool con acentos en cian"><figcaption>cool</figcaption></figure></li>
+      <li><figure><img src="assets/theme-light.png" alt="Tema claro de M3M0R·IA — crema con acentos en ámbar oscuro"><figcaption>claro</figcaption></figure></li>
     </ul>
 
     <h2>Tres herramientas en la misma casa</h2>
@@ -224,6 +242,19 @@
       No hace falta usarlas todas. Cada una funciona por separado, y sin
       configuración no aparecen.
     </p>
+
+    <h2>Cuando el formato cambia — cuidamos que no lo notes</h2>
+    <p style="margin:0">
+      En septiembre de 2026 Anthropic reemplazó el zip único del export de
+      Claude por un manifiesto y cinco archivos separados, sin aviso previo.
+      M3M0R·IA lo reconoce, no duplica las conversaciones que también
+      estaban en un export anterior, y aprovecha lo nuevo que trae:
+    </p>
+    <ul class="claves" style="margin-top:16px">
+      <li><b>La memoria persistente</b> que Claude ha ido acumulando sobre ti — un vault aparte, con estructura propia, para no mezclarse con las conversaciones.</li>
+      <li><b>El historial de versiones y comentarios</b> de tus artifacts — el export viejo solo daba la última versión y perdía la conversación en el margen.</li>
+      <li><b>El project knowledge</b> que subiste inline a tus proyectos, con su system prompt y sus docs, sale a la vista.</li>
+    </ul>
 
     <h2>Y las que no tienen export</h2>
     <p style="margin:0">
