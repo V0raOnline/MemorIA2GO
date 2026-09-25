@@ -63,7 +63,8 @@ def read_config() -> dict:
     if not CONFIG_PATH.exists():
         return {"paths": {"base_vault": "", "exports_dir": "", "gizmo_map": ""},
                 "options": {"prj_vault_name": "PRJ_VAULT", "by_year": True, "by_month": True,
-                            "make_index": True, "keep_hashes": False, "dry_run": False}}
+                            "make_index": True, "keep_hashes": False, "dry_run": False,
+                            "theme": "warm"}}
     cfg = load_config(str(CONFIG_PATH))
     # Convierte Path a str para que sea serializable en JSON
     return json.loads(json.dumps(cfg, default=str))
@@ -88,19 +89,26 @@ def patch_config_yaml(updates: dict) -> None:
 
     vistas = set()
     ultima_de_paths = None
+    ultima_de_options = None
     en_paths = False
+    en_options = False
     for i, line in enumerate(lines):
         if re.match(r"^paths\s*:", line):
-            en_paths = True
+            en_paths, en_options = True, False
+            continue
+        if re.match(r"^options\s*:", line):
+            en_paths, en_options = False, True
             continue
         if re.match(r"^[A-Za-z_]+\s*:", line):
-            en_paths = False
+            en_paths, en_options = False, False
         m = re.match(r"^(\s*)([A-Za-z_]+)\s*:", line)
         if not m:
             continue
         indent, key = m.group(1), m.group(2)
         if en_paths:
             ultima_de_paths = i
+        if en_options:
+            ultima_de_options = i
         if key not in updates:
             continue
         vistas.add(key)
@@ -109,12 +117,24 @@ def patch_config_yaml(updates: dict) -> None:
     # Claves que el archivo todavia no tiene. Sin esto la interfaz guardaba
     # en silencio: el bucle de arriba solo reescribe lineas EXISTENTES, asi
     # que una ruta nueva (substack_vault en una config anterior a Tintero) se
-    # perdia sin un solo aviso. Se añaden al final del bloque `paths:`, que es
-    # donde viven todas las rutas, preservando el resto del archivo.
-    nuevas = [k for k in updates if k not in vistas and k.endswith(("_vault", "_dir", "_map", "_backup"))]
-    if nuevas and ultima_de_paths is not None:
-        bloque = [f"  {k}: {_yaml_val(updates[k])}" for k in nuevas]
+    # perdia sin un solo aviso. Se añaden al final del bloque adecuado
+    # preservando el resto del archivo. Reglas:
+    #   - claves *_vault/_dir/_map/_backup -> bloque `paths:`
+    #   - resto de claves no vistas -> bloque `options:` (theme, y cualquier
+    #     opcion futura que se añada por la UI antes de tocar la plantilla).
+    nuevas_paths = [k for k in updates if k not in vistas and k.endswith(("_vault", "_dir", "_map", "_backup"))]
+    if nuevas_paths and ultima_de_paths is not None:
+        bloque = [f"  {k}: {_yaml_val(updates[k])}" for k in nuevas_paths]
         lines[ultima_de_paths + 1:ultima_de_paths + 1] = bloque
+        # ultima_de_options se corre hacia abajo tantas lineas como acabamos
+        # de insertar, si estaba mas abajo que ultima_de_paths.
+        if ultima_de_options is not None and ultima_de_options > ultima_de_paths:
+            ultima_de_options += len(bloque)
+
+    nuevas_opts = [k for k in updates if k not in vistas and k not in nuevas_paths]
+    if nuevas_opts and ultima_de_options is not None:
+        bloque = [f"  {k}: {_yaml_val(updates[k])}" for k in nuevas_opts]
+        lines[ultima_de_options + 1:ultima_de_options + 1] = bloque
 
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8", newline="")
 

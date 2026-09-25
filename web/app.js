@@ -87,6 +87,34 @@ topTabs.forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
 // ─────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// Tema de color (warm / cool / light)
+// ─────────────────────────────────────────
+// Los tres temas viven en style.css bajo :root[data-theme="..."]. Aplicar
+// el tema es solo poner el atributo en el <html>; el CSS hace el resto.
+//
+// Persistencia en dos capas:
+//   - localStorage: pre-aplica antes de que llegue /api/config, para que
+//     los usuarios de cool/light no vean un flash de warm al abrir.
+//   - memoria_config.yaml (via /api/config): la fuente de verdad. Al
+//     guardar en Configuracion, viaja al server y sobrescribe el hint.
+const VALID_THEMES = ["warm", "cool", "light"];
+
+function applyTheme(name) {
+  const theme = VALID_THEMES.includes(name) ? name : "warm";
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("m3m0ria_theme", theme); } catch (_) {}
+  return theme;
+}
+
+// Hint temprano: se corre en cuanto app.js se ejecuta, antes de fetch a
+// /api/config. Evita el flash warm -> cool/light al recargar en un tema
+// oscuro-frio o claro.
+try {
+  const stored = localStorage.getItem("m3m0ria_theme");
+  if (stored) document.documentElement.dataset.theme = stored;
+} catch (_) {}
+
 async function loadConfig() {
   const res = await fetch("/api/config");
   const cfg = await res.json();
@@ -105,8 +133,26 @@ async function loadConfig() {
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
   document.getElementById("cfg-by_month").checked = opts.by_month !== false;
   document.getElementById("cfg-make_index").checked = opts.make_index !== false;
+
+  // Tema desde config -> aplicar (sync con localStorage) + reflejar en el select.
+  const themeSel = document.getElementById("cfg-theme");
+  const themeFromCfg = opts.theme || "warm";
+  themeSel.value = themeFromCfg;
+  applyTheme(themeFromCfg);
+
   updateConfigBadge(Boolean((paths.base_vault || "").trim() && (paths.exports_dir || "").trim()));
 }
+
+// Cambio en vivo del tema desde el select: aplica al instante para que
+// V0ra vea el cambio antes de guardar. La persistencia real llega con
+// saveConfig(). Si sale de Configuracion sin guardar, el localStorage
+// sigue teniendo el ultimo, asi que al recargar se ve el nuevo -- pero
+// /api/config todavia tiene el viejo, y en el siguiente Cargar la
+// config lo pisa. Es intencional: la fuente de verdad es el yaml.
+document.addEventListener("DOMContentLoaded", () => {
+  const themeSel = document.getElementById("cfg-theme");
+  if (themeSel) themeSel.addEventListener("change", (e) => applyTheme(e.target.value));
+});
 
 async function saveConfig() {
   const payload = {
@@ -125,6 +171,7 @@ async function saveConfig() {
       by_year: document.getElementById("cfg-by_year").checked,
       by_month: document.getElementById("cfg-by_month").checked,
       make_index: document.getElementById("cfg-make_index").checked,
+      theme: document.getElementById("cfg-theme").value,
     },
   };
   const msg = document.getElementById("config-msg");
