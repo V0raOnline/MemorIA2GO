@@ -1,18 +1,29 @@
 /* ─────────────────────────────────────────
-   M3M0R·IA — v3, paleta warm (2026-09-22)
-   Neutros cálidos (stone), ámbar para acción/estructura, magenta
-   reservado a la identidad de marca. Cian se conserva como
-   contrapunto frío en enlaces y estados interactivos.
+   M3M0R·IA — v4, temas seleccionables (2026-09-25)
 
-   Antes: neutros fríos + magenta como acento estructural (el conjunto
-   leia "IDE oscuro"). Ahora: la casa cálida — el ámbar hace de
-   subrayado, botón primario, borde activo y foco de sección; el
-   magenta aparece solo en la marca (logo, wordmark) y por eso pesa
-   más cuando aparece.
+   Tres temas viviendo en el mismo CSS via [data-theme] en :root.
+   Warm es el default (si no hay data-theme puesto, o si vale "warm",
+   sale warm). El resto son overrides.
+
+   El patron cromatico es el mismo en los tres:
+     - --brand   = identidad (magenta, aparece solo en el wordmark y
+       ecos como .brand-ia). Es lo unico que persiste transversalmente.
+     - --accent  = accion (boton primario, pestaña activa, borde de
+       foco, linea del chart). Ambar en warm/light, cian en cool.
+     - --cyan    = indicador/enlace/hover (stats, iconos de seccion,
+       stat values). El token conserva su nombre historico aunque no
+       siempre valga cian: en warm es rosa palo, en cool es cian
+       apagado, en light es rosa vino.
 
    Iconos: Lucide (MIT), inline con stroke="currentColor".
    ───────────────────────────────────────── */
-:root {
+
+/* WARM (default) — la paleta calida, la que aterrizo el 2026-09-22.
+   Se declara en :root para que sirva de fallback cuando el atributo
+   data-theme falta o vale "warm". Los otros temas solo re-declaran
+   lo que difiere. */
+:root,
+:root[data-theme="warm"] {
   --bg: #171717;
   --bg-panel: #2e2c29;
   --bg-inset: #1f1c1b;
@@ -26,12 +37,67 @@
   --brand: #FC4FB1;        /* magenta — solo identidad (logo, wordmark) */
   --brand-soft: rgba(252, 79, 177, 0.10);
   --bg-purple: #463039;    /* --bg-panel con un ~12% de --brand mezclado */
-  --cyan: #c47c9a;         /* rosa palo, un stop mas vivo — enlaces, indicadores, hovers (nombre historico) */
-  --cyan-dim: #7f4b6a;     /* stop mas oscuro para focus rings y estados dim */
-  --green: #7ba54f;        /* status ok, retonado a registro cálido */
-  --yellow: #d4a13c;       /* warning en mostaza para no chocar con ámbar */
-  --red: #c85c4f;          /* error, retonado a registro cálido */
+  --cyan: #c47c9a;         /* rosa palo — enlaces/indicadores (nombre historico) */
+  --cyan-dim: #7f4b6a;     /* focus rings y estados dim */
+  --green: #7ba54f;
+  --yellow: #d4a13c;
+  --red: #c85c4f;
   --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+/* COOL — neutros frios, con la separacion de roles corregida:
+   magenta se queda como identidad (no vuelve a acento estructural
+   como en la version historica), cian pasa a hacer de accion, y para
+   indicadores/stats usamos un cian apagado que no compita con el
+   activo. La lecccion de warm aplicada al registro frio. */
+:root[data-theme="cool"] {
+  --bg: #0F1117;
+  --bg-panel: #202436;      /* subido respecto al historico (#161923) para
+                              que el escalon bg -> panel se lea igual que
+                              en warm */
+  --bg-inset: #181C2A;      /* entre bg y panel (mismo patron que warm) */
+  --border: #2C3149;
+  --text: #E6E8EE;
+  --text-dim: #8B92A5;
+  --accent: #22D3EE;        /* cian vivo — acción y estructura */
+  --accent-hover: #4DDDEF;
+  --accent-active: #1AA9BF;
+  --accent-soft: rgba(34, 211, 238, 0.15);
+  --brand: #FC4FB1;         /* magenta — identidad, sin cambio */
+  --brand-soft: rgba(252, 79, 177, 0.10);
+  --bg-purple: #241726;
+  --cyan: #5EB0BF;          /* cian apagado — enlaces/indicadores */
+  --cyan-dim: #3D7987;
+  --green: #5FD88F;
+  --yellow: #E8C15C;
+  --red: #E2685F;
+}
+
+/* LIGHT — luz de mañana. Crema calida como canvas, blanco puro para
+   tarjetas flotando encima, hairline color papel para bordarlas. Los
+   acentos se oscurecen porque tienen que aguantar contraste AA sobre
+   blanco/crema. El magenta identidad se oscurece pero mantiene el
+   hue; el ambar accion se apaga a bronce; el rosa indicador va a
+   vino. */
+:root[data-theme="light"] {
+  --bg: #faf5ec;
+  --bg-panel: #ffffff;      /* tarjetas blancas, flotan sobre la crema */
+  --bg-inset: #f4ede0;      /* fila interna: mas oscuro que el panel */
+  --border: #e5dfd3;
+  --text: #2c2724;
+  --text-dim: #6f6a63;
+  --accent: #b56b1e;        /* ámbar oscurecido — acción */
+  --accent-hover: #c77728;
+  --accent-active: #99591a;
+  --accent-soft: rgba(181, 107, 30, 0.15);
+  --brand: #c81e7e;         /* magenta oscurecido — identidad */
+  --brand-soft: rgba(200, 30, 126, 0.10);
+  --bg-purple: #efe0e6;     /* tinte de brand sobre panel light */
+  --cyan: #a3486b;          /* rosa vino — enlaces/indicadores */
+  --cyan-dim: #7c3651;
+  --green: #4d7c1e;
+  --yellow: #a37613;
+  --red: #b53d2f;
 }
 
 * { box-sizing: border-box; }
@@ -288,6 +354,34 @@ main {
 .field input[type="text"]:focus {
   outline: none;
   border-color: var(--cyan-dim);
+}
+
+/* Select del tema de color (y cualquier otro <select> que aparezca en un
+   .field). Se pinta con los mismos tokens que el input de texto: fondo
+   inset, borde, texto claro. Se mantiene la fuente mono para que las
+   opciones ('warm' / 'cool' / 'light') se lean como identificadores. */
+.field select {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-family: var(--mono);
+  cursor: pointer;
+}
+
+.field select:focus {
+  outline: none;
+  border-color: var(--cyan-dim);
+}
+
+.field-help {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
 }
 
 .checkbox-row {
