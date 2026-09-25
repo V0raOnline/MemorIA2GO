@@ -61,8 +61,8 @@ options:
   #--- Generales ---
   dry_run: false       # true = solo muestra qué haría, no modifica nada
 
-  #--- Apariencia ---
-  # Tema de color de la interfaz. Valores: 'warm' (por defecto, cálido),
-  # 'cool' (frío) o 'light' (claro). Se cambia desde Configuración → Apariencia
-  # y se aplica al instante.
+  #--- Appearance ---
+  # Interface color theme. Values: 'warm' (default, cozy), 'cool' (chilly)
+  # or 'light' (morning light). Change it from Settings → Appearance;
+  # the change is applied instantly.
   theme: 'warm'

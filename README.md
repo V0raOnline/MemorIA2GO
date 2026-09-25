@@ -89,40 +89,39 @@ And **don't forget to collect your diploma** once you complete your first succes
 
 Want to know how each flow works inside, what each adapter does, and why the sister tools aren't "just another provider"? It's all in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
-### Refresh visual — tres temas de color (2026-09)
+### Visual refresh — three color themes (2026-09)
 
-La interfaz web se rediseñó para ofrecer **tres temas de color
-elegibles desde Configuración → Apariencia**, con el mismo patrón de
-roles cromáticos en los tres: magenta = identidad, ámbar/cian =
-acción, rosa/apagado = indicador. El cambio se aplica al instante y
-persiste en `memoria_config.yaml`.
+The web UI was redesigned to offer **three color themes selectable
+from Settings → Appearance**, with the same role pattern across all
+three: magenta = identity, amber/cyan = action, rose/muted = indicator.
+The change applies instantly and persists in `memoria_config.yaml`.
 
 <table>
   <tr>
-    <td width="33%" align="center"><img src="assets/theme-warm.png" alt="Tema warm — dark warm con acentos en ámbar"><br><sub><b>warm</b> — cálido (por defecto)</sub></td>
-    <td width="33%" align="center"><img src="assets/theme-cool.png" alt="Tema cool — dark cool con acentos en cian"><br><sub><b>cool</b> — frío</sub></td>
-    <td width="33%" align="center"><img src="assets/theme-light.png" alt="Tema claro — crema con acentos en ámbar oscuro"><br><sub><b>claro</b> — luz de mañana</sub></td>
+    <td width="33%" align="center"><img src="assets/theme-warm.png" alt="Warm theme — dark warm with amber accents"><br><sub><b>warm</b> — cozy (default)</sub></td>
+    <td width="33%" align="center"><img src="assets/theme-cool.png" alt="Cool theme — dark cool with cyan accents"><br><sub><b>cool</b> — chilly</sub></td>
+    <td width="33%" align="center"><img src="assets/theme-light.png" alt="Light theme — cream with dark-amber accents"><br><sub><b>light</b> — morning light</sub></td>
   </tr>
 </table>
 
-Los roles cromáticos se mantienen entre los tres para que la interfaz
-lea como la misma casa en distinto registro:
+The role assignments stay the same across all three so the interface
+reads like the same house in a different register:
 
-- **Identidad — magenta.** El wordmark `M3M0R·IA` y sus ecos
-  (`.brand-ia`). Aparece poco, y por eso pesa. Único elemento que no
-  cambia de color entre los tres temas oscuros (en claro se oscurece
-  a `#c81e7e` para pasar contraste).
-- **Acción — ámbar en warm/claro, cian en cool.** Pestaña activa,
-  cabecera de sección, botón primario, borde de foco, línea del chart.
-- **Indicador — rosa palo en warm, cian apagado en cool, rosa vino en
-  claro.** Stats, hovers, enlaces. Misma familia que la marca pero un
-  stop más apagado para no competir con el wordmark.
-- **Neutros** — stone cálidos en warm (`#171717 / #2e2c29 / #1f1c1b`),
-  gris con tinte azul en cool (`#0F1117 / #202436 / #181C2A`), crema y
-  blanco en claro (`#faf5ec / #ffffff / #f4ede0`).
+- **Identity — magenta.** The `M3M0R·IA` wordmark and its echoes
+  (`.brand-ia`). It appears rarely, and that's why it carries weight.
+  The only element whose colour is preserved across both dark themes
+  (in light it darkens to `#c81e7e` for contrast).
+- **Action — amber in warm/light, cyan in cool.** Active tab, section
+  header, primary button, focus border, chart line.
+- **Indicator — dusty rose in warm, muted cyan in cool, wine rose in
+  light.** Stats, hovers, links. Same family as the brand but one stop
+  softer so it never competes with the wordmark.
+- **Neutrals** — warm stone in warm (`#171717 / #2e2c29 / #1f1c1b`),
+  blue-tinted grey in cool (`#0F1117 / #202436 / #181C2A`), cream and
+  white in light (`#faf5ec / #ffffff / #f4ede0`).
 
-El pipeline no cambia — es solo CSS + un campo `options.theme` en
-`memoria_config.yaml`.
+The pipeline doesn't change — it's just CSS plus an `options.theme`
+field in `memoria_config.yaml`.
 
 ---
 
