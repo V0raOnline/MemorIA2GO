@@ -89,27 +89,40 @@ And **don't forget to collect your diploma** once you complete your first succes
 
 Want to know how each flow works inside, what each adapter does, and why the sister tools aren't "just another provider"? It's all in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
-### Refresh visual — paleta warm (2026-09)
+### Refresh visual — tres temas de color (2026-09)
 
-La interfaz web ha pasado de un dark cool con acento magenta ("IDE
-oscuro") a un dark warm con acentos en ámbar y rosa palo — el registro
-que buscabas cuando abrías el vault por la tarde con un café al lado.
-Los roles cromáticos se han separado:
+La interfaz web se rediseñó para ofrecer **tres temas de color
+elegibles desde Configuración → Apariencia**, con el mismo patrón de
+roles cromáticos en los tres: magenta = identidad, ámbar/cian =
+acción, rosa/apagado = indicador. El cambio se aplica al instante y
+persiste en `memoria_config.yaml`.
 
-- **Ámbar `#e99641`** hace todo lo estructural: pestaña activa,
+<table>
+  <tr>
+    <td width="33%" align="center"><img src="assets/theme-warm.png" alt="Tema warm — dark warm con acentos en ámbar"><br><sub><b>warm</b> — cálido (por defecto)</sub></td>
+    <td width="33%" align="center"><img src="assets/theme-cool.png" alt="Tema cool — dark cool con acentos en cian"><br><sub><b>cool</b> — frío</sub></td>
+    <td width="33%" align="center"><img src="assets/theme-light.png" alt="Tema claro — crema con acentos en ámbar oscuro"><br><sub><b>claro</b> — luz de mañana</sub></td>
+  </tr>
+</table>
+
+Los roles cromáticos se mantienen entre los tres para que la interfaz
+lea como la misma casa en distinto registro:
+
+- **Identidad — magenta.** El wordmark `M3M0R·IA` y sus ecos
+  (`.brand-ia`). Aparece poco, y por eso pesa. Único elemento que no
+  cambia de color entre los tres temas oscuros (en claro se oscurece
+  a `#c81e7e` para pasar contraste).
+- **Acción — ámbar en warm/claro, cian en cool.** Pestaña activa,
   cabecera de sección, botón primario, borde de foco, línea del chart.
-- **Magenta `#FC4FB1`** se reserva a la identidad — el wordmark
-  `M3M0R·IA` y sus repeticiones. Aparece poco, y por eso pesa.
-- **Rosa palo `#c47c9a`** cubre los indicadores y enlaces (stats,
-  hovers, links) — misma familia magenta que la marca pero un stop
-  más apagado, así el wordmark sigue siendo el punto más saturado de
-  la pantalla.
-- Neutros stone (`#171717` fondo, `#2e2c29` panel, `#1f1c1b` fila
-  interna) leen como papel oscuro/archivo en vez de terminal.
+- **Indicador — rosa palo en warm, cian apagado en cool, rosa vino en
+  claro.** Stats, hovers, enlaces. Misma familia que la marca pero un
+  stop más apagado para no competir con el wordmark.
+- **Neutros** — stone cálidos en warm (`#171717 / #2e2c29 / #1f1c1b`),
+  gris con tinte azul en cool (`#0F1117 / #202436 / #181C2A`), crema y
+  blanco en claro (`#faf5ec / #ffffff / #f4ede0`).
 
-El pipeline no cambia: es solo `web/style.css`. Si prefieres la paleta
-anterior, el commit está atrás en el historial (`git show
-release/es~N -- web/style.css`).
+El pipeline no cambia — es solo CSS + un campo `options.theme` en
+`memoria_config.yaml`.
 
 ---
 
