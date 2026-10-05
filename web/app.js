@@ -1710,37 +1710,38 @@ async function flowmusicBackup() {
   }
 }
 
-// image.ia / Copilot: mismo patron que Flow Music (POST con streaming, token
-// en el cuerpo y nunca en la query string), sin selector de formato porque
-// siempre se baja el original.
-async function copilotImagesBackup() {
-  const btn = document.getElementById("btn-copilot-images-backup");
-  const msg = document.getElementById("copilot-images-backup-msg");
-  const log = document.getElementById("copilot-images-log");
-  const token = document.getElementById("copilot-images-token").value.trim();
+// image.ia: captura con credencial. Mismo patron que Flow Music (POST con
+// streaming, credencial en el cuerpo y nunca en la query string) para las dos
+// fuentes -- Copilot (Bearer) y Grok Imagine (cookie de sesion) -- parametrizado
+// por `cfg` en vez de copiar el bucle otra vez.
+async function capturaImagen(cfg) {
+  const btn = document.getElementById(cfg.btn);
+  const msg = document.getElementById(cfg.msg);
+  const log = document.getElementById(cfg.log);
+  const credencial = document.getElementById(cfg.input).value.trim();
 
-  if (!token) {
-    msg.textContent = "Pega el Bearer token primero.";
+  if (!credencial) {
+    msg.textContent = cfg.vacio;
     msg.className = "msg error";
     return;
   }
-  if (token.includes("…")) {
-    msg.textContent = "El token viene cortado: contiene «…». Cópialo con «Copy as cURL», no del panel Headers.";
+  if (credencial.includes("…")) {
+    msg.textContent = cfg.cortado;
     msg.className = "msg error";
     return;
   }
 
   btn.disabled = true;
-  msg.textContent = "Descargando. El token dura en torno a una hora: si se corta, saca uno nuevo y vuelve a lanzarlo — solo baja lo que falta.";
+  msg.textContent = cfg.trabajando;
   msg.className = "msg";
   log.style.display = "";
   log.textContent = "";
 
   try {
-    const res = await fetch("/api/copilot_images/backup", {
+    const res = await fetch(cfg.url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ [cfg.campo]: credencial }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1767,10 +1768,10 @@ async function copilotImagesBackup() {
     }
 
     if (codigo === 0) {
-      msg.textContent = "Biblioteca descargada. Verifica el backup antes de construir.";
+      msg.textContent = cfg.hecho;
       msg.className = "msg ok";
     } else {
-      msg.textContent = "La descarga terminó con errores — mira el log. Si el token caducó, saca uno nuevo y relanza: solo baja lo que falta.";
+      msg.textContent = cfg.errores;
       msg.className = "msg warn";
     }
   } catch (e) {
@@ -1781,7 +1782,36 @@ async function copilotImagesBackup() {
   }
 }
 
-document.getElementById("btn-copilot-images-backup").addEventListener("click", copilotImagesBackup);
+document.getElementById("btn-copilot-images-backup").addEventListener("click", () =>
+  capturaImagen({
+    btn: "btn-copilot-images-backup", msg: "copilot-images-backup-msg",
+    log: "copilot-images-log", input: "copilot-images-token",
+    url: "/api/copilot_images/backup", campo: "token",
+    vacio: "Pega el Bearer token primero.",
+    cortado: "El token viene cortado: contiene «…». Cópialo con «Copy as cURL», no del panel Headers.",
+    trabajando: "Descargando. El token dura en torno a una hora: si se corta, saca uno nuevo y vuelve a lanzarlo — solo baja lo que falta.",
+    hecho: "Biblioteca descargada. Verifica el backup antes de construir.",
+    errores: "La descarga terminó con errores — mira el log. Si el token caducó, saca uno nuevo y relanza: solo baja lo que falta.",
+  }));
+
+document.getElementById("btn-grok-imagine-backup").addEventListener("click", () =>
+  capturaImagen({
+    btn: "btn-grok-imagine-backup", msg: "grok-imagine-backup-msg",
+    log: "grok-imagine-log", input: "grok-imagine-cookie",
+    url: "/api/grok_imagine/backup", campo: "cookie",
+    vacio: "Pega la cookie de grok.com primero.",
+    cortado: "La cookie viene cortada: contiene «…». Copia el valor entero de la cabecera Cookie.",
+    trabajando: "Descargando (puede tardar: hay vídeos). Si se corta, relanza: lo ya bajado se conserva y solo pide lo que falta.",
+    hecho: "Biblioteca descargada. Verifica el backup para ver que cuadra con lo que Grok dice tener.",
+    errores: "La descarga terminó con errores — mira el log. Si la cookie caducó, copia una nueva y relanza: solo baja lo que falta.",
+  }));
+
+document.getElementById("btn-grok-imagine-verify").addEventListener("click", () =>
+  sunoAccion("/api/grok_imagine/verify", "btn-grok-imagine-verify", "grok-imagine-verify-msg", "grok-imagine-verify-out", {
+    trabajando: "Cruzando el inventario contra tus bancos...",
+    ok: "Todo lo que Grok dice tener está en tus bancos.",
+    problemas: "Hay huecos o fallos — mira el detalle.",
+  }));
 
 document.getElementById("btn-copilot-images-verify").addEventListener("click", () =>
   sunoAccion("/api/copilot_images/verify", "btn-copilot-images-verify", "copilot-images-verify-msg", "copilot-images-verify-out", {
