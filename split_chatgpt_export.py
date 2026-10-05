@@ -16,6 +16,7 @@ Incluye:
 Evita statements en una sola línea con ';' para máxima compatibilidad.
 """
 import argparse
+import csv
 import datetime
 import hashlib
 import json
@@ -32,6 +33,7 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 from providers import claude_adapter
 from providers import grok_adapter
+from providers import copilot_adapter
 
 GENERIC_TITLES = {
     "", "conversación", "conversation", "new chat", "conversación nueva",
@@ -936,6 +938,8 @@ def _dispatch(data: Any, image_meta_out: Optional[Dict[str, dict]] = None,
         # {conversations: [...]} pero los items de Grok son wrappers con
         # 'responses' que ChatGPT interpretaria como conversaciones vacias.
         return grok_adapter.parse(data)
+    if copilot_adapter.detect(data):
+        return copilot_adapter.parse(data)
     return parse_json_conversations(data, image_meta_out=image_meta_out, markers_ctx=markers_ctx)
 
 
@@ -997,6 +1001,23 @@ def process_grok_media_posts(media_posts: List[dict], asset_index: "GrokAssetInd
         writer.write(data, ext, meta=meta)
         extraidas += 1
     return extraidas, pendientes
+
+
+def _read_csv_as_dicts(path: str) -> List[Dict[str, str]]:
+    """Lee un CSV con encoding UTF-8-SIG (BOM), CRLF/LF, y multiline.
+    Retorna lista de dicts (filas) con headers como claves."""
+    try:
+        rows = []
+        with open(path, "r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            if reader.fieldnames is None:
+                return []
+            for row in reader:
+                if row:
+                    rows.append(row)
+        return rows
+    except (OSError, csv.Error, UnicodeDecodeError) as e:
+        raise RuntimeError(f"Error leyendo CSV {path}: {e}")
 
 
 def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]] = None,
@@ -1082,7 +1103,11 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
             html = f.read()
         return parse_html_export(html), None
 
-    raise RuntimeError("Formato no soportado. Usa .zip, .json o .html")
+    if ext == ".csv":
+        data = _read_csv_as_dicts(p)
+        return _dispatch(data, image_meta_out=image_meta_out, markers_ctx=markers_ctx), None
+
+    raise RuntimeError("Formato no soportado. Usa .zip, .json, .csv o .html")
 
 
 def compute_out_dir(base_out_dir: str, y: str, m: str, by_year: bool, by_month: bool) -> str:

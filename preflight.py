@@ -230,7 +230,26 @@ def validate_export_file(path) -> dict:
             return {"valido": False, "mensaje": "The HTML looks empty or too small to be an export."}
         return {"valido": True, "mensaje": "HTML file accepted (shallow validation, does not guarantee valid content).", "tipo": "html"}
 
-    return {"valido": False, "mensaje": f"Unsupported extension: {ext or '(no extension)'}. Use .zip, .json or .html."}
+    if ext == ".csv":
+        try:
+            import csv as csv_module
+            with open(p, "r", encoding="utf-8-sig") as f:
+                reader = csv_module.DictReader(f)
+                headers = reader.fieldnames or []
+                first_row = next(reader, None)
+        except Exception as e:
+            return {"valido": False, "mensaje": f"Could not read the CSV: {e}"}
+        # Validar que tenga los headers esperados para Copilot
+        expected_headers = {"Conversation", "Time", "Author", "Message"}
+        has_expected = expected_headers.issubset(set(headers))
+        if not has_expected:
+            return {"valido": False,
+                    "mensaje": f"CSV recognized but without the expected Copilot structure. "
+                               f"These headers are required: {', '.join(sorted(expected_headers))}. "
+                               f"Found: {', '.join(sorted(headers)) if headers else '(none)'}"}
+        return {"valido": True, "mensaje": "Copilot export (CSV) recognized.", "tipo": "copilot_csv"}
+
+    return {"valido": False, "mensaje": f"Unsupported extension: {ext or '(no extension)'}. Use .zip, .json, .csv or .html."}
 
 
 def validate_export_directory(path) -> dict:
