@@ -442,6 +442,99 @@ def flowmusic_backup():
                      headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.route("/api/copilot_images/backup", methods=["POST"])
+def copilot_images_backup():
+    """Descarga la biblioteca de imagenes de Copilot, con su prompt y fechas.
+    Mismo patron que Flow Music: token en el cuerpo, al hijo por ENTORNO
+    (nunca argv) y censurado en el log en vivo. Solo hace falta la cabecera
+    `Authorization` de la peticion `Artifact.ashx` (ver el script)."""
+    data = request.get_json(force=True, silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    if not token:
+        return jsonify({"error": "Falta el Bearer token"}), 400
+    if "…" in token:
+        return jsonify({"error": "El token viene cortado (contiene «…»). Copialo "
+                                  "con «Copy as cURL», no del panel Headers."}), 400
+
+    from config_loader import load_config, get_path
+    cfg = load_config(str(CONFIG_PATH))
+    backup = get_path(cfg, "copilot_images_backup")
+    if not backup:
+        return jsonify({"error": "Configura primero la carpeta del backup (copilot_images_backup)"}), 400
+
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+
+    def generate():
+        try:
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "COPILOT_TOKEN": token}
+            proc = subprocess.Popen(
+                [sys.executable, str(HERE / "copilot_images" / "backup_copilot_images.py"),
+                 "--out", str(backup)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", bufsize=1, env=env,
+            )
+            for line in proc.stdout:
+                limpia = line.rstrip()
+                if len(token) > 8:
+                    limpia = limpia.replace(token, "[token oculto]")
+                yield limpia + "\n"
+            proc.wait()
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _copilot_images_run(script: str, args: list) -> tuple:
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(HERE / "copilot_images" / script)] + args,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=1800, env=env,
+    )
+    return result.returncode, ((result.stdout or "") + (result.stderr or "")).strip()
+
+
+@app.route("/api/copilot_images/verify", methods=["POST"])
+def copilot_images_verify():
+    try:
+        from config_loader import load_config, get_path
+        backup = get_path(load_config(str(CONFIG_PATH)), "copilot_images_backup")
+        if not backup:
+            return jsonify({"error": "Configura primero la carpeta del backup (copilot_images_backup)"}), 400
+        code, salida = _copilot_images_run("verify_copilot_images.py", ["--backup-dir", str(backup)])
+        return jsonify({"ok": code == 0, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/copilot_images/build", methods=["POST"])
+def copilot_images_build():
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        backup = get_path(cfg, "copilot_images_backup")
+        vault = get_path(cfg, "copilot_images_vault")
+        if not backup:
+            return jsonify({"error": "Configura primero la carpeta del backup (copilot_images_backup)"}), 400
+        if not vault:
+            return jsonify({"error": "Configura primero el vault de imagenes de Copilot (copilot_images_vault)"}), 400
+        code, salida = _copilot_images_run("build_copilot_images_vault.py",
+                                            ["--backup-dir", str(backup), "--vault-dir", str(vault)])
+        if code != 0:
+            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+        return jsonify({"ok": True, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _flowmusic_run(script: str, args: list) -> tuple:
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     result = subprocess.run(
