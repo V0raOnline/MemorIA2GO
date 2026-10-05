@@ -19,6 +19,7 @@
 const APP_DEFAULT_TAB = {
   "chat-app":     "verificar",
   "music-app":    "musicology",
+  "image-app":    "image",
   "substack-app": "substack",
 };
 
@@ -32,6 +33,7 @@ const TAB_TO_APP = {
   "gizmos":     "chat",
   "reconexion": "chat",
   "musicology": "music",
+  "image":      "image",
   "substack":   "substack",
 };
 
@@ -128,6 +130,8 @@ async function loadConfig() {
   document.getElementById("cfg-suno_vault").value = paths.suno_vault || "";
   document.getElementById("cfg-flowmusic_backup").value = paths.flowmusic_backup || "";
   document.getElementById("cfg-flowmusic_vault").value = paths.flowmusic_vault || "";
+  document.getElementById("cfg-copilot_images_backup").value = paths.copilot_images_backup || "";
+  document.getElementById("cfg-copilot_images_vault").value = paths.copilot_images_vault || "";
   document.getElementById("cfg-substack_vault").value = paths.substack_vault || "";
   document.getElementById("cfg-prj_vault_name").value = opts.prj_vault_name || "PRJ_VAULT";
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
@@ -164,6 +168,8 @@ async function saveConfig() {
       suno_vault: document.getElementById("cfg-suno_vault").value.trim(),
       flowmusic_backup: document.getElementById("cfg-flowmusic_backup").value.trim(),
       flowmusic_vault: document.getElementById("cfg-flowmusic_vault").value.trim(),
+      copilot_images_backup: document.getElementById("cfg-copilot_images_backup").value.trim(),
+      copilot_images_vault: document.getElementById("cfg-copilot_images_vault").value.trim(),
       substack_vault: document.getElementById("cfg-substack_vault").value.trim(),
     },
     options: {
@@ -1451,6 +1457,8 @@ attachPathAutocomplete("cfg-suno_backup", "suggest-suno_backup");
 attachPathAutocomplete("cfg-suno_vault", "suggest-suno_vault");
 attachPathAutocomplete("cfg-flowmusic_backup", "suggest-flowmusic_backup");
 attachPathAutocomplete("cfg-flowmusic_vault", "suggest-flowmusic_vault");
+attachPathAutocomplete("cfg-copilot_images_backup", "suggest-copilot_images_backup");
+attachPathAutocomplete("cfg-copilot_images_vault", "suggest-copilot_images_vault");
 attachPathAutocomplete("cfg-substack_vault", "suggest-substack_vault");
 
 loadConfig();
@@ -1631,6 +1639,93 @@ async function flowmusicBackup() {
     btn.disabled = false;
   }
 }
+
+// image.ia / Copilot: mismo patron que Flow Music (POST con streaming, token
+// en el cuerpo y nunca en la query string), sin selector de formato porque
+// siempre se baja el original.
+async function copilotImagesBackup() {
+  const btn = document.getElementById("btn-copilot-images-backup");
+  const msg = document.getElementById("copilot-images-backup-msg");
+  const log = document.getElementById("copilot-images-log");
+  const token = document.getElementById("copilot-images-token").value.trim();
+
+  if (!token) {
+    msg.textContent = "Pega el Bearer token primero.";
+    msg.className = "msg error";
+    return;
+  }
+  if (token.includes("…")) {
+    msg.textContent = "El token viene cortado: contiene «…». Cópialo con «Copy as cURL», no del panel Headers.";
+    msg.className = "msg error";
+    return;
+  }
+
+  btn.disabled = true;
+  msg.textContent = "Descargando. El token dura en torno a una hora: si se corta, saca uno nuevo y vuelve a lanzarlo — solo baja lo que falta.";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+
+  try {
+    const res = await fetch("/api/copilot_images/backup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let resto = "";
+    let codigo = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resto += decoder.decode(value, { stream: true });
+      const lineas = resto.split("\n");
+      resto = lineas.pop();
+      for (const linea of lineas) {
+        if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
+        if (linea.startsWith("__ERROR__")) { throw new Error(linea.slice(9).trim()); }
+        log.textContent += linea + "\n";
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    if (codigo === 0) {
+      msg.textContent = "Biblioteca descargada. Verifica el backup antes de construir.";
+      msg.className = "msg ok";
+    } else {
+      msg.textContent = "La descarga terminó con errores — mira el log. Si el token caducó, saca uno nuevo y relanza: solo baja lo que falta.";
+      msg.className = "msg warn";
+    }
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("btn-copilot-images-backup").addEventListener("click", copilotImagesBackup);
+
+document.getElementById("btn-copilot-images-verify").addEventListener("click", () =>
+  sunoAccion("/api/copilot_images/verify", "btn-copilot-images-verify", "copilot-images-verify-msg", "copilot-images-verify-out", {
+    trabajando: "Cruzando el índice contra las imágenes...",
+    ok: "Backup íntegro.",
+    problemas: "Hay huecos o ficheros dañados — mira el detalle.",
+  }));
+
+document.getElementById("btn-copilot-images-build").addEventListener("click", () =>
+  sunoAccion("/api/copilot_images/build", "btn-copilot-images-build", "copilot-images-build-msg", "copilot-images-build-out", {
+    trabajando: "Construyendo el vault (copia las imágenes, puede tardar)...",
+    ok: "Vault construido. Ábrelo en Obsidian.",
+    problemas: "Terminó con avisos — mira el detalle.",
+  }));
 
 document.getElementById("btn-suno-backup").addEventListener("click", sunoBackup);
 document.getElementById("btn-flowmusic-backup").addEventListener("click", flowmusicBackup);
