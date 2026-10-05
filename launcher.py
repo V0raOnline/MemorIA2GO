@@ -535,6 +535,87 @@ def copilot_images_build():
         return jsonify({"error": str(e)}), 500
 
 
+def _grok_dir():
+    """Carpeta GROK del vault, derivada de base_vault igual que rescue_pending.py."""
+    from config_loader import load_config, get_path
+    base = get_path(load_config(str(CONFIG_PATH)), "base_vault")
+    return (base / "GROK") if base else None
+
+
+@app.route("/api/grok_imagine/backup", methods=["POST"])
+def grok_imagine_backup():
+    """Baja la biblioteca de Grok Imagine al banco GROK/IMAGINE. Mismo patron
+    que el resto de capturas, pero la credencial es la COOKIE de sesion de
+    grok.com, no un Bearer que caduca: da acceso completo a la cuenta. Va en
+    el cuerpo, al hijo por ENTORNO (nunca argv) y se censura en el log en
+    vivo."""
+    data = request.get_json(force=True, silent=True) or {}
+    cookie = (data.get("cookie") or "").strip()
+    if cookie.lower().startswith("cookie:"):
+        cookie = cookie[7:].strip()
+    if not cookie:
+        return jsonify({"error": "Falta la cookie de grok.com"}), 400
+    if "…" in cookie:
+        return jsonify({"error": "La cookie viene cortada (contiene «…»). Copia el valor "
+                                  "entero de la cabecera Cookie."}), 400
+    try:
+        cookie.encode("latin-1")
+    except UnicodeEncodeError:
+        return jsonify({"error": "La cookie tiene caracteres que no caben en una cabecera HTTP."}), 400
+
+    grok = _grok_dir()
+    if not grok:
+        return jsonify({"error": "Configura primero la carpeta base del vault (base_vault)"}), 400
+    if not grok.is_dir():
+        return jsonify({"error": f"No existe la carpeta GROK: {grok}"}), 400
+
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+
+    def generate():
+        try:
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "GROK_COOKIE": cookie}
+            proc = subprocess.Popen(
+                [sys.executable, str(HERE / "grok_imagine" / "backup_grok_imagine.py"),
+                 "--grok-dir", str(grok)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", bufsize=1, env=env,
+            )
+            for line in proc.stdout:
+                limpia = line.rstrip()
+                if len(cookie) > 8:
+                    limpia = limpia.replace(cookie, "[cookie oculta]")
+                yield limpia + "\n"
+            proc.wait()
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/grok_imagine/verify", methods=["POST"])
+def grok_imagine_verify():
+    try:
+        grok = _grok_dir()
+        if not grok:
+            return jsonify({"error": "Configura primero la carpeta base del vault (base_vault)"}), 400
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(HERE / "grok_imagine" / "verify_grok_imagine.py"),
+             "--grok-dir", str(grok)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=600, env=env,
+        )
+        salida = ((result.stdout or "") + (result.stderr or "")).strip()
+        return jsonify({"ok": result.returncode == 0, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _flowmusic_run(script: str, args: list) -> tuple:
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     result = subprocess.run(

@@ -719,6 +719,77 @@
         <pre id="copilot-images-build-out" class="log-box" style="display:none;"></pre>
       </div>
     </details>
+
+    <details class="source-fold" id="fold-grok-imagine">
+      <summary>
+        <span class="source-name">Grok Imagine</span>
+        <span class="source-sub" id="fold-grok-imagine-sub"></span>
+      </summary>
+
+      <div class="card">
+        <h2>Captura</h2>
+        <p class="card-help">
+          El export de Grok parece completo y no lo es: la mayoría de tus generaciones de
+          Imagine no viajan en el zip, y las ediciones privadas no traen ni su linaje. La
+          biblioteca de grok.com sí lo tiene todo, y se pide a su API. Las imágenes y vídeos
+          van al banco <code>GROK/IMAGINE</code>, sin repetir lo que ya tengas en otros
+          bancos (se compara por contenido).
+        </p>
+
+        <div class="metro">
+          <div class="metro-stop">
+            <div class="metro-dot">1</div>
+            <div class="metro-label">grok.com</div>
+            <div class="metro-sub">abre Imagine → tu biblioteca<br>con la sesión iniciada</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">2</div>
+            <div class="metro-label">F12 → Network</div>
+            <div class="metro-sub">filtra por «assets»<br>y refresca</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">3</div>
+            <div class="metro-label">Request Headers</div>
+            <div class="metro-sub">clic en la petición<br>a /rest/assets</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">4</div>
+            <div class="metro-label">Copia «Cookie»</div>
+            <div class="metro-sub">el valor entero<br>de esa cabecera</div>
+          </div>
+        </div>
+
+        <p class="card-help">
+          <strong>Esta credencial pesa más que un token.</strong> No es un pase que caduca en
+          una hora: es la cookie de tu sesión de grok.com, y da acceso completo a tu cuenta
+          mientras siga abierta. No la pegues en ningún otro sitio. Aquí no se guarda y no
+          se muestra nunca: vive en memoria durante la descarga y solo viaja a grok.com.
+        </p>
+
+        <label for="grok-imagine-cookie">Cookie — el valor entero de la cabecera</label>
+        <input type="password" id="grok-imagine-cookie" autocomplete="off" spellcheck="false"
+               placeholder="sso=...; ...">
+
+        <button class="btn" id="btn-grok-imagine-backup">Descargar biblioteca</button>
+        <div id="grok-imagine-backup-msg" class="msg"></div>
+        <pre id="grok-imagine-log" class="log-box" style="display:none;"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Verificación</h2>
+        <p class="card-help">
+          Reconcilia lo que Grok dice tener contra lo que hay en tus bancos: activos nunca
+          intentados, fallidos y ficheros que ya no están en disco. Los que el servidor ya
+          no tiene (borrados) se listan aparte y no cuentan como fallo.
+        </p>
+        <button class="btn" id="btn-grok-imagine-verify">Verificar backup</button>
+        <div id="grok-imagine-verify-msg" class="msg"></div>
+        <pre id="grok-imagine-verify-out" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
   </section>
 
   <!-- TINTERO: la otra herramienta hermana. A diferencia de MUSIC·0LOGY,
