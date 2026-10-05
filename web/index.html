@@ -35,6 +35,10 @@
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
       <span class="app-label">music<span class="brand-ia">.ia</span></span>
     </button>
+    <button class="tab-btn" data-tab="image-app" data-app="image">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+      <span class="app-label">image<span class="brand-ia">.ia</span></span>
+    </button>
     <button class="tab-btn" data-tab="substack-app" data-app="substack">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg>
       <span class="app-label">Substack</span>
@@ -204,6 +208,16 @@
         <div class="path-suggest" id="suggest-flowmusic_vault"></div>
       </div>
       <div class="field">
+        <label for="cfg-copilot_images_backup">image<span class="brand-ia">.ia</span> — Copilot images backup folder</label>
+        <input type="text" id="cfg-copilot_images_backup" autocomplete="off">
+        <div class="path-suggest" id="suggest-copilot_images_backup"></div>
+      </div>
+      <div class="field">
+        <label for="cfg-copilot_images_vault">image<span class="brand-ia">.ia</span> — Copilot images vault</label>
+        <input type="text" id="cfg-copilot_images_vault" autocomplete="off">
+        <div class="path-suggest" id="suggest-copilot_images_vault"></div>
+      </div>
+      <div class="field">
         <label for="cfg-substack_vault">Inkwell — publications vault</label>
         <input type="text" id="cfg-substack_vault" autocomplete="off">
         <div class="path-suggest" id="suggest-substack_vault"></div>
@@ -223,9 +237,6 @@
       </div>
     </div>
 
-<<<<<<< HEAD
-    <button class="btn" id="btn-save-config">Save configuration</button>
-=======
     <div class="card">
       <h2>Appearance</h2>
       <div class="field">
@@ -239,8 +250,7 @@
       </div>
     </div>
 
-    <button class="btn" id="btn-save-config">Guardar configuración</button>
->>>>>>> d19d8c8 (feat(ui): tres temas de color elegibles desde Configuracion (warm, cool, light))
+    <button class="btn" id="btn-save-config">Save configuration</button>
     <div id="config-msg" class="msg"></div>
   </section>
 
@@ -609,6 +619,106 @@
         <button class="btn" id="btn-flowmusic-build">Build vault</button>
         <div id="flowmusic-build-msg" class="msg"></div>
         <pre id="flowmusic-build-out" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- IMAGE.IA: lo que generas con IA. Misma casa que MUSIC·0LOGY -- un
+       plegable por fuente con captura, verificacion y vault -- pero para
+       imagenes. Hoy solo Copilot: su export CSV no trae las imagenes, asi
+       que se piden a la API de su biblioteca con un token del navegador. -->
+  <section id="panel-image" class="panel">
+    <div class="panel-header">
+      <div class="panel-header-text">
+        <h1>image<span class="brand-ia">.ia</span></h1>
+        <p class="panel-header-desc">Lo que generaste, con su prompt, en tu casa.</p>
+        <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
+      </div>
+    </div>
+
+    <details class="source-fold" id="fold-copilot-images" open>
+      <summary>
+        <span class="source-name">Copilot</span>
+        <span class="source-sub" id="fold-copilot-images-sub"></span>
+      </summary>
+
+      <div class="card">
+        <h2>Captura</h2>
+        <p class="card-help">
+          El export de Copilot no incluye las imágenes que generas. Se piden a la API de su
+          biblioteca con un token del navegador que caduca en torno a una hora — por eso
+          este paso es manual. Cada imagen llega con su prompt y su fecha, que la
+          interfaz de Copilot no te enseña.
+        </p>
+
+        <div class="metro">
+          <div class="metro-stop">
+            <div class="metro-dot">1</div>
+            <div class="metro-label">copilot.com</div>
+            <div class="metro-sub">abre Biblioteca → Imágenes<br>con la sesión iniciada</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">2</div>
+            <div class="metro-label">F12 → Network</div>
+            <div class="metro-sub">filtra por «Artifact.ashx»<br>y refresca</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">3</div>
+            <div class="metro-label">Copy as cURL</div>
+            <div class="metro-sub">clic derecho sobre<br>la petición</div>
+          </div>
+          <div class="metro-line"></div>
+          <div class="metro-stop">
+            <div class="metro-dot">4</div>
+            <div class="metro-label">Copia el JWT</div>
+            <div class="metro-sub">lo que va después<br>de «Bearer »</div>
+          </div>
+        </div>
+
+        <p class="card-help">
+          <strong>Cópialo del cURL, no del panel Headers.</strong> Chrome corta ahí los
+          valores largos y los pinta con puntos suspensivos: te llevarías medio token con
+          un «…» dentro.
+        </p>
+        <p class="card-help">
+          Este token es la prueba de que tu navegador ya inició sesión. Mientras dure,
+          quien lo tenga puede pedirle cosas a Copilot como si fueras tú — no lo pegues
+          en ningún otro sitio. No se guarda: vive en memoria durante la descarga.
+        </p>
+
+        <label for="copilot-images-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
+        <input type="password" id="copilot-images-token" autocomplete="off" spellcheck="false"
+               placeholder="eyJhbGciOiJ...">
+
+        <button class="btn" id="btn-copilot-images-backup">Descargar biblioteca</button>
+        <div id="copilot-images-backup-msg" class="msg"></div>
+        <pre id="copilot-images-log" class="log-box" style="display:none;"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Verificación</h2>
+        <p class="card-help">
+          Cruza el índice contra las imágenes en disco y avisa de huecos, imágenes vacías,
+          tamaños distintos a los de Copilot y descargas a medias. Las que ya no están en
+          tu biblioteca se listan aparte y no se tocan.
+        </p>
+        <button class="btn" id="btn-copilot-images-verify">Verificar backup</button>
+        <div id="copilot-images-verify-msg" class="msg"></div>
+        <pre id="copilot-images-verify-out" class="log-box" style="display:none;"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Construir el vault</h2>
+        <p class="card-help">
+          Convierte el backup en notas de Obsidian, una por imagen, con la imagen incrustada
+          y su prompt completo. Se puede lanzar las veces que haga falta y nunca borra nada
+          del vault: si algo sobra, lo avisa.
+        </p>
+        <button class="btn" id="btn-copilot-images-build">Construir vault</button>
+        <div id="copilot-images-build-msg" class="msg"></div>
+        <pre id="copilot-images-build-out" class="log-box" style="display:none;"></pre>
       </div>
     </details>
   </section>
