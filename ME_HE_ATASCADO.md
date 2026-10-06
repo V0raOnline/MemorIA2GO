@@ -9,6 +9,7 @@ No hace falta leerlo entero. Ve a lo tuyo:
 
 - [No he usado una terminal en mi vida](#no-he-usado-una-terminal-en-mi-vida) — instalar Python y arrancar la aplicación.
 - [Me piden un token de música y no sé qué es eso](#me-piden-un-token-de-música-y-no-sé-qué-es-eso) — sacarlo del navegador, paso a paso. Vale igual para Suno y para Flow Music.
+- [Me piden un token o una cookie para las imágenes](#me-piden-un-token-o-una-cookie-para-las-imágenes) — Copilot pide un token como los de música; Grok pide una **cookie**, que es otra cosa y pesa más.
 
 ---
 
@@ -125,6 +126,43 @@ Es el fallo más común y el que peor avisa: no dice "token cortado", dice cosas
 - **Lo pegué y dice que no vale.** Lo más probable es que esté cortado — vuelve al paso 6. También puede que hayas copiado la palabra «Bearer» delante, o un espacio. Y en Suno hay peticiones a `clerk.suno.com` que llevan token pero no sirven: las buenas van a `studio-api`.
 - **La descarga se cortó a la mitad.** Casi siempre es que el token caducó. Saca uno nuevo repitiendo estos pasos y vuelve a lanzarla: **retoma donde se quedó**, no empieza de cero.
 - **Se me ha olvidado todo esto.** Está también dentro de la aplicación: en la pestaña MUSIC·0LOGY, el desplegable «¿Esto te suena a criptología? Ábreme».
+
+---
+
+## Me piden un token o una cookie para las imágenes
+
+En **image.ia**, las imágenes de Copilot y de Grok Imagine se piden a su biblioteca, igual que la música: ninguna de las dos trae todo en su export. Es el mismo gesto —copiar una credencial del navegador a esta aplicación—, pero **no es la misma credencial**.
+
+### Copilot: un token, como los de música
+
+Sigue los pasos de arriba con dos cambios:
+
+- En el paso 1, ve a [copilot.com](https://copilot.com) con tu sesión iniciada y abre **Biblioteca → Imágenes**.
+- En el paso 4, en vez de buscar «bearer», **filtra por `Artifact.ashx`**. Es la petición que pide tu lista de imágenes. Dentro, en Headers, está la línea `Authorization: Bearer eyJ...`.
+
+El resto es idéntico, incluido el cuidado con el token cortado (paso 6). Pégalo en **image.ia → Copilot**. Dura en torno a una hora.
+
+### Grok Imagine: una cookie, que es otra cosa
+
+Grok no usa un `Bearer`. Su web se identifica con la **cookie de sesión**, y eso cambia dos cosas.
+
+**Pesa más.** Un token de música es un pase temporal para pedir tu biblioteca. La cookie de grok.com es **tu sesión entera**: mientras siga abierta, quien la tenga puede hacer en tu cuenta lo que harías tú, no solo ver tus imágenes. No la pegues en ningún sitio que no sea esta aplicación, no la mandes por chat y no salga en una captura. Y cuando termines, **cierra la sesión en grok.com**: es la forma segura de dejarla sin valor.
+
+**Se saca de otro sitio.**
+
+1. Abre [grok.com/imagine](https://grok.com/imagine) con tu sesión iniciada, en tu biblioteca.
+2. `F12` → pestaña **Network**, y escribe `assets` en el filtro. Refresca la página.
+3. Haz clic en la petición que acaba en **`rest/assets`**.
+4. En **Headers**, baja a **Request Headers** y busca la línea `Cookie:`. Es larguísima, con muchos trozos `nombre=valor;`.
+5. Clic derecho sobre esa línea → **Copy value**. Pégalo en **image.ia → Grok Imagine**.
+
+**Ojo con «Copy as cURL (cmd)».** En Windows, Chrome ofrece varias formas de copiar una petición, y la de «cmd» le pone un **`^` delante de los caracteres especiales** (`%`, `{`, `"`…). Esos `^` no forman parte de la cookie: si los pegas, Grok recibe una cookie rota y responde como si hubiera caducado. Usa **Copy value** sobre la cabecera, o «Copy as cURL (**bash**)», que no los lleva. Si ves `^` en lo que has pegado, es esto.
+
+### Si algo no cuadra
+
+- **Dice que la cookie o el token ha caducado nada más empezar.** O de verdad caducó, o está mal copiado: los `^` de arriba, o un valor cortado con «…». Cópialo de nuevo.
+- **La descarga se corta a mitad.** Relánzala con una credencial nueva: baja solo lo que falta, y lo ya descargado se conserva.
+- **No encuentro `Artifact.ashx` o `rest/assets`.** Refresca la página con el panel de Network abierto y comprueba que estás en la biblioteca de imágenes, no en el chat.
 
 ---
 

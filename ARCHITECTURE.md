@@ -20,8 +20,8 @@ Consolida variantes de la misma conversación entre exports en `MERGED_VAULT` si
 **Paso 3 — Proyectos** (`project_organizer.py`)
 Construye `PRJ_VAULT` como una vista de proyecto/año/mes de MERGED. Se refresca en cada corrida (symlinks donde el sistema operativo lo permite, copias reales en Windows).
 
-**Paso 4 — Índices** (`tree_index.py`, `scaffolding_index.py`, `image_index.py`, `vault_stats.py`)
-Índices de navegación (proyecto/año/mes), índice de uso de adjuntos, índice de imágenes, y la caché de estadísticas que alimenta el dashboard.
+**Paso 4 — Índices** (`tree_index.py`, `scaffolding_index.py`, `content_index.py`, `vault_stats.py`)
+Índices de navegación (proyecto/año/mes), índice de uso de adjuntos, índice de contenido por proveedor, y la caché de estadísticas que alimenta el dashboard.
 
 ### Cuándo lanzar qué
 
@@ -42,17 +42,20 @@ Cada proveedor exporta a su manera y cada uno esconde su propia trampa. Lo que s
 |----------|--------------|-----------------|-------------|
 | ChatGPT  | zip / json / html | recorrido del árbol por `current_node` | imágenes generadas por IA y subidas del usuario extraídas a bancos separados (`CHATGPT/GENERADAS`, `CHATGPT/ADJUNTOS`) |
 | Claude   | zip (puede llegar en partes `batch-NNNN`) | reconstrucción por la hoja más reciente (el export no trae `current_node`) | texto extraído citado inline; los binarios subidos no vienen en el export; los **Artefactos generados** (documentos, código, HTML...) se extraen a `CLAUDE/ARTEFACTOS`, un fichero por artefacto, clasificados por tipo — solo la versión final, el historial de revisiones se descarta |
-| Grok     | zip (estructura `ttl/30d/...`) | `leaf_response_id` cuando existe, si no la hoja más reciente | adjuntos extraídos a `GROK/ADJUNTOS`; las generaciones de Imagine (imagen y vídeo) se extraen a `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` cuando el export trae el binario, si no se registran como lista de pendientes de descarga (prompt + enlace), nunca se descargan solas |
+| Grok     | zip (estructura `ttl/30d/...`) | `leaf_response_id` cuando existe, si no la hoja más reciente | adjuntos extraídos a `GROK/ADJUNTOS`; las generaciones de Imagine (imagen y vídeo) se extraen a `GROK/GENERADAS_IMAGEN`/`GROK/GENERADAS_VIDEO` cuando el export trae el binario, si no se registran como lista de pendientes de descarga (prompt + enlace), nunca se descargan solas. La biblioteca completa de Imagine se trae aparte, desde image.ia |
+| Copilot  | **CSV** (`Conversation, Time, Author, Message`; BOM UTF-8, CRLF, mensajes multilínea entre comillas) | no hay ramas: es una lista plana de mensajes | ninguno — el export no incluye las imágenes generadas, que se traen aparte desde image.ia |
 
 Todos los proveedores conviven en un único vault fusionado (MERGED). Cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen. Cada banco de assets tiene su propio índice navegable, mismo patrón que el índice de imágenes clásico.
 
-Los tres tienen en común lo que de verdad importa: **las ramas descartadas se quedan fuera.** Cuando regeneras una respuesta, el export conserva el árbol entero; el adaptador camina hasta la hoja vigente y descarta el resto, así que el vault refleja la conversación que de verdad tuviste y no todos los intentos.
+Los de árbol (ChatGPT, Claude y Grok) tienen en común lo que de verdad importa: **las ramas descartadas se quedan fuera.** Cuando regeneras una respuesta, el export conserva el árbol entero; el adaptador camina hasta la hoja vigente y descarta el resto, así que el vault refleja la conversación que de verdad tuviste y no todos los intentos.
+
+**Copilot es el único que entra por CSV, y eso cambia tres cosas.** La detección sigue siendo por estructura (las cuatro cabeceras en la primera fila), pero ahora hay un lector de `.csv` en `load_conversations` y el `preflight` lo reconoce. No trae identificador de conversación: se agrupa por el **nombre** (`Conversation`), así que dos conversaciones con el mismo título se fusionan en una y no hay forma de evitarlo desde nuestro lado. Y de los tres ficheros del export real, dos vienen vacíos (solo cabeceras): se aceptan y no producen nada, en vez de rechazarse. El adaptador es `providers/copilot_adapter.py`.
 
 ---
 
 ## Las herramientas hermanas
 
-Ni la música ni Substack pasan por los cuatro pasos de arriba, y en cada caso por un motivo distinto. Merece la pena leer los dos juntos, porque la frontera se trazó dos veces con criterios que no se parecen.
+Ni la música, ni Substack, ni las imágenes pasan por los cuatro pasos de arriba, y en cada caso por un motivo distinto. Merece la pena leerlas juntas, porque la frontera se trazó tres veces con criterios que no se parecen: la música y las imágenes no tienen export y hay que pedirlas a una API; Substack sí lo tiene, pero un post no es una conversación.
 
 ### MUSIC·0LOGY — la música
 
@@ -97,6 +100,20 @@ Un detalle que se nota al mirar el vault: las etiquetas se normalizan al escribi
 Dos ausencias que conviene saber de antemano, porque son del export y no de la herramienta: **los comentarios no viajan** (ninguno) y **las imágenes tampoco** — solo sus URLs remotas, que la nota conserva.
 
 Y una advertencia que la herramienta te da sola: el zip de Substack arrastra **datos personales de tus suscriptores** — emails, y en las aperturas también país, ciudad y dispositivo. Tintero los cuenta para decírtelo en voz alta y **no los lee nunca**. No son tu memoria: son datos de otras personas que están a tu cargo.
+
+### image.ia — lo que generaste
+
+Es la cuarta herramienta, y se parece más a MUSIC·0LOGY que a ninguna otra: **las imágenes no tienen export** (el de Copilot no las incluye; el de Grok trae solo una parte, y las ediciones privadas sin linaje). La única forma de tenerlas completas es pedírselas a la API de cada biblioteca, así que viven fuera de los cuatro pasos, con su propia app y el mismo planteamiento: un plegable por fuente, con **captura, verificación y construcción**, y la misma regla — la aplicación sale a Internet cuando le pones una credencial en la mano y pulsas. Las dos capturas comparten una sola función de streaming en `web/app.js` (`capturaImagen`) y los mismos endpoints `/api/<fuente>/{backup,verify,build}` en el launcher; la credencial viaja en el cuerpo del POST, al proceso hijo por **entorno** (nunca por argv, visible en la lista de procesos) y se **censura** en el log en vivo.
+
+**Copilot** (`copilot_images/`). La Biblioteca de copilot.com lista tus imágenes con `POST designerapp.officeapps.live.com/designerapp/Artifact.ashx?action=getArtifactList`, paginado por `NextLink` + `NextLinkSignature`, 100 por página. De las 16 cabeceras que manda el navegador hace falta **una**, `Authorization` — comprobado quitándolas de una en una, incluida `storageinfo`, que lleva el identificador de tu unidad de OneDrive. Cada elemento trae lo que la interfaz no enseña: el **prompt**, las fechas exactas, el tamaño y una `DownloadUrl` al original. Esa URL lleva un token temporal y **caduca**, así que no se guarda: en cada pasada se vuelve a listar (cinco peticiones) y se baja lo que falte. Las imágenes se descargan con una sesión **sin** el Bearer, porque el original vive en otro servidor y no hay por qué entregárselo.
+El listado manda sobre la pantalla. Rascar la propia Biblioteca daba 451 imágenes y terminaba sin errores; la API dice 471, con 470 prompts: faltaban 20 de OneDrive que la interfaz no pintaba y una que ni siquiera vive en OneDrive. Las imágenes ya descargadas a mano se reconocen porque su nombre contiene el id y solo ganan su `.json`.
+El vault tiene una nota por imagen en `Imágenes/<AAAA-MM>/`, con la imagen incrustada, el prompt entero en una cita (con el Markdown de dentro neutralizado, para que un `##` o un `---` del prompt no se conviertan en estructura de la nota) y los metadatos en el frontmatter. El nombre de nota es `fecha · prompt corto · últimos 8 del id`, **sin corchetes** (Obsidian corta el wikilink en el primer `]]`) y desambiguado sin distinguir mayúsculas, porque en Windows `A…` y `a…` son el mismo fichero. Y **no borra nunca**: si en el vault queda algo que ya no corresponde al backup, lo cuenta y lo deja donde está.
+
+**Grok Imagine** (`grok_imagine/`). La biblioteca de grok.com se lista con `GET /rest/assets` (`workspaceKind=WORKSPACE_KIND_IMAGINE_ALL`), paginado por `pageToken`; se piden 100 por página y el servidor sirve 60, lo que no importa mientras la paginación siga el token. Sin filtrar por tipo devuelve todo, no solo imágenes: es lo que la web no enseña. La credencial es la **cookie de sesión**, no un Bearer: da acceso a toda la cuenta, así que es la más delicada de la casa y la interfaz lo dice sin suavizar.
+Lo descargado va al banco `GROK/IMAGINE`, que ya existía, con el mismo nombre por hash (`sha1[:16]` + extensión) y el mismo `_image_manifest.json` que usa el resto del pipeline, ampliado con lo que el export tira: `edicion_de` (el padre de una edición) y si la raíz la subió el usuario. **Se deduplica por contenido contra todos los bancos de Grok**, no por tamaño: la versión de compartir de un vídeo está recodificada y pesa distinto, así que solo el hash dice si ya lo tienes, y se decide después de bajar. El estado por activo (`_estado.json`: `ok`, `repetida`, `ausente`, `error`, `sin key`) hace la descarga reanudable; `ok`, `repetida` y `ausente` son terminales, y un 404 se anota como `ausente` en vez de reintentarse para siempre. Los ficheros de trabajo empiezan por `_` y se excluyen del cálculo de hashes.
+La **verificación** es una reconciliación: cruza lo que la plataforma dice tener (`_inventario.json`) con el estado y con lo que hay en disco, y reporta lo nunca intentado, lo fallido, lo que el manifest cita y ya no está en disco, y aparte —sin contarlo como fallo— lo que el servidor ya no tiene. Es el mismo reflejo que la biblioteca de Copilot: **preguntar por lo que el índice no sabe contestar**, porque un export que se descarga y procesa sin errores puede traer la quinta parte del contenido.
+
+Lo que falta: Grok Imagine **no tiene vault de notas con prompt**. La API de la biblioteca no devuelve el prompt (solo lo trae el export, en los `media_posts`), así que hacerlo exige unir los dos por identificador de activo, y eso pide mirar antes cómo se enlazan en un export real.
 
 ---
 

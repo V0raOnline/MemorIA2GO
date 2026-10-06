@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────
 // Navegación de dos niveles: sidebar (globales + apps) + top-tabs por app
 // ─────────────────────────────────────────
-// Sidebar: Observatorio (global) + apps (chat.ia, music.ia, Substack) +
+// Sidebar: Observatorio (global) + apps (chat.ia, music.ia, image.ia, Substack) +
 // Configuracion (global, al pie). Cada app puede tener sub-pasos en una
 // tira de top-tabs encima del panel. Hoy solo chat.ia los tiene:
 // Verificacion / Construccion / Cartografia / Reconexion.
@@ -9,13 +9,14 @@
 // Estado: no hay variables globales; la fuente de verdad es la clase
 // .active en los botones y paneles. showTab() sigue siendo el punto de
 // entrada -- se le pasa el data-tab del boton clicado; para las apps es
-// un "chat-app" / "music-app" / "substack-app" que se resuelve al panel
+// un "chat-app" / "music-app" / "image-app" / "substack-app" que se resuelve al panel
 // canonico de esa app.
 //
 // APP_DEFAULT_TAB: al abrir una app, a que sub-panel entra por defecto.
 // Para chat.ia entramos por Verificacion (primer paso del flujo); para
-// music.ia y Substack no hay sub-tabs todavia, asi que el data-tab es
-// el propio panel completo.
+// music.ia, image.ia y Substack no hay sub-tabs todavia, asi que el
+// data-tab es el propio panel completo (con un plegable por fuente en
+// music.ia e image.ia).
 const APP_DEFAULT_TAB = {
   "chat-app":     "verificar",
   "music-app":    "musicology",

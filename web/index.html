@@ -53,7 +53,7 @@
     </button>
   </nav>
 
-  <div class="sidebar-footer">M3M0R<span class="brand-ia">·IA</span> · v2</div>
+  <div class="sidebar-footer">M3M0R<span class="brand-ia">·IA</span> · v3</div>
 
 </aside>
 
@@ -61,7 +61,7 @@
 
   <!--
     Top-tabs por app. Solo se muestra cuando la app seleccionada en la
-    sidebar tiene sub-pasos de flujo. Hoy: chat.ia. music.ia y Substack
+    sidebar tiene sub-pasos de flujo. Hoy: chat.ia. music.ia, image.ia y Substack
     dejan la tira oculta y muestran su panel completo (music tiene
     Suno/Flow como folds internos; Substack tiene sus cards inline).
     Los data-tab siguen apuntando a los mismos panel-* de siempre, para
@@ -178,7 +178,7 @@
         <div class="path-suggest" id="suggest-base_vault"></div>
       </div>
       <div class="field">
-        <label for="cfg-exports_dir">Carpeta con los exports de ChatGPT (.zip / .json / .html)</label>
+        <label for="cfg-exports_dir">Carpeta con tus exports (.zip / .json / .html / .csv)</label>
         <input type="text" id="cfg-exports_dir" autocomplete="off">
         <div class="path-suggest" id="suggest-exports_dir"></div>
       </div>
@@ -623,8 +623,9 @@
 
   <!-- IMAGE.IA: lo que generas con IA. Misma casa que MUSIC·0LOGY -- un
        plegable por fuente con captura, verificacion y vault -- pero para
-       imagenes. Hoy solo Copilot: su export CSV no trae las imagenes, asi
-       que se piden a la API de su biblioteca con un token del navegador. -->
+       imagenes. Hoy dos fuentes: Copilot (su export CSV no trae las
+       imagenes, asi que se piden a la API de su biblioteca con un token
+       del navegador) y Grok Imagine (idem, con la cookie de sesion). -->
   <section id="panel-image" class="panel">
     <div class="panel-header">
       <div class="panel-header-text">
@@ -915,7 +916,7 @@
         <div class="metro-stop">
           <div class="metro-dot metro-origen">ZIP</div>
           <div class="metro-label">Exports</div>
-          <div class="metro-sub">tus exportaciones<br>(ChatGPT, Claude...)</div>
+          <div class="metro-sub">tus exportaciones<br>(ChatGPT, Claude, Grok, Copilot...)</div>
         </div>
         <div class="metro-line"></div>
         <div class="metro-stop">
