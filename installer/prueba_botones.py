@@ -69,10 +69,15 @@ CASOS = [
     ("/api/suno/build", {}, 30, "construir vault de Suno sin backup"),
     ("/api/flowmusic/verify", {}, 30, "verificar Flow Music sin configurar"),
     ("/api/flowmusic/build", {}, 30, "construir Flow Music sin backup"),
+    ("/api/copilot_images/verify", {}, 30, "verificar imagenes de Copilot sin configurar"),
+    ("/api/copilot_images/build", {}, 30, "construir vault de imagenes de Copilot sin backup"),
+    ("/api/grok_imagine/verify", {}, 30, "verificar Grok Imagine sin backup"),
     ("/api/substack/verify", {}, 30, "verificar Substack sin export"),
     ("/api/substack/build", {}, 30, "construir Tintero sin export"),
     ("/api/suno/backup", {}, 10, "SIN TOKEN: debe cortar sin salir a la red"),
     ("/api/flowmusic/backup", {}, 10, "SIN TOKEN: debe cortar sin salir a la red"),
+    ("/api/copilot_images/backup", {}, 10, "SIN TOKEN: debe cortar sin salir a la red"),
+    ("/api/grok_imagine/backup", {}, 10, "SIN COOKIE: debe cortar sin salir a la red"),
     ("/api/reindex", {}, 120, "regenerar indices con el vault vacio"),
     # Cuerpos rotos: lo que manda un cliente con un bug, o un curl mal escrito
     ("/api/config", b"", 15, "CUERPO VACIO"),
@@ -80,6 +85,8 @@ CASOS = [
     ("/api/topics", b"{no es json", 15, "JSON ROTO"),
     ("/api/gizmos", b"", 15, "CUERPO VACIO"),
     ("/api/suno/backup", b"", 10, "CUERPO VACIO"),
+    ("/api/copilot_images/backup", b"", 10, "CUERPO VACIO"),
+    ("/api/grok_imagine/backup", b"{no es json", 10, "JSON ROTO"),
     ("/api/pendientes/descartar", b"[]", 15, "JSON de otro tipo"),
 ]
 
