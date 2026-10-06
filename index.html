@@ -15,8 +15,8 @@
 <meta name="copyright" content="CC BY-NC-SA 4.0">
 <link rel="license" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
 <link rel="canonical" href="https://v0raonline.github.io/MemorIA2GO/">
-<title>M3M0R·IA — Tus conversaciones de ChatGPT, Claude y Grok en un vault local</title>
-<meta name="description" content="Convierte los exports oficiales de ChatGPT, Claude y Grok en un vault de Obsidian completamente local, organizado y navegable. Tambien tu Substack, tu musica y las sesiones de Claude Code y Codex, que no tienen export. Sin cuenta y sin nube.">
+<title>M3M0R·IA — Tus conversaciones de ChatGPT, Claude, Grok y Copilot en un vault local</title>
+<meta name="description" content="Convierte los exports oficiales de ChatGPT, Claude, Grok y Copilot en un vault de Obsidian completamente local, organizado y navegable. Tambien tu Substack, tu musica, tus imagenes generadas y las sesiones de Claude Code y Codex, que no tienen export. Sin cuenta y sin nube.">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="M3M0R·IA">
@@ -230,6 +230,7 @@
       <li class="modulo"><b>Observatorio</b><span>Un vistazo rápido al estado de tu memoria digital: cuándo fue el último export, cuánto ha crecido, qué proveedores viven ahí.</span></li>
       <li class="modulo"><b><span class="name">chat</span><span class="ia">.ia</span></b><span>Tus conversaciones. Verifica el export, construye el vault, cartografía los temas y reconecta lo que quedó suelto.</span></li>
       <li class="modulo"><b><span class="name">music</span><span class="ia">.ia</span></b><span>Tu música con historia. Suno y Flow Music, cada una con su propia captura, verificación y construcción.</span></li>
+      <li class="modulo"><b><span class="name">image</span><span class="ia">.ia</span></b><span>Lo que generaste, con su prompt. Copilot y Grok Imagine, que ningún export trae completo. <em>Próxima versión.</em></span></li>
       <li class="modulo"><b>Substack</b><span>Tu archivo editorial. Tintero distingue publicado, retirado y borrador.</span></li>
       <li class="modulo"><b>Configuración</b><span>Donde se define dónde vivirá tu M3M0R·IA — con tres temas de color a elegir.</span></li>
     </ul>
@@ -244,10 +245,11 @@
       <li><figure><img src="assets/theme-light.png" alt="Tema claro de M3M0R·IA — crema con acentos en ámbar oscuro"><figcaption>claro</figcaption></figure></li>
     </ul>
 
-    <h2>Tres herramientas en la misma casa</h2>
+    <h2>Cuatro herramientas en la misma casa</h2>
     <p style="color:var(--muted);margin:0 0 4px">
-      Con pipelines distintos a propósito: una conversación, un artículo y una
-      canción no son la misma cosa, y tratarlas igual las estropea a las tres.
+      Con pipelines distintos a propósito: una conversación, un artículo, una
+      canción y una imagen no son la misma cosa, y tratarlas igual las estropea
+      a todas.
     </p>
     <div class="tabla-scroll">
       <table>
@@ -257,7 +259,7 @@
         <tbody>
           <tr>
             <td><b>Tus conversaciones</b></td>
-            <td>ChatGPT · Claude · Grok</td>
+            <td>ChatGPT · Claude · Grok · Copilot</td>
             <td>Un vault navegable en Obsidian, por proyecto y fecha, listo para servir de contexto a otro modelo vía MCP.</td>
           </tr>
           <tr>
@@ -269,6 +271,11 @@
             <td><b>Lo que compusiste</b></td>
             <td>Suno · Flow Music</td>
             <td><b>MUSIC·0LOGY</b> — con el linaje entre versiones, covers y remezclas resuelto como enlaces.</td>
+          </tr>
+          <tr>
+            <td><b>Lo que generaste</b></td>
+            <td>Copilot · Grok Imagine</td>
+            <td><b>image.ia</b> — tus imágenes y vídeos con su prompt y su fecha, que ningún export trae completos. <em>Próxima versión.</em></td>
           </tr>
         </tbody>
       </table>
@@ -290,6 +297,23 @@
       <li><b>El historial de versiones y comentarios</b> de tus artifacts — el export viejo solo daba la última versión y perdía la conversación en el margen.</li>
       <li><b>El project knowledge</b> que subiste inline a tus proyectos, con su system prompt y sus docs, sale a la vista.</li>
     </ul>
+
+    <h2>Lo que el export no trae: tus imágenes</h2>
+    <p style="margin:0">
+      El export de Copilot es un CSV de conversaciones y no incluye ni una de
+      tus imágenes. El de Grok parece completo y no lo es: solo viaja una parte
+      de tus generaciones de Imagine. <strong>Un export que se descarga bien y
+      se procesa sin un solo error, con la quinta parte del contenido.</strong>
+      <code>image.ia</code> las pide a la API de cada biblioteca.
+    </p>
+    <ul class="claves" style="margin-top:16px">
+      <li><b>Cada imagen con su prompt</b> y su fecha exacta — lo que la propia interfaz de Copilot no te enseña —, en un vault de Obsidian con una nota por imagen.</li>
+      <li><b>Una verificación que reconcilia:</b> cruza lo que Grok dice tener contra lo que ya está en tus bancos, sin repetir lo que ya tenías (se compara por contenido).</li>
+      <li><b>Nunca borra nada.</b> Y la credencial que le das —un token, o la cookie de sesión en Grok— no se guarda, no sale en el log y no viaja por la línea de comandos.</li>
+    </ul>
+    <p style="margin:16px 0 0;color:var(--muted);font-size:.94rem">
+      Está en el código; el paquete de Windows publicado todavía no lo lleva.
+    </p>
 
     <h2>Y las que no tienen export</h2>
     <p style="margin:0">
