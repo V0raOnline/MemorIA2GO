@@ -340,7 +340,10 @@ main {
   border-top: 1px solid var(--border);
 }
 
-.field input[type="text"] {
+/* Los campos de credencial (token, cookie) son type="password": sin
+   incluirlos aqui salian como un cuadro blanco del navegador sobre fondo oscuro. */
+.field input[type="text"],
+.field input[type="password"] {
   width: 100%;
   background: var(--bg-inset);
   border: 1px solid var(--border);
@@ -351,7 +354,8 @@ main {
   font-family: var(--mono);
 }
 
-.field input[type="text"]:focus {
+.field input[type="text"]:focus,
+.field input[type="password"]:focus {
   outline: none;
   border-color: var(--cyan-dim);
 }

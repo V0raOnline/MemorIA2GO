@@ -690,9 +690,11 @@
           It isn't saved: it lives in memory while the download runs.
         </p>
 
-        <label for="copilot-images-token">Authorization — just the JWT, without the «Bearer » prefix</label>
-        <input type="password" id="copilot-images-token" autocomplete="off" spellcheck="false"
-               placeholder="eyJhbGciOiJ...">
+        <div class="field">
+          <label for="copilot-images-token">Authorization — just the JWT, without the «Bearer » prefix</label>
+          <input type="password" id="copilot-images-token" autocomplete="off" spellcheck="false"
+                 placeholder="eyJhbGciOiJ...">
+        </div>
 
         <button class="btn" id="btn-copilot-images-backup">Download library</button>
         <div id="copilot-images-backup-msg" class="msg"></div>
@@ -774,9 +776,11 @@
           runs and only travels to grok.com.
         </p>
 
-        <label for="grok-imagine-cookie">Cookie — the whole value of the header</label>
-        <input type="password" id="grok-imagine-cookie" autocomplete="off" spellcheck="false"
-               placeholder="sso=...; ...">
+        <div class="field">
+          <label for="grok-imagine-cookie">Cookie — the whole value of the header</label>
+          <input type="password" id="grok-imagine-cookie" autocomplete="off" spellcheck="false"
+                 placeholder="sso=...; ...">
+        </div>
 
         <button class="btn" id="btn-grok-imagine-backup">Download library</button>
         <div id="grok-imagine-backup-msg" class="msg"></div>
