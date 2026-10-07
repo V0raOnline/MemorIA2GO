@@ -13,7 +13,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-### ⬇ **[Download M3M0R·IA for Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.0.0-en/M3M0R-IA-3.0.0-en.zip)** · 21 MB
+### ⬇ **[Download M3M0R·IA for Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.1.0-en/M3M0R-IA-3.1.0-en.zip)** · 21 MB
 
 Unpack it and double-click. **No programming, nothing installed** — it carries
 its own Python inside. The details are under *Installation — the Windows
@@ -43,7 +43,7 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 The conversations from all four providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell, MUSIC·0LOGY and image.ia build vaults of their own: it made no sense to treat an editorial archive, a music library and an image gallery the same way.
 
-### New — image.ia (next version)
+### New — image.ia (v3.1.0)
 
 The Copilot and Grok exports **don't bring everything you generated**. Copilot's is a CSV of conversations and doesn't include a single one of your images; Grok's looks complete and isn't: only part of your Imagine generations travel in it, and private edits arrive without their lineage. An export that downloads fine and processes without a single error, holding a fifth of the content: **the failure makes no noise.**
 
@@ -55,8 +55,6 @@ The Copilot and Grok exports **don't bring everything you generated**. Copilot's
 Same pact as the rest: the app doesn't go online on its own initiative; it goes when you put a credential in its hand and press. Copilot's is a token that expires in about an hour. **Grok's is your session cookie and gives access to your whole account**: it travels through the environment, never the command line, it is masked in the log and it is not saved. The interface warns you; take it seriously. The vault builders never delete anything: if something is left over, they tell you.
 
 On top of that, the **Copilot export (CSV)** enters the conversation pipeline as one more provider. One honest limitation: the CSV carries no conversation identifier, so two conversations with the same title are merged into one.
-
-*It is in this branch; the Windows package 3.0.0 linked above doesn't carry it yet.*
 
 ### New — Claude export format (2026-09+)
 
@@ -194,7 +192,7 @@ The stats CSV is optional, but it's the only source carrying each post's **secti
 ### Installation — the Windows package
 
 **If you've never opened a console in your life, this is your path.** Download
-**[`M3M0R-IA-3.0.0-en.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.0.0-en/M3M0R-IA-3.0.0-en.zip)**
+**[`M3M0R-IA-3.1.0-en.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.1.0-en/M3M0R-IA-3.1.0-en.zip)**
 (21 MB), unpack it wherever you like, and double-click **`M3M0R-IA.bat`**.
 That's it: your browser opens with M3M0R·IA inside.
 
