@@ -689,9 +689,11 @@
           en ningún otro sitio. No se guarda: vive en memoria durante la descarga.
         </p>
 
-        <label for="copilot-images-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
-        <input type="password" id="copilot-images-token" autocomplete="off" spellcheck="false"
-               placeholder="eyJhbGciOiJ...">
+        <div class="field">
+          <label for="copilot-images-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
+          <input type="password" id="copilot-images-token" autocomplete="off" spellcheck="false"
+                 placeholder="eyJhbGciOiJ...">
+        </div>
 
         <button class="btn" id="btn-copilot-images-backup">Descargar biblioteca</button>
         <div id="copilot-images-backup-msg" class="msg"></div>
@@ -772,9 +774,11 @@
           se muestra nunca: vive en memoria durante la descarga y solo viaja a grok.com.
         </p>
 
-        <label for="grok-imagine-cookie">Cookie — el valor entero de la cabecera</label>
-        <input type="password" id="grok-imagine-cookie" autocomplete="off" spellcheck="false"
-               placeholder="sso=...; ...">
+        <div class="field">
+          <label for="grok-imagine-cookie">Cookie — el valor entero de la cabecera</label>
+          <input type="password" id="grok-imagine-cookie" autocomplete="off" spellcheck="false"
+                 placeholder="sso=...; ...">
+        </div>
 
         <button class="btn" id="btn-grok-imagine-backup">Descargar biblioteca</button>
         <div id="grok-imagine-backup-msg" class="msg"></div>
