@@ -9,6 +9,7 @@ You don't need to read it all. Go to yours:
 
 - [I've never used a terminal in my life](#ive-never-used-a-terminal-in-my-life) — install Python and start the app.
 - [They're asking for a music token and I don't know what that is](#theyre-asking-for-a-music-token-and-i-dont-know-what-that-is) — get it from your browser, step by step. Works the same for Suno and for Flow Music.
+- [They're asking for a token or a cookie for the images](#theyre-asking-for-a-token-or-a-cookie-for-the-images) — Copilot asks for a token like the music ones; Grok asks for a **cookie**, which is something else and weighs more.
 
 ---
 
@@ -125,6 +126,41 @@ It's the most common failure and the one that warns you worst: it doesn't say "t
 - **I pasted it and it says it's invalid.** Most likely it's truncated — go back to step 6. You may also have copied the word «Bearer» along with it, or a space. And on Suno there are requests to `clerk.suno.com` that carry a token but won't work: the good ones go to `studio-api`.
 - **The download stopped halfway.** Almost always the token expiring. Get a fresh one by repeating these steps and launch it again: it **resumes where it left off**, it doesn't start over.
 - **I've forgotten all of this.** It's inside the app too: in the MUSIC·0LOGY tab, the fold labelled «Does this sound like cryptography? Open me».
+
+## They're asking for a token or a cookie for the images
+
+In **image.ia**, Copilot's and Grok Imagine's images are requested from their library, just like the music: neither brings everything in its export. It's the same gesture —copying a credential from the browser into this app— but **it isn't the same credential**.
+
+### Copilot: a token, like the music ones
+
+Follow the steps above with two changes:
+
+- In step 1, go to [copilot.com](https://copilot.com) while signed in and open **Library → Images**.
+- In step 4, instead of searching for «bearer», **filter by `Artifact.ashx`**. It's the request that asks for your list of images. Inside, under Headers, is the line `Authorization: Bearer eyJ...`.
+
+The rest is identical, including the care about a truncated token (step 6). Paste it into **image.ia → Copilot**. It lasts about an hour.
+
+### Grok Imagine: a cookie, which is something else
+
+Grok doesn't use a `Bearer`. Its web identifies itself with the **session cookie**, and that changes two things.
+
+**It weighs more.** A music token is a temporary pass to ask for your library. The grok.com cookie is **your whole session**: while it stays open, whoever holds it can do in your account what you would, not just see your images. Don't paste it anywhere that isn't this app, don't send it over chat and don't let it appear in a screenshot. And when you finish, **sign out of grok.com**: that's the safe way to leave it worthless.
+
+**It comes from somewhere else.**
+
+1. Open [grok.com/imagine](https://grok.com/imagine) while signed in, on your library.
+2. `F12` → **Network** tab, and type `assets` in the filter. Refresh the page.
+3. Click the request that ends in **`rest/assets`**.
+4. Under **Headers**, scroll to **Request Headers** and find the `Cookie:` line. It's very long, with many `name=value;` pieces.
+5. Right-click that line → **Copy value**. Paste it into **image.ia → Grok Imagine**.
+
+**Watch out for «Copy as cURL (cmd)».** On Windows, Chrome offers several ways to copy a request, and the «cmd» one puts a **`^` in front of special characters** (`%`, `{`, `"`…). Those `^` aren't part of the cookie: if you paste them, Grok receives a broken cookie and answers as if it had expired. Use **Copy value** on the header, or «Copy as cURL (**bash**)», which doesn't carry them. If you see `^` in what you pasted, that's it.
+
+### If something doesn't add up
+
+- **It says the cookie or token has expired right at the start.** Either it really expired, or it's badly copied: the `^` above, or a value cut off with «…». Copy it again.
+- **The download stops halfway.** Run it again with a fresh credential: it only downloads what's missing, and what was already downloaded is kept.
+- **I can't find `Artifact.ashx` or `rest/assets`.** Refresh the page with the Network panel open and check you're on the image library, not in the chat.
 
 ---
 

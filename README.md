@@ -6,7 +6,7 @@
 
 > **Memory doesn't live in one place any more.**
 >
-> It's scattered across the conversations where we thought out loud, the pieces we published, the music we made — on servers that aren't ours, that can shut down, change hands, or quietly stop keeping it.
+> It's scattered across the conversations where we thought out loud, the pieces we published, the music we made and the images we generated — on servers that aren't ours, that can shut down, change hands, or quietly stop keeping it.
 >
 > **M3M0R·IA brings it back.** To your disk, in Markdown, yours.
 
@@ -26,21 +26,37 @@ package*, further down; the history is in
 
 It isn't just an export converter. It's the place where the knowledge and the things you made come back together after being left scattered.
 
-Three **tools sharing one house**, with deliberately separate pipelines: a conversation, an article and a song are not the same thing, and treating them alike ruins all three.
+Four **tools sharing one house**, with deliberately separate pipelines: a conversation, an article, a song and an image are not the same thing, and treating them alike ruins all of them.
 
-The pact is the same for all three: **nothing is lost.** Nothing is ever deleted, the originals outrank anything generated from them, and whatever the tool can't read it says out loud instead of making it up.
+The pact is the same for all four: **nothing is lost.** Nothing is ever deleted, the originals outrank anything generated from them, and whatever the tool can't read it says out loud instead of making it up.
 
 | What you have out there | From | Where it lands |
 |---|---|---|
-| **Your conversations** | ChatGPT · Claude · Grok | a browsable Obsidian vault, organized by project and date, ready to serve as context over MCP or to trace connections |
+| **Your conversations** | ChatGPT · Claude · Grok · Copilot | a browsable Obsidian vault, organized by project and date, ready to serve as context over MCP or to trace connections |
 | **What you published** | Substack | **Inkwell** — your editorial archive, telling published, retired and draft apart |
 | **What you composed** | Suno · Flow Music | **MUSIC·0LOGY** — with the lineage between versions, covers and remixes resolved as links |
+| **What you generated** | Copilot · Grok Imagine | **image.ia** — your images and videos with their prompt and date, which no export delivers in full |
 
 You don't have to use them all. Each one works on its own, and the ones you don't configure never show up.
 
 Unlike generic migration tools that only transfer saved memories, M3M0R·IA brings **the full history**: deduplicated, merged, with images and attachments extracted to their own banks, and navigation indexes generated. Providers are recognized by the internal structure of their export, never by filename.
 
-The conversations from all three providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell and MUSIC·0LOGY build vaults of their own: it made no sense to treat an editorial archive the same as a music library.
+The conversations from all four providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell, MUSIC·0LOGY and image.ia build vaults of their own: it made no sense to treat an editorial archive, a music library and an image gallery the same way.
+
+### New — image.ia (next version)
+
+The Copilot and Grok exports **don't bring everything you generated**. Copilot's is a CSV of conversations and doesn't include a single one of your images; Grok's looks complete and isn't: only part of your Imagine generations travel in it, and private edits arrive without their lineage. An export that downloads fine and processes without a single error, holding a fifth of the content: **the failure makes no noise.**
+
+`image.ia` is the fourth app in the sidebar, with one fold per source and the same shape as MUSIC·0LOGY — capture, verification and build — because the acquisition is the same: an authenticated API, not files sitting still.
+
+- **Copilot** — requested from the API behind its Library, with a token from your browser. Every image arrives with its **prompt**, its date and its size, which Copilot's own interface doesn't show you. It builds an Obsidian vault with one note per image, the image embedded and the full prompt.
+- **Grok Imagine** — requested from the API behind your grok.com library, with the session cookie. Images and videos go into the `GROK/IMAGINE` bank without repeating what you already hold in other banks (compared by content), with the lineage between an image and its edits recorded. Verification **reconciles what Grok says it has against what is in your banks**.
+
+Same pact as the rest: the app doesn't go online on its own initiative; it goes when you put a credential in its hand and press. Copilot's is a token that expires in about an hour. **Grok's is your session cookie and gives access to your whole account**: it travels through the environment, never the command line, it is masked in the log and it is not saved. The interface warns you; take it seriously. The vault builders never delete anything: if something is left over, they tell you.
+
+On top of that, the **Copilot export (CSV)** enters the conversation pipeline as one more provider. One honest limitation: the CSV carries no conversation identifier, so two conversations with the same title are merged into one.
+
+*It is in this branch; the Windows package 3.0.0 linked above doesn't carry it yet.*
 
 ### New — Claude export format (2026-09+)
 
@@ -151,7 +167,7 @@ Developed and battle-tested on Windows; the pipeline itself is cross-platform.
 
 ## Quick start (web UI)
 
-M3M0R·IA ships with a local web interface of seven sections: Observatory, Configuration, Verification, Construction, Cartography and Reconnection for the conversations, plus MUSIC·0LOGY and Inkwell as tools with a life of their own, inside the same house.
+M3M0R·IA ships with a local web interface: the Observatory and Configuration, and four apps in the sidebar, each with its own flow — **chat.ia** (conversations: Verification, Construction, Cartography and Reconnection), **music.ia** (MUSIC·0LOGY), **image.ia** and **Substack** (Inkwell).
 
 ### Step 0: get your material
 
@@ -161,7 +177,9 @@ This starts **outside** the tool, and it's the one thing it can't do for you. Yo
 |---|---|
 | **ChatGPT** | Settings → Data controls → Export data. A ZIP arrives by email |
 | **Claude** | Settings → Privacy → Export data. Arrives by email. Since 2026-09 the new export is **five single-use ZIPs** (`conversations`, `projects`, `memories`, `frames`, `light_metadata`) described by a JSON manifest — download all of them to the exports folder; the old format (a single ZIP) still works. See the *New* section above |
-| **Grok** | Settings → Data → Download your data. The export includes conversations and part of your Imagine generations; some arrive only as a link and M3M0R·IA downloads them separately with the pending-downloads tool (Reconnection tab) |
+| **Grok** | Settings → Data → Download your data. The export includes conversations and part of your Imagine generations; some arrive only as a link and M3M0R·IA downloads them separately with the pending-downloads tool (Reconnection tab). To bring in your **whole** Imagine library, see the row *Copilot · Grok Imagine (images)* |
+| **Copilot** | Export your activity history: you get **CSV** files (`copilot-activity-history.csv` and company; some may arrive empty). Drop them as they are into the exports folder. They don't include the images |
+| **Copilot · Grok Imagine** *(images)* | There's no export: the library is downloaded from **image.ia** through its API. Copilot asks for a **token** (the `Authorization` header) and Grok for the grok.com session **cookie**, both copied from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
 | **Substack** | Dashboard → Settings → Import/Export |
 | **Substack**, stats *(optional)* | Dashboard → Stats → Posts → Show, **ticking every column**, then download the CSV |
 | **Suno · Flow Music** | There's no export: the library is downloaded from inside the tool through their API, with a token you copy from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
@@ -277,6 +295,7 @@ python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
 - `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed.
 - `substack_vault` (in `memoria_config.yaml`) — where the Inkwell vault gets built. It's the **only** path it needs: the Substack export and its stats CSV live in your usual exports folder, because the conversation pipeline rejects them and Inkwell picks them up from there. One folder, two doors.
 - `suno_backup` / `suno_vault` and `flowmusic_backup` / `flowmusic_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's paths, one pair per source: where the raw backup lives, and where its Obsidian vault is built. All four optional and independent: use one source, both, or neither. With no backup path configured, that source's Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
+- `copilot_images_backup` / `copilot_images_vault` (in `memoria_config.yaml`) — image.ia's paths for Copilot: where the raw backup lives (images plus one `.json` per image with its prompt) and where the Obsidian vault is built. Grok Imagine needs no path of its own: it uses your `base_vault` and leaves what it downloads in `GROK/IMAGINE`, next to the rest of Grok's banks.
 
 Claude and Grok exports do not link conversations to projects: those notes are organized by themes (many-to-many), not folders. **Claude does bring projects as first-class entities from the new format** (2026-09+): each project has its folder in `PRJ_VAULT/<name>/` with metadata and project knowledge, though the conversations themselves still can't be linked to them automatically for lack of a bridge in the export.
 
@@ -297,7 +316,8 @@ Each document answers **one** question. If you're looking for something that isn
 
 ## Roadmap
 
-- **Imagine (Grok) library as a sibling tool**, in the style of MUSIC·0LOGY: bringing in the generations the export leaves out, straight from your library, with the lineage between an image and its edits resolved as links. Already works for personal use; pending UI integration.
+- **Notes with prompts for Grok Imagine**, like Copilot's in image.ia: the Grok library API gives the file, the dates and the lineage, but not the prompt, which only lives in the export (`media_posts`). The two have to be joined by asset identifier; before writing code, look at how they link in a real export.
+- **Observatory with the images**: image.ia cards next to the music ones, with the usual rule of not drawing zero when no backup is configured.
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
