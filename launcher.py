@@ -402,8 +402,8 @@ def flowmusic_backup():
     # el token la trae, las cabeceras HTTP (latin-1) revientan dentro de
     # http.client con un traceback que no dice nada. Mejor atajarlo aqui.
     if "…" in token:
-        return jsonify({"error": "El token viene cortado (contiene «…»). Copialo "
-                                  "con «Copy as cURL», no del panel Headers."}), 400
+        return jsonify({"error": "The token is cut off (it contains «…»). Copy it "
+                                  "with «Copy as cURL», not from the Headers panel."}), 400
 
     from config_loader import load_config, get_path
     cfg = load_config(str(CONFIG_PATH))
@@ -454,19 +454,19 @@ def copilot_images_backup():
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
     if not token:
-        return jsonify({"error": "Falta el Bearer token"}), 400
+        return jsonify({"error": "Bearer token missing"}), 400
     if "…" in token:
-        return jsonify({"error": "El token viene cortado (contiene «…»). Copialo "
-                                  "con «Copy as cURL», no del panel Headers."}), 400
+        return jsonify({"error": "The token is cut off (it contains «…»). Copy it "
+                                  "with «Copy as cURL», not from the Headers panel."}), 400
 
     from config_loader import load_config, get_path
     cfg = load_config(str(CONFIG_PATH))
     backup = get_path(cfg, "copilot_images_backup")
     if not backup:
-        return jsonify({"error": "Configura primero la carpeta del backup (copilot_images_backup)"}), 400
+        return jsonify({"error": "Configure the backup folder first (copilot_images_backup)"}), 400
 
     if not run_lock.acquire(blocking=False):
-        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+        return jsonify({"error": "A run is already in progress"}), 409
 
     def generate():
         try:
@@ -509,7 +509,7 @@ def copilot_images_verify():
         from config_loader import load_config, get_path
         backup = get_path(load_config(str(CONFIG_PATH)), "copilot_images_backup")
         if not backup:
-            return jsonify({"error": "Configura primero la carpeta del backup (copilot_images_backup)"}), 400
+            return jsonify({"error": "Configure the backup folder first (copilot_images_backup)"}), 400
         code, salida = _copilot_images_run("verify_copilot_images.py", ["--backup-dir", str(backup)])
         return jsonify({"ok": code == 0, "salida": salida[-4000:]})
     except Exception as e:
@@ -524,13 +524,13 @@ def copilot_images_build():
         backup = get_path(cfg, "copilot_images_backup")
         vault = get_path(cfg, "copilot_images_vault")
         if not backup:
-            return jsonify({"error": "Configura primero la carpeta del backup (copilot_images_backup)"}), 400
+            return jsonify({"error": "Configure the backup folder first (copilot_images_backup)"}), 400
         if not vault:
-            return jsonify({"error": "Configura primero el vault de imagenes de Copilot (copilot_images_vault)"}), 400
+            return jsonify({"error": "Configure the Copilot images vault first (copilot_images_vault)"}), 400
         code, salida = _copilot_images_run("build_copilot_images_vault.py",
                                             ["--backup-dir", str(backup), "--vault-dir", str(vault)])
         if code != 0:
-            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+            return jsonify({"error": salida[-500:] or "failed to build the vault"}), 500
         return jsonify({"ok": True, "salida": salida[-4000:]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -555,23 +555,23 @@ def grok_imagine_backup():
     if cookie.lower().startswith("cookie:"):
         cookie = cookie[7:].strip()
     if not cookie:
-        return jsonify({"error": "Falta la cookie de grok.com"}), 400
+        return jsonify({"error": "grok.com cookie missing"}), 400
     if "…" in cookie:
-        return jsonify({"error": "La cookie viene cortada (contiene «…»). Copia el valor "
-                                  "entero de la cabecera Cookie."}), 400
+        return jsonify({"error": "The cookie is cut off (it contains «…»). Copy the whole "
+                                  "value of the Cookie header."}), 400
     try:
         cookie.encode("latin-1")
     except UnicodeEncodeError:
-        return jsonify({"error": "La cookie tiene caracteres que no caben en una cabecera HTTP."}), 400
+        return jsonify({"error": "The cookie contains characters that cannot go in an HTTP header."}), 400
 
     grok = _grok_dir()
     if not grok:
-        return jsonify({"error": "Configura primero la carpeta base del vault (base_vault)"}), 400
+        return jsonify({"error": "Configure the base vault folder first (base_vault)"}), 400
     if not grok.is_dir():
-        return jsonify({"error": f"No existe la carpeta GROK: {grok}"}), 400
+        return jsonify({"error": f"The GROK folder does not exist: {grok}"}), 400
 
     if not run_lock.acquire(blocking=False):
-        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+        return jsonify({"error": "A run is already in progress"}), 409
 
     def generate():
         try:
@@ -603,7 +603,7 @@ def grok_imagine_verify():
     try:
         grok = _grok_dir()
         if not grok:
-            return jsonify({"error": "Configura primero la carpeta base del vault (base_vault)"}), 400
+            return jsonify({"error": "Configure the base vault folder first (base_vault)"}), 400
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
         result = subprocess.run(
             [sys.executable, str(HERE / "grok_imagine" / "verify_grok_imagine.py"),
@@ -655,7 +655,7 @@ def flowmusic_build():
         code, salida = _flowmusic_run("build_flowmusic_vault.py",
                                        ["--backup-dir", str(backup), "--vault-dir", str(vault)])
         if code != 0:
-            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+            return jsonify({"error": salida[-500:] or "failed to build the vault"}), 500
         return jsonify({"ok": True, "salida": salida[-4000:]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

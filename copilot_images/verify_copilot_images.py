@@ -76,11 +76,11 @@ def verificar(carpeta: Path) -> dict:
 def muestra(etiqueta, items, tope=15):
     if not items:
         return
-    print(f"--- {etiqueta} (hasta {tope}) ---")
+    print(f"--- {etiqueta} (up to {tope}) ---")
     for x in items[:tope]:
         print(f"  {x}")
     if len(items) > tope:
-        print(f"  ... y {len(items) - tope} mas")
+        print(f"  ... and {len(items) - tope} more")
     print()
 
 
@@ -89,49 +89,49 @@ def main():
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(encoding="utf-8", errors="replace")
 
-    ap = argparse.ArgumentParser(description="Verifica la integridad de un backup de imagenes de Copilot.")
+    ap = argparse.ArgumentParser(description="Checks the integrity of a Copilot image backup.")
     ap.add_argument("--backup-dir", default="./copilot_images_backup",
-                    help="Carpeta que contiene _index.json y las imagenes.")
+                    help="Folder containing _index.json and the images.")
     args = ap.parse_args()
 
     carpeta = Path(args.backup_dir)
     if not (carpeta / "_index.json").is_file():
-        print(f"[error] no hay _index.json en {carpeta} - has hecho el backup ya?")
+        print(f"[error] no _index.json in {carpeta} - have you run the backup yet?")
         sys.exit(1)
 
     r = verificar(carpeta)
-    print(f"Total en indice: {r['total']} imagenes")
+    print(f"Total in index: {r['total']} images")
     if r["sin_prompt"]:
-        print(f"Sin prompt en la API: {r['sin_prompt']} (no es un fallo del backup)")
+        print(f"Without a prompt in the API: {r['sin_prompt']} (not a backup failure)")
     print()
 
     problemas = 0
-    for etiqueta, clave in (("imagenes faltantes", "faltan"),
-                            ("imagenes vacias (0 bytes)", "vacias"),
-                            ("tamano distinto al de la API", "tamano"),
-                            ("json faltantes", "json_falta"),
-                            ("json corruptos", "json_corrupto"),
-                            ("descargas a medias (.part sueltos)", "parciales")):
+    for etiqueta, clave in (("missing images", "faltan"),
+                            ("empty images (0 bytes)", "vacias"),
+                            ("size differs from the API", "tamano"),
+                            ("missing json files", "json_falta"),
+                            ("corrupt json files", "json_corrupto"),
+                            ("partial downloads (stray .part)", "parciales")):
         if r[clave]:
             print(f"{etiqueta:<36}: {len(r[clave])}")
             problemas += len(r[clave])
     if r["fuera_de_biblioteca"]:
-        print(f"{'en disco pero no en la biblioteca':<36}: {len(r['fuera_de_biblioteca'])} "
-              f"(no es un fallo; no se tocan)")
+        print(f"{'on disk but not in the library':<36}: {len(r['fuera_de_biblioteca'])} "
+              f"(not a failure; left untouched)")
     print()
 
-    for etiqueta, clave in (("imagenes faltantes", "faltan"), ("imagenes vacias", "vacias"),
-                            ("tamano distinto", "tamano"), ("json faltantes", "json_falta"),
-                            ("json corruptos", "json_corrupto"),
-                            ("descargas a medias", "parciales"),
-                            ("en disco pero no en la biblioteca", "fuera_de_biblioteca")):
+    for etiqueta, clave in (("missing images", "faltan"), ("empty images", "vacias"),
+                            ("size differs", "tamano"), ("missing json files", "json_falta"),
+                            ("corrupt json files", "json_corrupto"),
+                            ("partial downloads", "parciales"),
+                            ("on disk but not in the library", "fuera_de_biblioteca")):
         muestra(etiqueta, r[clave])
 
     if problemas == 0:
-        print("TODO OK: las imagenes del indice tienen sus ficheros completos.")
+        print("ALL OK: the images in the index have their complete files.")
     else:
-        print(f"Hay {problemas} problemas en total (ver arriba).")
-        print("Relanza backup_copilot_images.py: lo que ya esta no se vuelve a pedir.")
+        print(f"There are {problemas} problems in total (see above).")
+        print("Run backup_copilot_images.py again: what is already there is not requested again.")
         sys.exit(1)
 
 

@@ -67,11 +67,11 @@ def verificar(grok_dir: Path) -> dict:
 def muestra(etiqueta, items, tope=15):
     if not items:
         return
-    print("--- %s (hasta %d) ---" % (etiqueta, tope))
+    print("--- %s (up to %d) ---" % (etiqueta, tope))
     for x in items[:tope]:
         print("  %s" % x)
     if len(items) > tope:
-        print("  ... y %d mas" % (len(items) - tope))
+        print("  ... and %d more" % (len(items) - tope))
     print()
 
 
@@ -80,47 +80,47 @@ def main():
         if hasattr(_s, "reconfigure"):
             _s.reconfigure(encoding="utf-8", errors="replace")
 
-    ap = argparse.ArgumentParser(description="Verifica el backup de Grok Imagine.")
-    ap.add_argument("--grok-dir", required=True, help="Carpeta GROK del vault.")
+    ap = argparse.ArgumentParser(description="Checks the Grok Imagine backup.")
+    ap.add_argument("--grok-dir", required=True, help="GROK folder of the vault.")
     args = ap.parse_args()
 
     r = verificar(Path(args.grok_dir))
     if r["sin_inventario"]:
-        print("[error] no hay inventario en %s - has hecho el backup ya?"
+        print("[error] no inventory in %s - have you run the backup yet?"
               % (Path(args.grok_dir) / CARPETA_BANCO))
         sys.exit(1)
 
-    print("Activos en la biblioteca: %d" % r["total"])
+    print("Assets in the library: %d" % r["total"])
     for estado, n in sorted(r["cuentas"].items(), key=lambda kv: -kv[1]):
         print("  %-14s %d" % (estado, n))
     if r["borrados_marcados"]:
-        print("Marcados como borrados en la API: %d (informativo)" % r["borrados_marcados"])
+        print("Marked as deleted in the API: %d (informational)" % r["borrados_marcados"])
     print()
 
     problemas = 0
-    for etiqueta, clave in (("sin intentar", "nunca"), ("fallidos", "fallidos"),
-                            ("ok sin entrada en el manifest", "ok_sin_manifest"),
-                            ("en el manifest pero no en disco", "faltan_en_disco"),
-                            ("ficheros vacios (0 bytes)", "vacios"),
-                            ("descargas a medias (.part)", "parciales")):
+    for etiqueta, clave in (("not attempted", "nunca"), ("failed", "fallidos"),
+                            ("ok with no manifest entry", "ok_sin_manifest"),
+                            ("in the manifest but not on disk", "faltan_en_disco"),
+                            ("empty files (0 bytes)", "vacios"),
+                            ("partial downloads (.part)", "parciales")):
         if r[clave]:
             print("%-34s: %d" % (etiqueta, len(r[clave])))
             problemas += len(r[clave])
     if r["ausentes"]:
-        print("%-34s: %d (404; no es un fallo del backup)" % ("ya no existen en el servidor", len(r["ausentes"])))
+        print("%-34s: %d (404; not a backup failure)" % ("no longer on the server", len(r["ausentes"])))
     print()
 
-    for etiqueta, clave in (("sin intentar", "nunca"), ("fallidos", "fallidos"),
-                            ("ok sin manifest", "ok_sin_manifest"),
-                            ("faltan en disco", "faltan_en_disco"), ("vacios", "vacios"),
-                            ("descargas a medias", "parciales"), ("ya no existen", "ausentes")):
+    for etiqueta, clave in (("not attempted", "nunca"), ("failed", "fallidos"),
+                            ("ok with no manifest", "ok_sin_manifest"),
+                            ("missing on disk", "faltan_en_disco"), ("empty", "vacios"),
+                            ("partial downloads", "parciales"), ("no longer exist", "ausentes")):
         muestra(etiqueta, r[clave])
 
     if problemas == 0:
-        print("TODO OK: todo lo que Grok dice tener esta en tus bancos o ya no existe.")
+        print("ALL OK: everything Grok says it has is in your banks or no longer exists.")
     else:
-        print("Hay %d problemas en total (ver arriba)." % problemas)
-        print("Relanza backup_grok_imagine.py: lo que ya esta no se vuelve a pedir.")
+        print("There are %d problems in total (see above)." % problemas)
+        print("Run backup_grok_imagine.py again: what is already there is not requested again.")
         sys.exit(1)
 
 

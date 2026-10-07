@@ -71,7 +71,7 @@ def test_copilot_backup_sin_token_no_lanza_nada(entorno):
 def test_copilot_rechaza_un_token_cortado(entorno):
     client, _, _ = entorno
     res = client.post("/api/copilot_images/backup", json={"token": "eyJab…cd"})
-    assert res.status_code == 400 and "cortado" in res.get_json()["error"]
+    assert res.status_code == 400 and "cut off" in res.get_json()["error"]
 
 
 def test_copilot_token_por_entorno_sin_argv_ni_prefijo_bearer(entorno, monkeypatch):

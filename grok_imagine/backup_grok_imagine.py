@@ -99,13 +99,13 @@ def cookie_valida(cookie: str):
     Chrome trunca los valores largos con «…»: sin esta guarda el fallo es un
     UnicodeEncodeError que no explica nada."""
     if not cookie:
-        return "falta la cookie"
+        return "the cookie is missing"
     if "…" in cookie:
-        return "la cookie contiene «…»: la copiaste truncada del panel Headers"
+        return "the cookie contains «…»: you copied it truncated from the Headers panel"
     try:
         cookie.encode("latin-1")
     except UnicodeEncodeError:
-        return "la cookie tiene caracteres que no caben en una cabecera HTTP"
+        return "the cookie contains characters that cannot go in an HTTP header"
     return None
 
 
@@ -150,13 +150,13 @@ def listar_assets(session):
 
         nuevos = [a for a in (datos.get("assets") or []) if a.get("assetId") not in vistos]
         if pagina > 1 and not nuevos:
-            print("[aviso] la pagina %d no trae nada nuevo: 'pageToken' no parece ser "
-                  "el parametro correcto. Se para aqui." % pagina)
+            print("[warning] page %d brings nothing new: 'pageToken' does not seem to be "
+                  "the right parameter. Stopping here." % pagina)
             return assets, "fallo"
         vistos.update(a.get("assetId") for a in nuevos)
         assets.extend(nuevos)
         token = datos.get("nextPageToken") or datos.get("next_page_token")
-        print("[info] listado: pagina %d, +%d (total %d)" % (pagina, len(nuevos), len(assets)))
+        print("[info] listing: page %d, +%d (total %d)" % (pagina, len(nuevos), len(assets)))
         if not token:
             return assets, None
         time.sleep(ESPERA_LISTADO)
@@ -266,7 +266,7 @@ def procesar(session, assets, banco: Path, ya: dict, estado: dict, manifest: dic
     """Baja lo pendiente. Devuelve contadores. Corta si la cookie caduca."""
     cuentas = {"nuevas": 0, "repetidas": 0, "ausentes": 0, "errores": 0, "caducada": False}
     pendientes = [a for a in assets if estado.get(a.get("assetId")) not in TERMINALES]
-    print("[info] a intentar: %d de %d" % (len(pendientes), len(assets)))
+    print("[info] to attempt: %d of %d" % (len(pendientes), len(assets)))
 
     def guardar():
         escribir_json(banco / ESTADO, estado)
@@ -280,31 +280,31 @@ def procesar(session, assets, banco: Path, ya: dict, estado: dict, manifest: dic
             if not key:
                 estado[aid] = "sin key"
                 cuentas["errores"] += 1
-                print("[%d/%d] %s SIN key" % (n, len(pendientes), etiqueta))
+                print("[%d/%d] %s NO key" % (n, len(pendientes), etiqueta))
                 continue
 
             res, dato = descargar(session, key)
             if res == "caducada":
                 cuentas["caducada"] = True
-                print("[error] la cookie ha caducado o no vale (%s). Copia una nueva y relanza: "
-                      "lo ya bajado se conserva." % dato)
+                print("[error] the cookie has expired or is invalid (%s). Copy a new one and run again: "
+                      "what was already downloaded is kept." % dato)
                 break
             if res == "ausente":
                 estado[aid] = "ausente"
                 cuentas["ausentes"] += 1
-                print("[%d/%d] %s ya no existe en el servidor (404)" % (n, len(pendientes), etiqueta))
+                print("[%d/%d] %s no longer exists on the server (404)" % (n, len(pendientes), etiqueta))
                 continue
             if res != "ok":
                 estado[aid] = "error"
                 cuentas["errores"] += 1
-                print("[%d/%d] %s FALLA: %s" % (n, len(pendientes), etiqueta, dato))
+                print("[%d/%d] %s FAILED: %s" % (n, len(pendientes), etiqueta, dato))
                 continue
 
             h = hashlib.sha1(dato).hexdigest()
             if h in ya:
                 estado[aid] = "repetida"
                 cuentas["repetidas"] += 1
-                print("[%d/%d] %s ya la tenias (%s)" % (n, len(pendientes), etiqueta, ya[h]))
+                print("[%d/%d] %s you already had it (%s)" % (n, len(pendientes), etiqueta, ya[h]))
             else:
                 fname = "%s%s" % (h[:16], sniff_ext(dato[:32]))
                 destino = banco / fname
@@ -333,66 +333,66 @@ def leer_cookie(args):
         try:
             cookie = Path(args.cookie_file).read_text(encoding="utf-8")
         except OSError:
-            print("[error] no puedo leer el fichero de la cookie: %s" % args.cookie_file)
+            print("[error] cannot read the cookie file: %s" % args.cookie_file)
             sys.exit(1)
     return limpiar_cookie(cookie)
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Backup de tu biblioteca de Grok Imagine.")
+    ap = argparse.ArgumentParser(description="Backup of your Grok Imagine library.")
     ap.add_argument("--grok-dir", required=True,
-                    help="Carpeta GROK del vault (la que contiene los bancos).")
-    ap.add_argument("--cookie", help="Cookie de grok.com. Mejor por entorno o --cookie-file.")
-    ap.add_argument("--cookie-file", help="Fichero de texto con la cookie.")
+                    help="GROK folder of the vault (the one holding the banks).")
+    ap.add_argument("--cookie", help="grok.com cookie. Better via environment or --cookie-file.")
+    ap.add_argument("--cookie-file", help="Text file with the cookie.")
     ap.add_argument("--solo-inventario", action="store_true",
-                    help="Guarda el listado pero no baja ni un byte.")
+                    help="Saves the listing but downloads not a single byte.")
     args = ap.parse_args()
 
     # Igual que en el resto de backups: por entorno o fichero, nunca en argv.
     cookie = leer_cookie(args)
     motivo = cookie_valida(cookie)
     if motivo:
-        print("[error] %s. Variable GROK_COOKIE, --cookie-file o --cookie." % motivo)
+        print("[error] %s. Use the GROK_COOKIE variable, --cookie-file or --cookie." % motivo)
         sys.exit(1)
 
     grok_dir = Path(args.grok_dir)
     if not grok_dir.is_dir():
-        print("[error] no existe la carpeta GROK: %s" % grok_dir)
+        print("[error] the GROK folder does not exist: %s" % grok_dir)
         sys.exit(1)
     banco = grok_dir / CARPETA_BANCO
     banco.mkdir(parents=True, exist_ok=True)
 
     session = crear_sesion(cookie)
-    print("[info] listando la biblioteca de Imagine...")
+    print("[info] listing the Imagine library...")
     assets, error = listar_assets(session)
     if error == "caducada":
-        print("[error] la cookie ha caducado o no vale. Copia una nueva y relanza.")
+        print("[error] the cookie has expired or is invalid. Copy a new one and run again.")
         sys.exit(1)
     if not assets:
-        print("[error] no se obtuvo ningun activo. Cookie caducada, o la API cambio.")
+        print("[error] no assets were returned. Expired cookie, or the API changed.")
         sys.exit(1)
     if error == "fallo":
-        print("[aviso] el listado se corto con %d activos; se sigue con ellos." % len(assets))
+        print("[warning] the listing was cut short at %d assets; continuing with those." % len(assets))
 
     escribir_json(banco / INVENTARIO, assets)
     pesos = sum(int(a.get("sizeBytes") or 0) for a in assets)
-    print("[info] inventario: %d activos, %.1f MB" % (len(assets), pesos / 1048576))
+    print("[info] inventory: %d assets, %.1f MB" % (len(assets), pesos / 1048576))
     if args.solo_inventario:
-        print("[hecho] --solo-inventario: no se ha descargado nada.")
+        print("[done] --solo-inventario: nothing was downloaded.")
         return
 
     estado = leer_json(banco / ESTADO, {})
     manifest = leer_json(banco / MANIFEST, {})
     ya = indexar_bancos(grok_dir)
-    print("[info] ya archivados en los bancos de Grok: %d ficheros" % len(ya))
+    print("[info] already archived in the Grok banks: %d files" % len(ya))
 
     c = procesar(session, assets, banco, ya, estado, manifest)
     ediciones = sum(1 for m in manifest.values() if m.get("edicion_de"))
-    print("\n[hecho] nuevas: %d · ya las tenias: %d · ya no existen: %d · fallidas: %d"
+    print("\n[done] new: %d · you already had: %d · no longer exist: %d · failed: %d"
           % (c["nuevas"], c["repetidas"], c["ausentes"], c["errores"]))
-    print("        ediciones con su padre anotado: %d" % ediciones)
-    print("        banco: %s" % banco.resolve())
-    print("Terminado: %s" % datetime.datetime.now().isoformat(timespec="seconds"))
+    print("        edits with their parent recorded: %d" % ediciones)
+    print("        bank: %s" % banco.resolve())
+    print("Finished: %s" % datetime.datetime.now().isoformat(timespec="seconds"))
     sys.exit(1 if (c["errores"] or c["caducada"]) else 0)
 
 

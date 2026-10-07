@@ -53,7 +53,7 @@
     </button>
   </nav>
 
-  <div class="sidebar-footer">M3M0R<span class="brand-ia">·IA</span> · v2</div>
+  <div class="sidebar-footer">M3M0R<span class="brand-ia">·IA</span> · v3</div>
 
 </aside>
 
@@ -178,7 +178,7 @@
         <div class="path-suggest" id="suggest-base_vault"></div>
       </div>
       <div class="field">
-        <label for="cfg-exports_dir">Folder with your ChatGPT exports (.zip / .json / .html)</label>
+        <label for="cfg-exports_dir">Folder with your exports (.zip / .json / .html / .csv)</label>
         <input type="text" id="cfg-exports_dir" autocomplete="off">
         <div class="path-suggest" id="suggest-exports_dir"></div>
       </div>
@@ -631,8 +631,8 @@
     <div class="panel-header">
       <div class="panel-header-text">
         <h1>image<span class="brand-ia">.ia</span></h1>
-        <p class="panel-header-desc">Lo que generaste, con su prompt, en tu casa.</p>
-        <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
+        <p class="panel-header-desc">What you generated, with its prompt, in your own home.</p>
+        <p class="panel-header-brand">Your memory. Your context. Ready to think with you.</p>
       </div>
       <img src="assets/imageIA.png" alt="" class="panel-header-icon"
            onerror="this.style.display='none'">
@@ -645,80 +645,80 @@
       </summary>
 
       <div class="card">
-        <h2>Captura</h2>
+        <h2>Capture</h2>
         <p class="card-help">
-          El export de Copilot no incluye las imágenes que generas. Se piden a la API de su
-          biblioteca con un token del navegador que caduca en torno a una hora — por eso
-          este paso es manual. Cada imagen llega con su prompt y su fecha, que la
-          interfaz de Copilot no te enseña.
+          Copilot's export doesn't include the images you generate. They are requested from
+          its library API with a token from your browser that expires in about an hour — which
+          is why this step is manual. Every image arrives with its prompt and its date, which
+          Copilot's own interface doesn't show you.
         </p>
 
         <div class="metro">
           <div class="metro-stop">
             <div class="metro-dot">1</div>
             <div class="metro-label">copilot.com</div>
-            <div class="metro-sub">abre Biblioteca → Imágenes<br>con la sesión iniciada</div>
+            <div class="metro-sub">open Library → Images<br>while signed in</div>
           </div>
           <div class="metro-line"></div>
           <div class="metro-stop">
             <div class="metro-dot">2</div>
             <div class="metro-label">F12 → Network</div>
-            <div class="metro-sub">filtra por «Artifact.ashx»<br>y refresca</div>
+            <div class="metro-sub">filter by «Artifact.ashx»<br>and refresh</div>
           </div>
           <div class="metro-line"></div>
           <div class="metro-stop">
             <div class="metro-dot">3</div>
             <div class="metro-label">Copy as cURL</div>
-            <div class="metro-sub">clic derecho sobre<br>la petición</div>
+            <div class="metro-sub">right-click the<br>request</div>
           </div>
           <div class="metro-line"></div>
           <div class="metro-stop">
             <div class="metro-dot">4</div>
-            <div class="metro-label">Copia el JWT</div>
-            <div class="metro-sub">lo que va después<br>de «Bearer »</div>
+            <div class="metro-label">Copy the JWT</div>
+            <div class="metro-sub">whatever follows<br>«Bearer »</div>
           </div>
         </div>
 
         <p class="card-help">
-          <strong>Cópialo del cURL, no del panel Headers.</strong> Chrome corta ahí los
-          valores largos y los pinta con puntos suspensivos: te llevarías medio token con
-          un «…» dentro.
+          <strong>Copy it from the cURL, not from the Headers panel.</strong> Chrome cuts long
+          values there and draws them with an ellipsis: you'd take half a token with a «…»
+          inside.
         </p>
         <p class="card-help">
-          Este token es la prueba de que tu navegador ya inició sesión. Mientras dure,
-          quien lo tenga puede pedirle cosas a Copilot como si fueras tú — no lo pegues
-          en ningún otro sitio. No se guarda: vive en memoria durante la descarga.
+          This token proves your browser is already signed in. While it lasts, whoever holds
+          it can ask Copilot for things as if they were you — don't paste it anywhere else.
+          It isn't saved: it lives in memory while the download runs.
         </p>
 
-        <label for="copilot-images-token">Authorization — solo el JWT, sin el prefijo «Bearer »</label>
+        <label for="copilot-images-token">Authorization — just the JWT, without the «Bearer » prefix</label>
         <input type="password" id="copilot-images-token" autocomplete="off" spellcheck="false"
                placeholder="eyJhbGciOiJ...">
 
-        <button class="btn" id="btn-copilot-images-backup">Descargar biblioteca</button>
+        <button class="btn" id="btn-copilot-images-backup">Download library</button>
         <div id="copilot-images-backup-msg" class="msg"></div>
         <pre id="copilot-images-log" class="log-box" style="display:none;"></pre>
       </div>
 
       <div class="card">
-        <h2>Verificación</h2>
+        <h2>Verification</h2>
         <p class="card-help">
-          Cruza el índice contra las imágenes en disco y avisa de huecos, imágenes vacías,
-          tamaños distintos a los de Copilot y descargas a medias. Las que ya no están en
-          tu biblioteca se listan aparte y no se tocan.
+          Checks the index against the images on disk and flags gaps, empty images, sizes that
+          differ from Copilot's and half-finished downloads. Images that are no longer in your
+          library are listed separately and left untouched.
         </p>
-        <button class="btn" id="btn-copilot-images-verify">Verificar backup</button>
+        <button class="btn" id="btn-copilot-images-verify">Verify backup</button>
         <div id="copilot-images-verify-msg" class="msg"></div>
         <pre id="copilot-images-verify-out" class="log-box" style="display:none;"></pre>
       </div>
 
       <div class="card">
-        <h2>Construir el vault</h2>
+        <h2>Build the vault</h2>
         <p class="card-help">
-          Convierte el backup en notas de Obsidian, una por imagen, con la imagen incrustada
-          y su prompt completo. Se puede lanzar las veces que haga falta y nunca borra nada
-          del vault: si algo sobra, lo avisa.
+          Turns the backup into Obsidian notes, one per image, with the image embedded and its
+          full prompt. It can be run as many times as needed and never deletes anything from
+          the vault: if something is left over, it tells you.
         </p>
-        <button class="btn" id="btn-copilot-images-build">Construir vault</button>
+        <button class="btn" id="btn-copilot-images-build">Build vault</button>
         <div id="copilot-images-build-msg" class="msg"></div>
         <pre id="copilot-images-build-out" class="log-box" style="display:none;"></pre>
       </div>
@@ -731,65 +731,66 @@
       </summary>
 
       <div class="card">
-        <h2>Captura</h2>
+        <h2>Capture</h2>
         <p class="card-help">
-          El export de Grok parece completo y no lo es: la mayoría de tus generaciones de
-          Imagine no viajan en el zip, y las ediciones privadas no traen ni su linaje. La
-          biblioteca de grok.com sí lo tiene todo, y se pide a su API. Las imágenes y vídeos
-          van al banco <code>GROK/IMAGINE</code>, sin repetir lo que ya tengas en otros
-          bancos (se compara por contenido).
+          Grok's export looks complete and isn't: most of your Imagine generations don't travel
+          in the zip, and private edits don't even carry their lineage. The grok.com library
+          has it all, and it is requested from its API. Images and videos go to the
+          <code>GROK/IMAGINE</code> bank, without repeating what you already have in other
+          banks (compared by content).
         </p>
 
         <div class="metro">
           <div class="metro-stop">
             <div class="metro-dot">1</div>
             <div class="metro-label">grok.com</div>
-            <div class="metro-sub">abre Imagine → tu biblioteca<br>con la sesión iniciada</div>
+            <div class="metro-sub">open Imagine → your library<br>while signed in</div>
           </div>
           <div class="metro-line"></div>
           <div class="metro-stop">
             <div class="metro-dot">2</div>
             <div class="metro-label">F12 → Network</div>
-            <div class="metro-sub">filtra por «assets»<br>y refresca</div>
+            <div class="metro-sub">filter by «assets»<br>and refresh</div>
           </div>
           <div class="metro-line"></div>
           <div class="metro-stop">
             <div class="metro-dot">3</div>
             <div class="metro-label">Request Headers</div>
-            <div class="metro-sub">clic en la petición<br>a /rest/assets</div>
+            <div class="metro-sub">click the request<br>to /rest/assets</div>
           </div>
           <div class="metro-line"></div>
           <div class="metro-stop">
             <div class="metro-dot">4</div>
-            <div class="metro-label">Copia «Cookie»</div>
-            <div class="metro-sub">el valor entero<br>de esa cabecera</div>
+            <div class="metro-label">Copy «Cookie»</div>
+            <div class="metro-sub">the whole value<br>of that header</div>
           </div>
         </div>
 
         <p class="card-help">
-          <strong>Esta credencial pesa más que un token.</strong> No es un pase que caduca en
-          una hora: es la cookie de tu sesión de grok.com, y da acceso completo a tu cuenta
-          mientras siga abierta. No la pegues en ningún otro sitio. Aquí no se guarda y no
-          se muestra nunca: vive en memoria durante la descarga y solo viaja a grok.com.
+          <strong>This credential weighs more than a token.</strong> It isn't a pass that
+          expires in an hour: it's your grok.com session cookie, and it gives full access to
+          your account for as long as the session stays open. Don't paste it anywhere else.
+          It isn't saved and is never displayed here: it lives in memory while the download
+          runs and only travels to grok.com.
         </p>
 
-        <label for="grok-imagine-cookie">Cookie — el valor entero de la cabecera</label>
+        <label for="grok-imagine-cookie">Cookie — the whole value of the header</label>
         <input type="password" id="grok-imagine-cookie" autocomplete="off" spellcheck="false"
                placeholder="sso=...; ...">
 
-        <button class="btn" id="btn-grok-imagine-backup">Descargar biblioteca</button>
+        <button class="btn" id="btn-grok-imagine-backup">Download library</button>
         <div id="grok-imagine-backup-msg" class="msg"></div>
         <pre id="grok-imagine-log" class="log-box" style="display:none;"></pre>
       </div>
 
       <div class="card">
-        <h2>Verificación</h2>
+        <h2>Verification</h2>
         <p class="card-help">
-          Reconcilia lo que Grok dice tener contra lo que hay en tus bancos: activos nunca
-          intentados, fallidos y ficheros que ya no están en disco. Los que el servidor ya
-          no tiene (borrados) se listan aparte y no cuentan como fallo.
+          Reconciles what Grok says it has against what is in your banks: assets never
+          attempted, failures and files no longer on disk. Those the server no longer has
+          (deleted) are listed separately and don't count as failures.
         </p>
-        <button class="btn" id="btn-grok-imagine-verify">Verificar backup</button>
+        <button class="btn" id="btn-grok-imagine-verify">Verify backup</button>
         <div id="grok-imagine-verify-msg" class="msg"></div>
         <pre id="grok-imagine-verify-out" class="log-box" style="display:none;"></pre>
       </div>
@@ -931,7 +932,7 @@
         <div class="metro-stop">
           <div class="metro-dot metro-origen">ZIP</div>
           <div class="metro-label">Exports</div>
-          <div class="metro-sub">your exports<br>(ChatGPT, Claude...)</div>
+          <div class="metro-sub">your exports<br>(ChatGPT, Claude, Grok, Copilot...)</div>
         </div>
         <div class="metro-line"></div>
         <div class="metro-stop">

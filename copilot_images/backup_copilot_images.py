@@ -142,7 +142,7 @@ def listar_imagenes(session):
         nuevos = [i for i in (datos.get("Items") or []) if i.get("ID") not in vistos]
         vistos.update(i.get("ID") for i in nuevos)
         items.extend(nuevos)
-        print(f"[info] listado: +{len(nuevos)} (total {len(items)})")
+        print(f"[info] listing: +{len(nuevos)} (total {len(items)})")
         info = datos.get("NextLinkInfo") or {}
         siguiente = info.get("NextLink") or datos.get("NextLink") or ""
         firma = info.get("NextLinkSignature") or ""
@@ -198,9 +198,9 @@ def extension(item: dict) -> str:
 def nombre_base(item: dict) -> str:
     """fecha_prompt_id: se encuentra mirando la carpeta y el id garantiza que
     no choca con otra imagen del mismo prompt."""
-    fecha = (item.get("CreatedDateTime") or "")[:10] or "sin-fecha"
+    fecha = (item.get("CreatedDateTime") or "")[:10] or "no-date"
     custom = item.get("ArtifactCustomMetadata") or {}
-    corto = nombre_seguro(custom.get("Prompt") or item.get("Name"), "imagen")
+    corto = nombre_seguro(custom.get("Prompt") or item.get("Name"), "image")
     return f"{fecha}_{corto}_{item['ID']}"
 
 
@@ -277,7 +277,7 @@ def leer_token(args):
         try:
             token = Path(args.token_file).read_text(encoding="utf-8").strip()
         except OSError:
-            print(f"[error] no puedo leer el fichero del token: {args.token_file}")
+            print(f"[error] cannot read the token file: {args.token_file}")
             sys.exit(1)
     if token and token.lower().startswith("bearer "):
         token = token[7:].strip()
@@ -285,43 +285,43 @@ def leer_token(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Backup de tu biblioteca de imagenes de Copilot.")
-    ap.add_argument("--token", help="Bearer token. Mejor por entorno o --token-file.")
-    ap.add_argument("--token-file", help="Fichero de texto con el token.")
-    ap.add_argument("--out", default="./copilot_images_backup", help="Carpeta de salida.")
+    ap = argparse.ArgumentParser(description="Backup of your Copilot image library.")
+    ap.add_argument("--token", help="Bearer token. Better via environment or --token-file.")
+    ap.add_argument("--token-file", help="Text file with the token.")
+    ap.add_argument("--out", default="./copilot_images_backup", help="Output folder.")
     ap.add_argument("--solo-metadata", action="store_true",
-                    help="Guarda el indice y los .json pero no baja ninguna imagen.")
+                    help="Saves the index and the .json files but downloads no images.")
     args = ap.parse_args()
 
     # Igual que Suno y Flow Music: por entorno o fichero, nunca en argv.
     token = leer_token(args)
     if not token:
-        print("[error] necesitas COPILOT_TOKEN, --token-file o --token")
+        print("[error] you need COPILOT_TOKEN, --token-file or --token")
         sys.exit(1)
     if "…" in token:
-        print("[error] el token contiene el caracter '…': lo copiaste truncado del")
-        print("        panel Headers de Chrome. Sacalo de un 'Copy as cURL'.")
+        print("[error] the token contains the character '…': you copied it truncated from the")
+        print("        Chrome Headers panel. Take it from a 'Copy as cURL' instead.")
         sys.exit(1)
 
     carpeta = Path(args.out)
     carpeta.mkdir(parents=True, exist_ok=True)
 
-    print("[info] listando la biblioteca...")
+    print("[info] listing the library...")
     items, error = listar_imagenes(sesion_api(token))
     if error == "caducado":
-        print("[error] el token ha caducado o no vale. Copia uno nuevo y relanza.")
+        print("[error] the token has expired or is invalid. Copy a new one and run again.")
         sys.exit(1)
     if not items:
-        print("[error] no se obtuvo ninguna imagen. Token caducado, o la API cambio.")
+        print("[error] no images were returned. Expired token, or the API changed.")
         sys.exit(1)
     if error == "fallo":
-        print(f"[aviso] el listado se corto con {len(items)} imagenes; se sigue con ellas.")
+        print(f"[warning] the listing was cut short at {len(items)} images; continuing with those.")
 
     indice = {i["ID"]: extraer_metadata(i) for i in items}
     (carpeta / "_index.json").write_text(
         json.dumps(indice, indent=2, ensure_ascii=False), encoding="utf-8")
     con_prompt = sum(1 for m in indice.values() if m["prompt"])
-    print(f"[info] indice: {len(indice)} imagenes, {con_prompt} con prompt")
+    print(f"[info] index: {len(indice)} images, {con_prompt} with a prompt")
 
     cdn = sesion_cdn()
     nuevas = ya = errores = 0
@@ -329,21 +329,21 @@ def main():
         estado = guardar_imagen(cdn, item, carpeta, solo_metadata=args.solo_metadata)
         if estado == "nueva":
             nuevas += 1
-            print(f"[{n}/{len(items)}] nueva: {item['ID']}")
+            print(f"[{n}/{len(items)}] new: {item['ID']}")
             time.sleep(ESPERA_DESCARGA)
         elif estado == "ya":
             ya += 1
         elif estado == "caducado":
-            print("[error] las URLs de descarga han caducado. Relanza: lo bajado se conserva.")
+            print("[error] the download URLs have expired. Run again: what was downloaded is kept.")
             errores += 1
             break
         else:
             errores += 1
-            print(f"[{n}/{len(items)}] [error] no se pudo bajar {item['ID']}")
+            print(f"[{n}/{len(items)}] [error] could not download {item['ID']}")
 
-    print(f"\n[hecho] nuevas: {nuevas} · ya estaban: {ya} · errores: {errores}")
-    print(f"        backup en: {carpeta.resolve()}")
-    print(f"Terminado: {datetime.now().isoformat(timespec='seconds')}")
+    print(f"\n[done] new: {nuevas} · already there: {ya} · errors: {errores}")
+    print(f"        backup at: {carpeta.resolve()}")
+    print(f"Finished: {datetime.now().isoformat(timespec='seconds')}")
     sys.exit(1 if errores else 0)
 
 

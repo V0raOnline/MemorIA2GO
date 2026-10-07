@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────
 // Navegación de dos niveles: sidebar (globales + apps) + top-tabs por app
 // ─────────────────────────────────────────
-// Sidebar: Observatorio (global) + apps (chat.ia, music.ia, Substack) +
+// Sidebar: Observatorio (global) + apps (chat.ia, music.ia, image.ia, Substack) +
 // Configuracion (global, al pie). Cada app puede tener sub-pasos en una
 // tira de top-tabs encima del panel. Hoy solo chat.ia los tiene:
 // Verificacion / Construccion / Cartografia / Reconexion.
@@ -9,7 +9,7 @@
 // Estado: no hay variables globales; la fuente de verdad es la clase
 // .active en los botones y paneles. showTab() sigue siendo el punto de
 // entrada -- se le pasa el data-tab del boton clicado; para las apps es
-// un "chat-app" / "music-app" / "substack-app" que se resuelve al panel
+// un "chat-app" / "music-app" / "image-app" / "substack-app" que se resuelve al panel
 // canonico de esa app.
 //
 // APP_DEFAULT_TAB: al abrir una app, a que sub-panel entra por defecto.
@@ -1787,11 +1787,11 @@ document.getElementById("btn-copilot-images-backup").addEventListener("click", (
     btn: "btn-copilot-images-backup", msg: "copilot-images-backup-msg",
     log: "copilot-images-log", input: "copilot-images-token",
     url: "/api/copilot_images/backup", campo: "token",
-    vacio: "Pega el Bearer token primero.",
-    cortado: "El token viene cortado: contiene «…». Cópialo con «Copy as cURL», no del panel Headers.",
-    trabajando: "Descargando. El token dura en torno a una hora: si se corta, saca uno nuevo y vuelve a lanzarlo — solo baja lo que falta.",
-    hecho: "Biblioteca descargada. Verifica el backup antes de construir.",
-    errores: "La descarga terminó con errores — mira el log. Si el token caducó, saca uno nuevo y relanza: solo baja lo que falta.",
+    vacio: "Paste the Bearer token first.",
+    cortado: "The token is cut off: it contains «…». Copy it with «Copy as cURL», not from the Headers panel.",
+    trabajando: "Downloading. The token lasts about an hour: if it gets cut off, get a new one and run it again — it only downloads what is missing.",
+    hecho: "Library downloaded. Verify the backup before building.",
+    errores: "The download finished with errors — check the log. If the token expired, get a new one and run again: it only downloads what is missing.",
   }));
 
 document.getElementById("btn-grok-imagine-backup").addEventListener("click", () =>
@@ -1799,32 +1799,32 @@ document.getElementById("btn-grok-imagine-backup").addEventListener("click", () 
     btn: "btn-grok-imagine-backup", msg: "grok-imagine-backup-msg",
     log: "grok-imagine-log", input: "grok-imagine-cookie",
     url: "/api/grok_imagine/backup", campo: "cookie",
-    vacio: "Pega la cookie de grok.com primero.",
-    cortado: "La cookie viene cortada: contiene «…». Copia el valor entero de la cabecera Cookie.",
-    trabajando: "Descargando (puede tardar: hay vídeos). Si se corta, relanza: lo ya bajado se conserva y solo pide lo que falta.",
-    hecho: "Biblioteca descargada. Verifica el backup para ver que cuadra con lo que Grok dice tener.",
-    errores: "La descarga terminó con errores — mira el log. Si la cookie caducó, copia una nueva y relanza: solo baja lo que falta.",
+    vacio: "Paste the grok.com cookie first.",
+    cortado: "The cookie is cut off: it contains «…». Copy the whole value of the Cookie header.",
+    trabajando: "Downloading (this can take a while: there are videos). If it gets cut off, run it again: what was already downloaded is kept and only what is missing is requested.",
+    hecho: "Library downloaded. Verify the backup to check it matches what Grok says it has.",
+    errores: "The download finished with errors — check the log. If the cookie expired, copy a new one and run again: it only downloads what is missing.",
   }));
 
 document.getElementById("btn-grok-imagine-verify").addEventListener("click", () =>
   sunoAccion("/api/grok_imagine/verify", "btn-grok-imagine-verify", "grok-imagine-verify-msg", "grok-imagine-verify-out", {
-    trabajando: "Cruzando el inventario contra tus bancos...",
-    ok: "Todo lo que Grok dice tener está en tus bancos.",
-    problemas: "Hay huecos o fallos — mira el detalle.",
+    trabajando: "Cross-checking the inventory against your banks...",
+    ok: "Everything Grok says it has is in your banks.",
+    problemas: "There are gaps or failures — check the detail.",
   }));
 
 document.getElementById("btn-copilot-images-verify").addEventListener("click", () =>
   sunoAccion("/api/copilot_images/verify", "btn-copilot-images-verify", "copilot-images-verify-msg", "copilot-images-verify-out", {
-    trabajando: "Cruzando el índice contra las imágenes...",
-    ok: "Backup íntegro.",
-    problemas: "Hay huecos o ficheros dañados — mira el detalle.",
+    trabajando: "Cross-checking the index against the images...",
+    ok: "Backup intact.",
+    problemas: "There are gaps or damaged files — check the detail.",
   }));
 
 document.getElementById("btn-copilot-images-build").addEventListener("click", () =>
   sunoAccion("/api/copilot_images/build", "btn-copilot-images-build", "copilot-images-build-msg", "copilot-images-build-out", {
-    trabajando: "Construyendo el vault (copia las imágenes, puede tardar)...",
-    ok: "Vault construido. Ábrelo en Obsidian.",
-    problemas: "Terminó con avisos — mira el detalle.",
+    trabajando: "Building the vault (it copies the images, this can take a while)...",
+    ok: "Vault built. Open it in Obsidian.",
+    problemas: "Finished with warnings — check the detail.",
   }));
 
 document.getElementById("btn-suno-backup").addEventListener("click", sunoBackup);

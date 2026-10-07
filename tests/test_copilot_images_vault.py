@@ -134,30 +134,30 @@ def test_build_escribe_notas_copia_imagenes_e_indice(tmp_path):
     vault = tmp_path / "vault"
     r = _lanzar_build(backup, vault)
     assert r.returncode == 0, r.stderr
-    assert len(list((vault / "Imágenes").rglob("*.md"))) == 2
-    assert len(list((vault / "Archivos").glob("*.jpg"))) == 2
+    assert len(list((vault / "Images").rglob("*.md"))) == 2
+    assert len(list((vault / "Files").glob("*.jpg"))) == 2
     assert (vault / "_index.md").is_file()
-    assert {p.parent.name for p in (vault / "Imágenes").rglob("*.md")} == {"2025-05", "2025-06"}
+    assert {p.parent.name for p in (vault / "Images").rglob("*.md")} == {"2025-05", "2025-06"}
 
 
 def test_build_nunca_borra_lo_que_ya_no_corresponde(tmp_path):
     backup = _backup(tmp_path, [_meta("A0000001")])
     vault = tmp_path / "vault"
     assert _lanzar_build(backup, vault).returncode == 0
-    vieja = vault / "Imágenes" / "2020-01" / "nota vieja.md"
+    vieja = vault / "Images" / "2020-01" / "nota vieja.md"
     vieja.parent.mkdir(parents=True)
     vieja.write_text("mia", encoding="utf-8")
-    ajena = vault / "Archivos" / "ajena.jpg"
+    ajena = vault / "Files" / "ajena.jpg"
     ajena.write_bytes(b"x")
     r = _lanzar_build(backup, vault)
     assert r.returncode == 0
     assert vieja.read_text(encoding="utf-8") == "mia" and ajena.exists()
-    assert "no se han tocado" in r.stdout
+    assert "left untouched" in r.stdout
 
 
 def test_build_no_copy_images_solo_escribe_notas(tmp_path):
     backup = _backup(tmp_path, [_meta("A0000001")])
     vault = tmp_path / "vault"
     assert _lanzar_build(backup, vault, "--no-copy-images").returncode == 0
-    assert not list((vault / "Archivos").iterdir())
-    assert len(list((vault / "Imágenes").rglob("*.md"))) == 1
+    assert not list((vault / "Files").iterdir())
+    assert len(list((vault / "Images").rglob("*.md"))) == 1

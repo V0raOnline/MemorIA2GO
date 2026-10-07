@@ -34,6 +34,14 @@ paths:
   # son dos bibliotecas distintas y mezclarlas haría ilegible el linaje.
   flowmusic_vault: ''
 
+  # 🖼️ image.ia — backup de las imágenes de Copilot (las imágenes y un .json
+  # por cada una con su prompt) y vault de Obsidian donde se construyen las
+  # notas. Opcionales e independientes, como las de música.
+  # Grok Imagine no necesita ruta propia: usa base_vault y deja lo descargado
+  # en GROK/IMAGINE, junto al resto de bancos de Grok.
+  copilot_images_backup: ''
+  copilot_images_vault: ''
+
   # 🖋️ Tintero — vault de Obsidian donde se construyen tus posts de Substack.
   # Separado también: un post no es una conversación.
   # El export y el CSV de estadísticas NO necesitan ruta propia: viven en

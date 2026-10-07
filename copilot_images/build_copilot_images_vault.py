@@ -30,32 +30,32 @@ sys.path.insert(0, str(Path(__file__).parent))
 from backup_copilot_images import localizar_existente, nombre_seguro
 
 T = {
-    "carpeta_imagenes": "Imágenes",
-    "carpeta_archivos": "Archivos",
+    "carpeta_imagenes": "Images",
+    "carpeta_archivos": "Files",
     "fichero_indice": "_index",
 
-    "sec_imagen": "## Imagen",
+    "sec_imagen": "## Image",
     "sec_prompt": "## Prompt",
-    "sec_datos": "## Datos",
-    "sin_imagen": "Sin imagen descargada. Vuelve a lanzar el backup.",
-    "imagen_en_backup": "La imagen no se ha copiado al vault; está en el backup como",
-    "sin_prompt": "Sin prompt registrado (la API no lo devuelve para esta imagen).",
-    "sin_titulo": "Imagen sin prompt",
-    "sin_fecha": "Sin fecha",
+    "sec_datos": "## Details",
+    "sin_imagen": "No image downloaded. Run the backup again.",
+    "imagen_en_backup": "The image was not copied to the vault; it is in the backup as",
+    "sin_prompt": "No prompt recorded (the API does not return one for this image).",
+    "sin_titulo": "Image without a prompt",
+    "sin_fecha": "No date",
 
-    "dato_fecha": "Creada",
-    "dato_modificada": "Modificada",
-    "dato_original": "Nombre original",
-    "dato_tamano": "Tamaño",
-    "dato_id": "Id de Copilot",
+    "dato_fecha": "Created",
+    "dato_modificada": "Modified",
+    "dato_original": "Original name",
+    "dato_tamano": "Size",
+    "dato_id": "Copilot id",
 
-    "idx_titulo": "# Imágenes de Copilot",
-    "idx_resumen": "## Resumen",
-    "idx_por_mes": "## Por mes",
-    "idx_n_imagenes": "imágenes",
-    "idx_con_prompt": "con prompt",
-    "idx_sin_prompt": "sin prompt",
-    "idx_rango": "Rango de fechas",
+    "idx_titulo": "# Copilot images",
+    "idx_resumen": "## Summary",
+    "idx_por_mes": "## By month",
+    "idx_n_imagenes": "images",
+    "idx_con_prompt": "with a prompt",
+    "idx_sin_prompt": "without a prompt",
+    "idx_rango": "Date range",
 }
 
 TITULO_LARGO = 70
@@ -93,7 +93,7 @@ def citar(texto: str) -> str:
 def cargar_indice(backup_dir: Path) -> dict:
     ruta = backup_dir / "_index.json"
     if not ruta.is_file():
-        print(f"[error] no hay _index.json en {backup_dir}")
+        print(f"[error] no _index.json in {backup_dir}")
         sys.exit(1)
     return json.loads(ruta.read_text(encoding="utf-8"))
 
@@ -115,8 +115,8 @@ def calcular_nombres(indice: dict) -> dict:
     minusculas y, si aun asi choca, se usa el id entero."""
     propuestas = {}
     for id_, meta in indice.items():
-        fecha = (meta.get("created_at") or "")[:10] or "sin-fecha"
-        corto = nombre_seguro(meta.get("prompt") or meta.get("name"), "imagen", largo=50)
+        fecha = (meta.get("created_at") or "")[:10] or "no-date"
+        corto = nombre_seguro(meta.get("prompt") or meta.get("name"), "image", largo=50)
         nombre = f"{fecha} · {corto} · {id_[-8:]}"
         propuestas.setdefault(nombre.lower(), []).append((id_, nombre))
     nombres, usados = {}, set()
@@ -191,16 +191,16 @@ def main():
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(encoding="utf-8", errors="replace")
 
-    ap = argparse.ArgumentParser(description="Construye un vault de Obsidian desde un backup de imagenes de Copilot.")
-    ap.add_argument("--backup-dir", required=True, help="Carpeta con _index.json y las imagenes.")
-    ap.add_argument("--vault-dir", required=True, help="Carpeta de salida del vault.")
+    ap = argparse.ArgumentParser(description="Builds an Obsidian vault from a Copilot image backup.")
+    ap.add_argument("--backup-dir", required=True, help="Folder with _index.json and the images.")
+    ap.add_argument("--vault-dir", required=True, help="Vault output folder.")
     ap.add_argument("--no-copy-images", action="store_true",
-                    help="No copiar las imagenes al vault: solo las notas.")
+                    help="Do not copy the images into the vault: notes only.")
     args = ap.parse_args()
 
     backup_dir, vault_dir = Path(args.backup_dir), Path(args.vault_dir)
     if not backup_dir.exists():
-        print(f"[error] no existe {backup_dir}")
+        print(f"[error] {backup_dir} does not exist")
         sys.exit(1)
 
     notas_dir = vault_dir / T["carpeta_imagenes"]
@@ -209,7 +209,7 @@ def main():
     archivos_dir.mkdir(parents=True, exist_ok=True)
 
     indice = cargar_indice(backup_dir)
-    print(f"[info] {len(indice)} imagenes en el indice")
+    print(f"[info] {len(indice)} images in the index")
     nombres = calcular_nombres(indice)
 
     escritas, copiadas, sin_imagen = set(), 0, 0
@@ -246,15 +246,15 @@ def main():
     sobran += [p for p in archivos_dir.iterdir() if p.is_file() and p not in imagenes_escritas] \
         if not args.no_copy_images else []
 
-    print(f"[info] notas escritas: {len(escritas)}")
+    print(f"[info] notes written: {len(escritas)}")
     if not args.no_copy_images:
-        print(f"[info] imagenes en el vault: {copiadas}")
+        print(f"[info] images in the vault: {copiadas}")
     if sin_imagen:
-        print(f"[aviso] {sin_imagen} imagen(es) sin fichero en el backup")
+        print(f"[warning] {sin_imagen} image(s) with no file in the backup")
     if sobran:
-        print(f"[aviso] {len(sobran)} fichero(s) del vault no corresponden a este backup "
-              f"(no se han tocado). Ejemplo: {sobran[0].name}")
-    print(f"\n[hecho] vault en: {vault_dir.resolve()}")
+        print(f"[warning] {len(sobran)} vault file(s) do not belong to this backup "
+              f"(left untouched). Example: {sobran[0].name}")
+    print(f"\n[done] vault at: {vault_dir.resolve()}")
 
 
 if __name__ == "__main__":
