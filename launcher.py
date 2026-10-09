@@ -42,6 +42,7 @@ from flask import Flask, jsonify, request, Response, send_from_directory
 
 # Identidad de un pendiente separada de su llave -- ver pendientes.py.
 from pendientes import ref_pendiente, ref_de_entrada, sanear
+import layout
 
 HERE = Path(__file__).resolve().parent
 WEB_DIR = HERE / "web"
@@ -53,6 +54,25 @@ sys.path.insert(0, str(HERE))
 app = Flask(__name__)
 run_lock = threading.Lock()
 
+
+@app.before_request
+def _fijar_layout_activo():
+    """Deja el layout del vault en el entorno del proceso antes de CADA peticion.
+
+    Los modulos que el launcher importa (orphan_cloud, vault_stats...) y los
+    procesos que lanza leen el layout de ahi. Se recalcula cada vez y SIN mirar
+    el entorno que dejo la peticion anterior (usar_entorno=False): si el layout
+    del vault cambia en disco -- una migracion --, la siguiente peticion ya lo
+    ve, sin reiniciar. Sin config o sin vault, queda el clasico."""
+    try:
+        from config_loader import load_config, get_path, get_opt
+        cfg = load_config(str(CONFIG_PATH))
+        base = get_path(cfg, "base_vault")
+        lay = layout.cargar(base, get_opt(cfg, "prj_vault_name", None), usar_entorno=False)
+        os.environ.update(layout.entorno(lay))
+    except Exception:
+        os.environ.pop(layout.ENV_LAYOUT, None)
+
 # ─────────────────────────────────────────
 # Config: lectura via config_loader, escritura como parche in-place
 # (yaml.dump normal destruiria los comentarios que ya tiene el archivo)
@@ -62,7 +82,7 @@ def read_config() -> dict:
     from config_loader import load_config
     if not CONFIG_PATH.exists():
         return {"paths": {"base_vault": "", "exports_dir": "", "gizmo_map": ""},
-                "options": {"prj_vault_name": "PRJ_VAULT", "by_year": True, "by_month": True,
+                "options": {"prj_vault_name": layout.CLASICO.rel("prj"), "by_year": True, "by_month": True,
                             "make_index": True, "keep_hashes": False, "dry_run": False,
                             "theme": "warm"}}
     cfg = load_config(str(CONFIG_PATH))
@@ -539,7 +559,7 @@ def _grok_dir():
     """Carpeta GROK del vault, derivada de base_vault igual que rescue_pending.py."""
     from config_loader import load_config, get_path
     base = get_path(load_config(str(CONFIG_PATH)), "base_vault")
-    return (base / "GROK") if base else None
+    return layout.cargar(base).ruta(base, "grok.raiz") if base else None
 
 
 @app.route("/api/grok_imagine/backup", methods=["POST"])
@@ -859,7 +879,7 @@ def get_stats():
         # directory: ...\.m3m0ria_stats.json.tmp" en el Observatorio.
         if not Path(base_vault).is_dir():
             return jsonify({"error": f"la carpeta base no existe: {base_vault}"}), 400
-        prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
+        prj_name = get_opt(cfg, "prj_vault_name", None)
 
         # Cache primero: lo escribe el paso 4 del pipeline. ?refresh=1 fuerza
         # recalculo (util tras tocar el vault a mano). Si el cache falta o
@@ -869,7 +889,7 @@ def get_stats():
             cached = load_cache(Path(base_vault))
             if cached is not None:
                 return jsonify(_con_substack(_con_musica(cached, cfg), cfg))
-        stats = compute_stats(Path(base_vault), prj_name)
+        stats = compute_stats(Path(base_vault), prj_name)  # None = el del layout
         save_cache(Path(base_vault), stats)
         return jsonify(_con_substack(_con_musica(stats, cfg), cfg))
     except Exception as e:
@@ -889,7 +909,7 @@ def orphan_cloud_api():
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({"error": "base_vault no configurado"}), 400
-        prj_name = get_opt(cfg, "prj_vault_name", "PRJ_VAULT")
+        prj_name = get_opt(cfg, "prj_vault_name", None)
         # Las tres fuentes de siembra del vocabulario de proyectos:
         # carpetas de PRJ_VAULT + gizmo_map.json + projects de los exports
         gizmo_map = get_path(cfg, "gizmo_map")
@@ -1003,7 +1023,7 @@ def get_gizmos_pendientes():
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({})
-        path = base_vault / "RAW_VAULT" / "_gizmos_pendientes.json"
+        path = layout.cargar(base_vault).ruta(base_vault, "raw") / "_gizmos_pendientes.json"
         if not path.exists():
             return jsonify({})
         with open(path, "r", encoding="utf-8-sig") as f:
@@ -1039,7 +1059,7 @@ def post_gizmos():
         with open(gizmo_map_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, ensure_ascii=False, indent=2)
 
-        raw_vault = base_vault / "RAW_VAULT"
+        raw_vault = layout.cargar(base_vault).ruta(base_vault, "raw")
         result = subprocess.run(
             [sys.executable, str(HERE / "patch_gizmo_map.py"), str(raw_vault), str(gizmo_map_path)],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -1056,8 +1076,8 @@ def post_gizmos():
 def _ruta_pendientes(base_vault, proveedor: str):
     """Cada proveedor tiene su propia lista de pendientes, con forma
     distinta -- ver _leer_pendientes."""
-    carpeta = "GROK" if proveedor == "grok" else "CHATGPT"
-    return base_vault / carpeta / "_pendientes_descarga.json"
+    clave = "grok.pendientes" if proveedor == "grok" else "chatgpt.pendientes"
+    return layout.cargar(base_vault).ruta(base_vault, clave)
 
 
 def _leer_pendientes(base_vault, proveedor: str) -> list:
@@ -1216,8 +1236,8 @@ def registrar_pendiente():
         from split_chatgpt_export import sniff_ext
 
         media_type = pendiente.get("media_type")
-        bank_name = "GENERADAS_VIDEO" if media_type == "video" else "GENERADAS_IMAGEN"
-        bank_dir = base_vault / "GROK" / bank_name
+        clave_banco = "grok.generadas_video" if media_type == "video" else "grok.generadas_imagen"
+        bank_dir = layout.cargar(base_vault).ruta(base_vault, clave_banco)
         bank_dir.mkdir(parents=True, exist_ok=True)
 
         fname = f"{hashlib.sha1(data).hexdigest()[:16]}{sniff_ext(data)}"
@@ -1288,7 +1308,7 @@ def _registrar_imagen_web(base_vault, url: str, archivo) -> "Response":
     import hashlib
     from split_chatgpt_export import sniff_ext
 
-    bank_dir = base_vault / "CHATGPT" / "WEB"
+    bank_dir = layout.cargar(base_vault).ruta(base_vault, "chatgpt.web")
     bank_dir.mkdir(parents=True, exist_ok=True)
     # Mismo esquema hash+extension que la extraccion automatica, para que
     # el resultado sea indistinguible de un asset extraido del export.
@@ -1359,11 +1379,11 @@ def sessions_status():
         base_vault = get_path(cfg, "base_vault")
         if not base_vault:
             return jsonify({"claude_code": 0, "codex": 0, "total": 0})
-        merged = Path(base_vault) / "MERGED_VAULT"
-        cc = len(list((merged / "CLAUDE_CODE" / "SESIONES").glob("*.jsonl"))) \
-            if (merged / "CLAUDE_CODE" / "SESIONES").exists() else 0
-        cx = len(list((merged / "CODEX" / "SESIONES").glob("*.jsonl"))) \
-            if (merged / "CODEX" / "SESIONES").exists() else 0
+        lay = layout.cargar(base_vault)
+        d_cc = lay.ruta(base_vault, "sesiones.claude_code")
+        d_cx = lay.ruta(base_vault, "sesiones.codex")
+        cc = len(list(d_cc.glob("*.jsonl"))) if d_cc.exists() else 0
+        cx = len(list(d_cx.glob("*.jsonl"))) if d_cx.exists() else 0
         return jsonify({"claude_code": cc, "codex": cx, "total": cc + cx})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -30,12 +30,15 @@ Uso rápido:
   python MemorIA2GO.py --config mi_config.yaml --reprocess-all
 """
 
+import os
 import sys
 import datetime
 import json
 import subprocess
 import time
 from pathlib import Path
+
+import layout
 
 # Fuerza UTF-8 en stdout/stderr: sin esto, la consola legacy de Windows (cp1252)
 # revienta con UnicodeEncodeError en cuanto imprime un emoji (🧙, 📦, etc.),
@@ -230,9 +233,9 @@ def wizard() -> dict:
     )
     gizmo_map_path = resolve_gizmo_map(gizmo_map_path) if gizmo_map_path else None
 
-    prj_vault_name = ask("📂 Nombre del vault de proyectos", default="PRJ_VAULT")
+    prj_vault_name = ask("📂 Nombre del vault de proyectos", default=layout.CLASICO.rel("prj"))
     if not prj_vault_name:
-        prj_vault_name = "PRJ_VAULT"
+        prj_vault_name = layout.CLASICO.rel("prj")
 
     by_date = confirm("📅 ¿Organizar notas por año/mes dentro de cada proyecto?", default=True)
     make_index = confirm("📋 ¿Generar índice de conversaciones (_index.md)?", default=True)
@@ -294,7 +297,7 @@ def load_from_yaml(config_path: str | None = None,
             "gizmo_map_path": gizmo_map if (gizmo_map and gizmo_map.exists()) else None,
             "by_date": get_opt(cfg, "by_month", True),
             "make_index": get_opt(cfg, "make_index", True),
-            "prj_vault_name": get_opt(cfg, "prj_vault_name", "PRJ_VAULT"),
+            "prj_vault_name": get_opt(cfg, "prj_vault_name", None),
             "dry_run": get_opt(cfg, "dry_run", False),
             "keep_hashes": get_opt(cfg, "keep_hashes", False),
         }
@@ -310,6 +313,28 @@ def load_from_yaml(config_path: str | None = None,
 # ─────────────────────────────────────────
 # Pasos del pipeline
 # ─────────────────────────────────────────
+
+def _layout(params: dict):
+    """Layout de carpetas del vault de estos params: el entorno si lo hay, si no
+    el marcador del vault, si no el clasico. `prj_vault_name` de la config
+    (opcion de siempre) manda sobre la carpeta de proyectos."""
+    return layout.cargar(params.get("vault_path"), params.get("prj_vault_name"))
+
+
+def _anotar_layout(params: dict, lay, log_path: Path) -> None:
+    """Deja en el vault el layout con el que se esta construyendo, si aun no hay
+    marcador: es lo que permite saber, al migrar, de que layout se parte, sin
+    adivinarlo mirando carpetas. No pisa uno existente ni toca un vault que no
+    existe (dry-run, config a medias)."""
+    base = Path(params["vault_path"])
+    if params.get("dry_run") or not base.is_dir() or layout.leer_marcador(base) is not None:
+        return
+    try:
+        layout.escribir_marcador(base, lay)
+        log(log_path, f"Marcador de layout escrito: {base / layout.MARCADOR}")
+    except OSError as e:
+        warn(f"No pude escribir el marcador de layout ({e}); el vault funciona igual.")
+
 
 def _ingerir_extras_newclaude_si_aplica(export_path: Path, base_vault: Path) -> dict:
     """Hook del Paso 1 para el nuevo export de Claude (2026-09+).
@@ -367,14 +392,15 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
     escribe ahi directamente por ruta absoluta, y los enlaces en las notas
     tambien son absolutos desde la raiz del vault de Obsidian (mismo criterio
     que ya se uso para el bug de IMAGE_BANK del 2026-07-20)."""
-    rule("Paso 1 — Importar (RAW_VAULT)")
+    rule(f"Paso 1 — Importar ({_layout(params).rel('raw')})")
 
     script = HERE / "split_chatgpt_export.py"
     if not script.exists():
         error(f"No encuentro split_chatgpt_export.py en {HERE}")
         sys.exit(1)
 
-    raw_vault = params["vault_path"] / "RAW_VAULT"
+    lay = _layout(params)
+    raw_vault = lay.ruta(params["vault_path"], "raw")
 
     if not HAS_PREFLIGHT:
         error("No encuentro preflight.py -- no puedo determinar que exports procesar. Abortando.")
@@ -388,7 +414,7 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
 
     info(f"Exports pendientes de importar: {len(pending)} ({', '.join(p.name for p in pending)})")
 
-    conv_dir = raw_vault / "Conversaciones"
+    conv_dir = raw_vault / lay.rel("conversaciones")
     conv_dir.mkdir(parents=True, exist_ok=True)
 
     procesados_ok = []
@@ -441,14 +467,14 @@ def paso1_split(params: dict, chatgpt_generadas: Path, chatgpt_adjuntos: Path,
 def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
     """RAW_VAULT → MERGED_VAULT: fusiona variantes por huella de mensaje,
     sin perder contenido divergente entre reimportaciones."""
-    rule("Paso 2 — Fusionar sin pérdidas (MERGED_VAULT)")
+    rule(f"Paso 2 — Fusionar sin pérdidas ({_layout(params).rel('merged')})")
 
     script = HERE / "vault_merge.py"
     if not script.exists():
         error(f"No encuentro vault_merge.py en {HERE}")
         sys.exit(1)
 
-    merged_vault = params["vault_path"] / "MERGED_VAULT"
+    merged_vault = _layout(params).ruta(params["vault_path"], "merged")
 
     args = [raw_vault, merged_vault, "--merge", "--by-year", "--by-month", "--verbose"]
 
@@ -461,19 +487,19 @@ def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
 
 def paso3_organizar(params: dict, merged_vault: Path, log_path: Path):
     """Reorganiza MERGED_VAULT por Project_name en PRJ_VAULT."""
-    rule("Paso 3 — Organizar por proyectos (PRJ_VAULT)")
+    rule(f"Paso 3 — Organizar por proyectos ({_layout(params).rel('prj')})")
 
     script = HERE / "project_organizer.py"
     if not script.exists():
         warn("No encuentro project_organizer.py — omitiendo paso 3.")
         return
 
-    project_vault = params["vault_path"] / params.get("prj_vault_name", "PRJ_VAULT")
+    project_vault = _layout(params).ruta(params["vault_path"], "prj")
     project_vault.mkdir(parents=True, exist_ok=True)
 
     if not params.get("by_date"):
-        warn("Sin organización por año/mes, los enlaces de imagen en PRJ_VAULT "
-             "pueden no resolver correctamente (profundidad distinta a MERGED_VAULT).")
+        warn("Sin organización por año/mes, los enlaces de imagen en el vault de proyectos "
+             "pueden no resolver correctamente (profundidad distinta a la del fusionado).")
 
     args = [merged_vault, project_vault]
     if params.get("by_date"):
@@ -481,7 +507,7 @@ def paso3_organizar(params: dict, merged_vault: Path, log_path: Path):
 
     ok_flag = run_script(script, args, log_path)
     if not ok_flag:
-        warn("Paso 3 fallido — MERGED_VAULT sigue disponible como fuente de verdad.")
+        warn(f"Paso 3 fallido — {_layout(params).rel('merged')} sigue disponible como fuente de verdad.")
         return None
     ok(f"Vault por proyectos listo en: {project_vault}")
     return project_vault
@@ -503,22 +529,24 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     # (titulo, archivo de salida, ["prefijo:etiqueta", ...] para --banco,
     # ["prefijo:etiqueta", ...] para --banco-catalogo). Un indice por
     # proveedor, cada banco de ese proveedor como su propia rama colapsada.
+    lay = layout.cargar(base_vault)
     proveedores = [
         ("ChatGPT", "_index_chatgpt.md",
-         ["CHATGPT/GENERADAS:Generadas", "CHATGPT/ADJUNTOS:Adjuntos"], []),
+         [f"{lay.rel('chatgpt.generadas')}:Generadas", f"{lay.rel('chatgpt.adjuntos')}:Adjuntos"], []),
         ("Claude", "_index_claude.md",
-         ["CLAUDE/ARTEFACTOS:Artefactos"], []),
+         [f"{lay.rel('claude.artefactos')}:Artefactos"], []),
         ("Grok", "_index_grok.md",
-         ["GROK/ADJUNTOS:Adjuntos"],
-         ["GROK/GENERADAS_IMAGEN:Generadas (imagen)", "GROK/GENERADAS_VIDEO:Generadas (video)"]),
+         [f"{lay.rel('grok.adjuntos')}:Adjuntos"],
+         [f"{lay.rel('grok.generadas_imagen')}:Generadas (imagen)",
+          f"{lay.rel('grok.generadas_video')}:Generadas (video)"]),
     ]
-    grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
+    grok_pendientes_json = lay.ruta(base_vault, "grok.pendientes")
 
     # Indices viejos, uno por banco de ChatGPT, superados por _index_chatgpt.md.
     # Se retiran en cada corrida para que no queden colgando desincronizados.
     archivos_obsoletos = ["_image_index.md", "_index_generadas.md", "_index_adjuntos.md"]
 
-    targets = [(merged_vault, "Conversaciones")]
+    targets = [(merged_vault, lay.rel("conversaciones"))]
     if project_vault is not None:
         # PRJ_VAULT no tiene subcarpeta "Conversaciones": project_organizer.py
         # organiza directo como {proyecto}/{ano}/{mes}/nota.md desde la raiz.
@@ -649,11 +677,11 @@ def main():
             from rich.markup import escape
             console.print(f"  [cyan]Exports: [/cyan][bright_cyan]{escape(str(params['exports_dir']))}[/bright_cyan]")
             console.print(f"  [cyan]Vault:   [/cyan][bright_cyan]{escape(str(params['vault_path']))}[/bright_cyan]")
-            console.print(f"  [cyan]PRJ vault: [/cyan][bright_cyan]{escape(str(params.get('prj_vault_name', 'PRJ_VAULT')))}[/bright_cyan]")
+            console.print(f"  [cyan]PRJ vault: [/cyan][bright_cyan]{escape(_layout(params).rel('prj'))}[/bright_cyan]")
         else:
             info(f"  Exports: {params['exports_dir']}")
             info(f"  Vault:   {params['vault_path']}")
-            info(f"  PRJ vault: {params.get('prj_vault_name', 'PRJ_VAULT')}")
+            info(f"  PRJ vault: {_layout(params).rel('prj')}")
         if not args.yes and not confirm("[bold]¿Usar esta configuración?[/bold]", default=True):
             params = None
 
@@ -687,9 +715,21 @@ def main():
     log(log_path, f"Exports: {params['exports_dir']}")
     log(log_path, f"Vault:  {params['vault_path']}")
 
+    # Un unico layout para todo el pipeline: los procesos hijos lo heredan por
+    # entorno, de modo que ninguno decida por su cuenta como se llama una carpeta.
+    lay = _layout(params)
+    malos = lay.problemas()
+    if malos:
+        error("El layout de carpetas no es valido:")
+        for m in malos:
+            error(f"    {m}")
+        sys.exit(2)
+    os.environ.update(layout.entorno(lay))
+    _anotar_layout(params, lay, log_path)
+
     if args.reindex_only:
-        merged_vault = params["vault_path"] / "MERGED_VAULT"
-        project_vault = params["vault_path"] / params.get("prj_vault_name", "PRJ_VAULT")
+        merged_vault = lay.ruta(params["vault_path"], "merged")
+        project_vault = lay.ruta(params["vault_path"], "prj")
         if not project_vault.exists():
             project_vault = None
         paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
@@ -702,25 +742,26 @@ def main():
     # bajo CHATGPT/, hermanos de RAW_VAULT/MERGED_VAULT/PRJ_VAULT. IMAGE_BANK
     # es legado, migrado por completo y retirado de todo el pipeline
     # (ver CONTEXT.md seccion 3).
-    chatgpt_generadas = params["vault_path"] / "CHATGPT" / "GENERADAS"
-    chatgpt_adjuntos = params["vault_path"] / "CHATGPT" / "ADJUNTOS"
-    grok_adjuntos = params["vault_path"] / "GROK" / "ADJUNTOS"
-    grok_generadas_imagen = params["vault_path"] / "GROK" / "GENERADAS_IMAGEN"
-    grok_generadas_video = params["vault_path"] / "GROK" / "GENERADAS_VIDEO"
-    grok_pendientes = params["vault_path"] / "GROK" / "_pendientes_descarga.json"
-    chatgpt_pendientes = params["vault_path"] / "CHATGPT" / "_pendientes_descarga.json"
-    claude_artefactos = params["vault_path"] / "CLAUDE" / "ARTEFACTOS"
+    vp = params["vault_path"]
+    chatgpt_generadas = lay.ruta(vp, "chatgpt.generadas")
+    chatgpt_adjuntos = lay.ruta(vp, "chatgpt.adjuntos")
+    grok_adjuntos = lay.ruta(vp, "grok.adjuntos")
+    grok_generadas_imagen = lay.ruta(vp, "grok.generadas_imagen")
+    grok_generadas_video = lay.ruta(vp, "grok.generadas_video")
+    grok_pendientes = lay.ruta(vp, "grok.pendientes")
+    chatgpt_pendientes = lay.ruta(vp, "chatgpt.pendientes")
+    claude_artefactos = lay.ruta(vp, "claude.artefactos")
     info(f"🖼  Generadas: {chatgpt_generadas}")
     info(f"🖼  Adjuntos:  {chatgpt_adjuntos}")
 
     # Pipeline
     if args.from_merge:
-        raw_vault = params["vault_path"] / "RAW_VAULT"
+        raw_vault = lay.ruta(vp, "raw")
         if not raw_vault.exists():
-            error(f"--from-merge requiere un RAW_VAULT existente y no lo encuentro en: {raw_vault}")
+            error(f"--from-merge requiere un vault crudo ({lay.rel('raw')}) existente y no lo encuentro en: {raw_vault}")
             sys.exit(1)
-        rule("Paso 1 — Omitido (--from-merge, reutilizando RAW_VAULT existente)")
-        ok(f"RAW_VAULT reutilizado: {raw_vault}")
+        rule(f"Paso 1 — Omitido (--from-merge, reutilizando {lay.rel('raw')} existente)")
+        ok(f"{lay.rel('raw')} reutilizado: {raw_vault}")
     else:
         raw_vault = paso1_split(params, chatgpt_generadas, chatgpt_adjuntos,
                                  grok_adjuntos, grok_generadas_imagen, grok_generadas_video,
@@ -732,20 +773,20 @@ def main():
     paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
 
     rule("Proceso completado")
-    ok(f"RAW_VAULT     → {raw_vault}")
-    ok(f"MERGED_VAULT  → {merged_vault}")
+    ok(f"{lay.rel('raw'):<13} → {raw_vault}")
+    ok(f"{lay.rel('merged'):<13} → {merged_vault}")
     if project_vault is not None:
-        ok(f"PRJ_VAULT     → {project_vault}")
+        ok(f"{lay.rel('prj'):<13} → {project_vault}")
 
     try:
         from vault_stats import compute_stats, print_report
         rule("Resumen")
-        print_report(compute_stats(params["vault_path"], params.get("prj_vault_name", "PRJ_VAULT")))
+        print_report(compute_stats(params["vault_path"], params.get("prj_vault_name")))
     except Exception as e:
         warn(f"No pude generar el resumen de estadisticas: {e}")
 
     info(f"\nLog guardado en: {log_path}")
-    info("\nPróximo paso: añade la ruta del vault (MERGED_VAULT o PRJ_VAULT) al MCP config de Claude Desktop.")
+    info(f"\nPróximo paso: añade la ruta del vault ({lay.rel('merged')} o {lay.rel('prj')}) al MCP config de Claude Desktop.")
 
     log(log_path, "Sesión finalizada correctamente.")
 

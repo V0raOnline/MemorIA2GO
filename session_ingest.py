@@ -41,6 +41,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import layout
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -57,13 +58,13 @@ for _f in (sys.stdout, sys.stderr):
         pass
 
 # Cada proveedor de sesiones locales: su adaptador, su banco de fuente cruda,
-# su subcarpeta de madres dentro de Conversaciones/, y su etiqueta de origen.
+# su subcarpeta de madres dentro de las conversaciones, y su etiqueta de origen.
 # El adaptador se elige por deteccion del formato (ver _adaptador_de), no por
 # ruta, asi que da igual mezclar sesiones de los dos en una misma carpeta.
 PROVEEDORES = {
-    "claude-code": {"mod": cc, "banco": "CLAUDE_CODE/SESIONES",
+    "claude-code": {"mod": cc, "banco": "sesiones.claude_code",
                     "sub": "Sesiones-Code", "source": "claude_code_session"},
-    "codex": {"mod": cx, "banco": "CODEX/SESIONES",
+    "codex": {"mod": cx, "banco": "sesiones.codex",
               "sub": "Sesiones-Codex", "source": "codex_session"},
 }
 
@@ -166,13 +167,14 @@ def ingest_sesion(jsonl: Any, base_vault: Any, nivel: int = sn.NIVEL_PLEGADO
     si el .jsonl no tenia contenido util."""
     jsonl = Path(jsonl)
     base_vault = Path(base_vault)
-    merged = base_vault / "MERGED_VAULT"
+    lay = layout.cargar(base_vault)
+    merged = lay.ruta(base_vault, "merged")
 
     quien = _adaptador_de(jsonl)
     if quien is None:
         return None
     _clave, cfg = quien
-    banco_dir = merged / cfg["banco"]
+    banco_dir = lay.ruta(base_vault, cfg["banco"])
 
     sesion = cfg["mod"].parse_fichero(jsonl)
     if not sesion or not sesion.get("turns"):
@@ -185,7 +187,7 @@ def ingest_sesion(jsonl: Any, base_vault: Any, nivel: int = sn.NIVEL_PLEGADO
     # 2. Notas: madre a Conversaciones/<sub>/AAAA/MM, hijas al banco.
     fecha = sn._fecha(sesion.get("create_time"))  # AAAA-MM-DD o 'sin-fecha'
     y, m = (fecha.split("-")[0], fecha.split("-")[1]) if "-" in fecha else ("sin-fecha", "")
-    madre_dir = merged / "Conversaciones" / cfg["sub"] / y / m
+    madre_dir = merged / lay.rel("conversaciones") / cfg["sub"] / y / m
 
     extra_madre = {
         "Project_name": "none",           # huerfana: se agrupa a mano
@@ -285,7 +287,9 @@ def main() -> int:
     if total.get("activa_omitida"):
         print("Sesión activa omitida: %d (relanza cuando la cierres para "
               "capturarla entera)" % total["activa_omitida"])
-    print("Fuente cruda preservada en MERGED_VAULT/{CLAUDE_CODE,CODEX}/SESIONES")
+    lay = layout.cargar()
+    print("Fuente cruda preservada en %s y %s"
+          % (lay.rel("sesiones.claude_code"), lay.rel("sesiones.codex")))
     return 0
 
 

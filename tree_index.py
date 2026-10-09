@@ -23,6 +23,7 @@ import re
 import argparse
 from pathlib import Path
 from collections import defaultdict
+import layout
 
 MONTH_NAMES_ES = {
     "01": "01 · enero", "02": "02 · febrero", "03": "03 · marzo",
@@ -188,7 +189,7 @@ def main():
     ap.add_argument("vault", help="Ruta al vault (raiz que contiene la carpeta de conversaciones)")
     ap.add_argument("--out", default="_tree_index.md", help="Archivo de salida dentro del vault")
     ap.add_argument("--max-per-month", type=int, default=0, help="Limite de notas por mes (0 = sin limite)")
-    ap.add_argument("--conversations-dir", default="Conversaciones", help="Subcarpeta a escanear dentro del vault")
+    ap.add_argument("--conversations-dir", default=layout.cargar().rel("conversaciones"), help="Subcarpeta a escanear dentro del vault")
     args = ap.parse_args()
 
     vault = Path(args.vault).expanduser().resolve()

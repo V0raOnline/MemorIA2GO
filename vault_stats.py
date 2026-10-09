@@ -19,6 +19,7 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
+import layout
 
 from tree_index import read_frontmatter, DATE_RX, INDEX_FILENAMES, iter_markdown_files
 
@@ -34,7 +35,7 @@ def human_size(num_bytes: int) -> str:
 
 def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict:
     """conversations_dir='.' si las notas cuelgan directo de vault_path (caso
-    PRJ_VAULT); 'Conversaciones' si viven en esa subcarpeta (RAW/MERGED)."""
+    vault de proyectos); si no, la subcarpeta de conversaciones (RAW/MERGED)."""
     conv_base = vault_path if conversations_dir == "." else vault_path / conversations_dir
 
     total_size = 0
@@ -113,13 +114,13 @@ def _count_dir(path: Path) -> "tuple[int, int]":
 
 
 # Bancos fijos por proveedor (taxonomia 2026-07-22, ver CONTEXT.md seccion 3):
-# (ruta relativa a base_vault, etiqueta legible). Claude no esta aqui porque
+# (clave del layout, etiqueta legible). Claude no esta aqui porque
 # sus subcarpetas (markdown/html/codigo/...) son dinamicas por tipo -- se
 # recorren directamente en compute_asset_stats.
 ASSET_BANKS = {
-    "chatgpt": [("CHATGPT/GENERADAS", "generadas"), ("CHATGPT/ADJUNTOS", "adjuntos")],
-    "grok": [("GROK/ADJUNTOS", "adjuntos"), ("GROK/GENERADAS_IMAGEN", "generadas (imagen)"),
-             ("GROK/GENERADAS_VIDEO", "generadas (video)")],
+    "chatgpt": [("chatgpt.generadas", "generadas"), ("chatgpt.adjuntos", "adjuntos")],
+    "grok": [("grok.adjuntos", "adjuntos"), ("grok.generadas_imagen", "generadas (imagen)"),
+             ("grok.generadas_video", "generadas (video)")],
 }
 
 
@@ -129,6 +130,7 @@ def compute_asset_stats(base_vault: Path) -> dict:
     -- generadas/adjuntos por proveedor, mas los artefactos de Claude por
     tipo -- con total agregado y desglose por proveedor."""
     base_vault = Path(base_vault)
+    lay = layout.cargar(base_vault)
     por_proveedor: dict = {}
     total_items = 0
     total_bytes = 0
@@ -137,8 +139,8 @@ def compute_asset_stats(base_vault: Path) -> dict:
         detalle = []
         items = 0
         size = 0
-        for rel, etiqueta in bancos:
-            n, b = _count_dir(base_vault / rel)
+        for clave, etiqueta in bancos:
+            n, b = _count_dir(lay.ruta(base_vault, clave))
             detalle.append({"etiqueta": etiqueta, "items": n})
             items += n
             size += b
@@ -146,7 +148,7 @@ def compute_asset_stats(base_vault: Path) -> dict:
         total_items += items
         total_bytes += size
 
-    claude_dir = base_vault / "CLAUDE" / "ARTEFACTOS"
+    claude_dir = lay.ruta(base_vault, "claude.artefactos")
     detalle = []
     items = 0
     size = 0
@@ -199,27 +201,31 @@ def compute_gizmos_pendientes(raw_vault: Path) -> int:
         return 0
 
 
-def compute_stats(base_vault: Path, prj_vault_name: str = "PRJ_VAULT") -> dict:
+def compute_stats(base_vault: Path, prj_vault_name: Optional[str] = None) -> dict:
     base_vault = Path(base_vault)
-    raw_vault = base_vault / "RAW_VAULT"
-    merged_vault = base_vault / "MERGED_VAULT"
-    project_vault = base_vault / prj_vault_name
+    lay = layout.cargar(base_vault, prj_vault_name)
+    raw_vault = lay.ruta(base_vault, "raw")
+    merged_vault = lay.ruta(base_vault, "merged")
+    project_vault = lay.ruta(base_vault, "prj")
 
     # Resumen de temas escrito por orphan_cloud al generar el indice
     # (tolerante: sin indice generado, sin seccion de temas)
     temas_stats = None
     try:
         temas_stats = json.loads(
-            (merged_vault / "_Temas" / ".temas_stats.json").read_text(encoding="utf-8"))
+            (lay.ruta(base_vault, "temas") / ".temas_stats.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
 
     return {
         "base_vault": str(base_vault),
+        # `vaults` va por NOMBRE de carpeta (contrato de siempre); `layout` dice
+        # cual es cual, para quien necesite el vault fusionado sin saber como se llama.
+        "layout": {"raw": lay.rel("raw"), "merged": lay.rel("merged"), "prj": lay.rel("prj")},
         "vaults": {
-            "RAW_VAULT": compute_single_vault_stats(raw_vault, "Conversaciones"),
-            "MERGED_VAULT": compute_single_vault_stats(merged_vault, "Conversaciones"),
-            prj_vault_name: compute_single_vault_stats(project_vault, "."),
+            lay.rel("raw"): compute_single_vault_stats(raw_vault, lay.rel("conversaciones")),
+            lay.rel("merged"): compute_single_vault_stats(merged_vault, lay.rel("conversaciones")),
+            lay.rel("prj"): compute_single_vault_stats(project_vault, "."),
         },
         "assets": compute_asset_stats(base_vault),
         "ultima_importacion": compute_last_import(raw_vault),
@@ -288,7 +294,8 @@ def print_report(stats: dict):
 def main():
     ap = argparse.ArgumentParser(description="Estadisticas de un base_vault de MemorIA2GO.")
     ap.add_argument("base_vault")
-    ap.add_argument("--prj-vault-name", default="PRJ_VAULT")
+    ap.add_argument("--prj-vault-name", default=None,
+                    help="Nombre del vault de proyectos (por defecto, el del layout)")
     ap.add_argument("--json", action="store_true", help="Imprime JSON crudo en vez del informe legible")
     ap.add_argument("--write-cache", action="store_true",
                     help="Escribe las estadisticas en el cache junto al base_vault (usado por el paso 4 del pipeline)")

@@ -32,6 +32,7 @@ import os
 import re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional
+import layout
 
 from tree_index import read_frontmatter, INDEX_FILENAMES, iter_markdown_files
 
@@ -305,18 +306,18 @@ def main():
     ap = argparse.ArgumentParser(description="Genera un indice de contenido colapsable por proveedor.")
     ap.add_argument("vault", help="Ruta al vault a escanear (donde viven las notas)")
     ap.add_argument("--base-vault", default=None,
-                     help="Raiz donde viven los bancos de assets (hermanos de RAW_VAULT/MERGED_VAULT/"
-                          "PRJ_VAULT), p.ej. CHATGPT/GENERADAS cuelga de aqui. Por defecto, el propio "
+                     help="Raiz donde viven los bancos de assets (hermanos de los vaults), de la que "
+                          "cuelgan los prefijos de --banco. Por defecto, el propio "
                           "vault (sirve si vault YA es esa raiz, pero normalmente no lo es).")
-    ap.add_argument("--conversations-dir", default="Conversaciones")
+    ap.add_argument("--conversations-dir", default=layout.cargar().rel("conversaciones"))
     ap.add_argument("--proveedor", required=True, help="Titulo del proveedor (ChatGPT, Claude, Grok...)")
     ap.add_argument("--out", required=True, help="Archivo de salida dentro del vault")
     ap.add_argument("--banco", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, un --banco por rama con enlaces en notas. "
-                          "Ejemplo: 'CHATGPT/GENERADAS:Generadas'")
+                          "El prefijo es la ruta tal como aparece en los enlaces, p.ej. 'banco/sub:Etiqueta'")
     ap.add_argument("--banco-catalogo", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, para bancos SIN enlace en ninguna nota "
-                          "(p.ej. GROK/GENERADAS_IMAGEN: media_posts es root-level). Se lista "
+                          "(p.ej. las generaciones de Imagine: media_posts es root-level). Se lista "
                           "directo desde el manifest, no cruzando con notas.")
     ap.add_argument("--pendientes-json", default=None,
                      help="[Grok] Ruta a _pendientes_descarga.json -- genera ademas una nota aparte "

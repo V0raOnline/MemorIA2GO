@@ -14,6 +14,7 @@ import os, re, argparse, shutil
 from pathlib import Path
 
 from tree_index import iter_markdown_files
+import layout
 
 def extract_yaml_field(text: str, key: str) -> str | None:
     m = re.search(rf'^{key}:\s*["\']?([^"\n\r#]+)', text, re.MULTILINE | re.IGNORECASE)
@@ -28,8 +29,9 @@ def main():
 
     src = Path(args.source).expanduser().resolve()
     dst = Path(args.target).expanduser().resolve()
-    if not (src / "Conversaciones").exists():
-        raise SystemExit(f"❌ No encuentro {src}/Conversaciones")
+    conv = layout.cargar().rel("conversaciones")
+    if not (src / conv).exists():
+        raise SystemExit(f"❌ No encuentro {src / conv}")
     dst.mkdir(parents=True, exist_ok=True)
 
     # Solo las conversaciones, no todo el vault. Bug real (2026-07-28): al
@@ -42,7 +44,7 @@ def main():
     # PRJ_VAULT es una vista de CONVERSACIONES por proyecto -- los indices
     # no pintan nada ahi. Filtrar por carpeta en vez de por lista de
     # nombres evita tener que acordarse de cada indice nuevo que se anada.
-    notes = list(iter_markdown_files(src / "Conversaciones"))
+    notes = list(iter_markdown_files(src / conv))
     created = 0
     for md in notes:
         try:

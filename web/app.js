@@ -416,9 +416,17 @@ function etiquetaMes(key) {
   return MESES_CORTOS[Number(partes[1]) - 1] + " " + partes[0].slice(2);
 }
 
+// Estadisticas del vault fusionado, sea cual sea su nombre. El servidor dice cual es en
+// stats.layout.merged; las cachés escritas por versiones anteriores no lo traen y eran
+// siempre el clasico.
+function vaultFusionado(stats) {
+  const nombre = (stats.layout && stats.layout.merged) || "MERGED_VAULT";
+  return (stats.vaults && stats.vaults[nombre]) || {};
+}
+
 function prepareEvolution(stats) {
   // Fuente de verdad temporal: MERGED_VAULT (consolidado, sin ramas duplicadas)
-  const mv = (stats.vaults && stats.vaults.MERGED_VAULT) || {};
+  const mv = vaultFusionado(stats);
   const porMes = mv.notas_por_mes || {};
   evoSinFecha = porMes["sin fecha"] || 0;
   const meses = Object.keys(porMes).filter(m => m !== "sin fecha").sort();
@@ -517,7 +525,7 @@ function renderFreshness(stats) {
 
 function renderProviders(stats) {
   const el = document.getElementById("dashboard-providers");
-  const mv = (stats.vaults && stats.vaults.MERGED_VAULT) || {};
+  const mv = vaultFusionado(stats);
   const pp = mv.notas_por_proveedor || {};
   const NOMBRES = { chatgpt: "ChatGPT", claude: "Claude", grok: "Grok" };
   const entries = Object.entries(pp);

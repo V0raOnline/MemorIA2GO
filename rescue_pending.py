@@ -92,6 +92,7 @@ import time
 from html import unescape
 from pathlib import Path
 from typing import Callable, Optional
+import layout
 
 for _flujo in (sys.stdout, sys.stderr):
     # La consola de Windows llega en cp1252 y estos mensajes llevan acentos y
@@ -139,8 +140,8 @@ META_POR_MEDIO = {"video": "og:video", "image": "og:image"}
 # Copiado del contrato real de launcher.py, no reinventado: si esto diverge,
 # el paso 1 deja de pintar los rescates.
 PROVEEDORES = {
-    "grok": {"carpeta": "GROK", "clave": "id"},
-    "chatgpt": {"carpeta": "CHATGPT", "clave": "url"},
+    "grok": {"carpeta": "grok.raiz", "pendientes": "grok.pendientes", "clave": "id"},
+    "chatgpt": {"carpeta": "chatgpt.raiz", "pendientes": "chatgpt.pendientes", "clave": "url"},
 }
 
 
@@ -152,7 +153,7 @@ class ErrorDeRescate(Exception):
 # ── Lectura y escritura de la lista de pendientes ──────────────────────────
 
 def ruta_pendientes(base_vault: Path, proveedor: str) -> Path:
-    return base_vault / PROVEEDORES[proveedor]["carpeta"] / "_pendientes_descarga.json"
+    return layout.cargar(base_vault).ruta(base_vault, PROVEEDORES[proveedor]["pendientes"])
 
 
 def leer_pendientes(path: Path) -> list:
@@ -341,10 +342,10 @@ def _banco(base_vault: Path, proveedor: str, entrada: dict) -> Path:
     if proveedor == "chatgpt":
         # Banco propio a propósito (decisión V0ra 2026-07-27): no es GENERADAS
         # (no la generó la IA) ni ADJUNTOS (no la subió ella).
-        return base_vault / "CHATGPT" / "WEB"
-    nombre = ("GENERADAS_VIDEO" if entrada.get("media_type") == "video"
-              else "GENERADAS_IMAGEN")
-    return base_vault / "GROK" / nombre
+        return layout.cargar(base_vault).ruta(base_vault, "chatgpt.web")
+    clave = ("grok.generadas_video" if entrada.get("media_type") == "video"
+             else "grok.generadas_imagen")
+    return layout.cargar(base_vault).ruta(base_vault, clave)
 
 
 def _anotar_manifest(banco: Path, fname: str, proveedor: str, entrada: dict) -> None:
@@ -418,6 +419,7 @@ def rescatar(base_vault: Path,
         fetch = descargar
         fetch_pagina = fetch_pagina or descargar_texto
     cfg = PROVEEDORES[proveedor]
+    carpeta = layout.cargar(base_vault).rel(cfg["carpeta"])
     path = ruta_pendientes(base_vault, proveedor)
     pendientes = leer_pendientes(path)
     cola = sin_triar(pendientes)
@@ -429,11 +431,11 @@ def rescatar(base_vault: Path,
              "desconocidos": 0, "fallos": []}
 
     if not cola:
-        log("No hay pendientes sin triar en %s." % cfg["carpeta"])
+        log("No hay pendientes sin triar en %s." % carpeta)
         return stats
 
     log("%s: %d sin triar, %d a intentar%s"
-        % (cfg["carpeta"], stats["sin_triar"], len(cola),
+        % (carpeta, stats["sin_triar"], len(cola),
            "  [DRY-RUN, sin red]" if dry_run else ""))
 
     sucios = 0
