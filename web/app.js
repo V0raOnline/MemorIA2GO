@@ -50,7 +50,7 @@ function showTab(name) {
   // 1) Sidebar: marcar boton activo. Un sub-tab de una app (verificar,
   //    run, gizmos, reconexion) hace que el boton de esa app en la
   //    sidebar quede activo -- porque desde el punto de vista del
-  //    usuario, sigue "dentro" de esa app.
+  //    usuario, sigue "dentro" de esa app. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
   const appOwning = TAB_TO_APP[targetPanel] || null;
   tabButtons.forEach(b => {
     const bTab = b.dataset.tab;
@@ -876,7 +876,7 @@ document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos)
 //   Grok    -> generaciones propias de V0ra en Imagine, sin binario en el zip
 //   ChatGPT -> imágenes de búsqueda web de terceros que salieron en la charla
 // La lista de ChatGPT puede tener ~1000 filas: se pinta al desplegar, no al
-// cargar la pestaña (ver pintarFilas), o la pestaña se arrastra.
+// cargar la pestaña (ver pintarFilas), o la pestaña se arrastra. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
 // ─────────────────────────────────────────
 let pendientesCache = { grok: [], chatgpt: [] };
 
@@ -1568,7 +1568,7 @@ async function sunoAccion(url, btnId, msgId, outId, textos) {
 
 // Flow Music: mismo pipeline que Suno contra otra API. La descarga se
 // calca de sunoBackup -- POST con streaming, nunca EventSource, porque el
-// token no puede acabar en una query string.
+// token no puede acabar en una query string. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
 async function flowmusicBackup() {
   const btn = document.getElementById("btn-flowmusic-backup");
   const msg = document.getElementById("flowmusic-backup-msg");

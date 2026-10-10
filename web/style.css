@@ -268,7 +268,7 @@ main {
    -- tambien los nodos de texto sueltos. Un titulo con un <span> dentro
    ("MUSIC<span>·0</span>LOGY") se parte en tres items y aparecen 8px entre
    ellos, como si el texto tuviera espacios. Si un h2 necesita marcado
-   interno, envuelve TODO el texto en un solo <span>. */
+   interno, envuelve TODO el texto en un solo <span>. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea */
 .card h2 {
   display: flex;
   align-items: center;
@@ -1019,7 +1019,7 @@ footer {
    es un flex item mas y HEREDA ese hueco. Sin margen propio queda pegado al
    boton de arriba y no se lee como separacion. Misma familia de trampa que
    la de `.card h2` documentada mas arriba: el gap mordiendo donde no lo
-   esperas. */
+   esperas. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea */
 .nav-sep {
   height: 1px;
   background: var(--border);
