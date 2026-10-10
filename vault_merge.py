@@ -249,7 +249,7 @@ def main():
         # Resolucion de renombrados: si el grupo (mismo conv_id) contiene
         # nombres de archivo distintos, prevalece el mas reciente en disco
         # (tras un reprocess ordenado, mtime refleja el orden de exports) y
-        # el titulo mas antiguo se conserva como titulo_original.
+        # el titulo mas antiguo se conserva como titulo_original. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
         nombres = {base_name(os.path.basename(v["path"])) for v in variants}
         title_raw_nuevo = None
         titulo_original_raw = None
@@ -316,7 +316,7 @@ def main():
         # reclama este destino, la identidad no llegaba al nombre y una pisaba
         # a la otra. Se anade un fragmento corto y estable derivado de la
         # identidad del grupo (sha1 de la key = conv_id) a TODAS las que chocan,
-        # asi el nombre es unico y reproducible entre reprocesos.
+        # asi el nombre es unico y reproducible entre reprocesos. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
         if destino_de_grupo.get(key) in destinos_en_colision:
             frag = hashlib.sha1(key.encode("utf-8")).hexdigest()[:6]
             base = f"{base} · {frag}"

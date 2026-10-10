@@ -319,7 +319,7 @@ class GrokAssetIndex:
             # "content", que es el que hay que indexar). Bug real
             # 2026-07-22: tomar el primer segmento de 36 caracteres del
             # path entero cogia el uuid de usuario -- 0 aciertos en un
-            # export real con 72 file_attachments verificados a mano.
+            # export real con 72 file_attachments verificados a mano. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
             parts = name.split("/")
             if len(parts) >= 2 and parts[-1] == "content":
                 uid = parts[-2]
@@ -661,7 +661,7 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                             # subida del usuario. Bug real 2026-07-22:
                             # comprobar solo dalle.prompt clasificaba 830
                             # imagenes generadas como "subida" porque el
-                            # campo prompt viene vacio por esta via mas nueva.
+                            # campo prompt viene vacio por esta via mas nueva. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
                             meta["origen"] = "generada"
                         else:
                             meta["origen"] = "subida"
@@ -1038,7 +1038,7 @@ def load_conversations(input_path: str, image_meta_out: Optional[Dict[str, dict]
 
     # Decompressed layout of the new Claude export: evaluated before
     # the extension check because a directory has no extension and
-    # would fall into the RuntimeError below.
+    # would fall into the RuntimeError below. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
     if os.path.isdir(p):
         from providers import newclaude_adapter
         if newclaude_adapter.detect_layout(p):

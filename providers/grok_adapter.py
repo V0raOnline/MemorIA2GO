@@ -54,7 +54,7 @@ ROLE_MAP = {"human": "user", "assistant": "assistant"}
 # a projects/workspaces en el export, ver docstring del modulo). Nota
 # aparte para la discusion de artefactos: asset_ids/media_types/
 # root_asset_id apuntan a las generaciones de Imagine -- relevante para
-# esa conversacion, no para este chequeo de deriva.
+# esa conversacion, no para este chequeo de deriva. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
 KNOWN_KEYS = frozenset({
     "id", "title", "create_time", "modify_time", "leaf_response_id",
     "anon_user_id", "asset_ids", "controller", "kind", "media_types",
@@ -171,7 +171,7 @@ def parse(data: Any) -> List[Dict[str, Any]]:
             "gizmo_id": None,
             "provider": "grok",
             "conv_id": meta.get("id"),
-            # Modelo mas frecuente del hilo (grok-3, grok-4...); empate -> alfabetico
+            # Modelo mas frecuente del hilo (grok-3, grok-4...); empate -> alfabetico V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
             "model": max(sorted(modelos_vistos), key=lambda m: modelos_vistos[m]) if modelos_vistos else None,
         })
     return conversations

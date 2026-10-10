@@ -117,7 +117,7 @@ def validate_export_file(path) -> dict:
         # No es un proveedor de este pipeline y no debe serlo (decision de V0ra
         # 2026-07-31: un post no es un dialogo, ver CONTEXT.md seccion 3j). Al
         # pipeline conversacional no se le ensena un supuesto nuevo, solo a
-        # RECONOCER y RECHAZAR: eso es lo que cierra el agujero.
+        # RECONOCER y RECHAZAR: eso es lo que cierra el agujero. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
         if any(n.lower() == "posts.csv" for n in names) and \
            any(n.lower().startswith("posts/") and n.lower().endswith(".html") for n in names):
             # Los CSV de posts/ (delivers/opens) y email_list.*.csv llevan
@@ -374,7 +374,7 @@ def _load_raw_json_for_sampling(p: Path):
     # at <p>/conversations-NNN/conversations.json. That's the one read
     # here; the other categories (memories, frames, projects) do NOT
     # take part in the drift sampling — they aren't "conversations"
-    # and don't carry their own KNOWN_KEYS.
+    # and don't carry their own KNOWN_KEYS. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
     if p.is_dir():
         for sub in p.iterdir():
             if sub.is_dir() and sub.name.lower().startswith("conversations-"):
