@@ -68,7 +68,9 @@ def _fijar_layout_activo():
         from config_loader import load_config, get_path, get_opt
         cfg = load_config(str(CONFIG_PATH))
         base = get_path(cfg, "base_vault")
-        lay = layout.cargar(base, get_opt(cfg, "prj_vault_name", None), usar_entorno=False)
+        raw_cfg = get_path(cfg, "raw_vault")
+        lay = layout.cargar(base, get_opt(cfg, "prj_vault_name", None), usar_entorno=False,
+                            raw_vault=str(raw_cfg) if raw_cfg else None)
         os.environ.update(layout.entorno(lay))
     except Exception:
         os.environ.pop(layout.ENV_LAYOUT, None)

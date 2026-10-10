@@ -7,6 +7,16 @@ paths:
   # 📦 Carpeta base donde se crea el vault
   base_vault: 'G:\ruta\a\tu\vault'
 
+  # 🗄️ Fuente de las notas (RAW) — OPCIONAL. Vacío = dentro de base_vault, en
+  # RAW_VAULT, como siempre. Es la materia prima del pipeline, no algo pensado
+  # para recorrerse: si no quieres que aparezca al abrir el vault en Obsidian,
+  # ponla en otra carpeta (otro disco, o fuera del vault).
+  # Si ya tienes un vault con RAW, NO cambies esto a mano: usa
+  #   python mover_raw.py --hacia <carpeta>
+  # que copia, verifica y no borra el original. Si lo cambias sin mover, el
+  # pipeline se niega a seguir en vez de partir tu fuente en dos.
+  raw_vault: ''
+
   # 🧾 Carpeta con los exports de ChatGPT (.zip/.json/.html)
   exports_dir: 'G:\ruta\a\tus\exports'
 

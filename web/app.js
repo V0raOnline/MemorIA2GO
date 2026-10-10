@@ -125,6 +125,7 @@ async function loadConfig() {
   const opts = cfg.options || {};
 
   document.getElementById("cfg-base_vault").value = paths.base_vault || "";
+  document.getElementById("cfg-raw_vault").value = paths.raw_vault || "";
   document.getElementById("cfg-exports_dir").value = paths.exports_dir || "";
   document.getElementById("cfg-gizmo_map").value = paths.gizmo_map || "";
   document.getElementById("cfg-suno_backup").value = paths.suno_backup || "";
@@ -163,6 +164,7 @@ async function saveConfig() {
   const payload = {
     paths: {
       base_vault: document.getElementById("cfg-base_vault").value.trim(),
+      raw_vault: document.getElementById("cfg-raw_vault").value.trim(),
       exports_dir: document.getElementById("cfg-exports_dir").value.trim(),
       gizmo_map: document.getElementById("cfg-gizmo_map").value.trim(),
       suno_backup: document.getElementById("cfg-suno_backup").value.trim(),
@@ -1463,6 +1465,7 @@ attachPathAutocomplete("cfg-base_vault", "suggest-base_vault");
 attachPathAutocomplete("cfg-exports_dir", "suggest-exports_dir");
 attachPathAutocomplete("cfg-gizmo_map", "suggest-gizmo_map", "json");
 attachPathAutocomplete("cfg-suno_backup", "suggest-suno_backup");
+attachPathAutocomplete("cfg-raw_vault", "suggest-raw_vault");
 attachPathAutocomplete("cfg-suno_vault", "suggest-suno_vault");
 attachPathAutocomplete("cfg-flowmusic_backup", "suggest-flowmusic_backup");
 attachPathAutocomplete("cfg-flowmusic_vault", "suggest-flowmusic_vault");

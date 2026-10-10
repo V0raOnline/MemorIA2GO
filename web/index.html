@@ -178,6 +178,14 @@
         <div class="path-suggest" id="suggest-base_vault"></div>
       </div>
       <div class="field">
+        <label for="cfg-raw_vault">Fuente de las notas (RAW) — opcional</label>
+        <input type="text" id="cfg-raw_vault" autocomplete="off" placeholder="vacío = dentro de la carpeta base">
+        <div class="path-suggest" id="suggest-raw_vault"></div>
+        <p class="field-help">Materia prima del pipeline, no para abrir en Obsidian. Si ya tienes un vault,
+          no la cambies aquí: muévela con <code>python mover_raw.py --hacia &lt;carpeta&gt;</code>
+          o el pipeline se negará a seguir.</p>
+      </div>
+      <div class="field">
         <label for="cfg-exports_dir">Carpeta con tus exports (.zip / .json / .html / .csv)</label>
         <input type="text" id="cfg-exports_dir" autocomplete="off">
         <div class="path-suggest" id="suggest-exports_dir"></div>

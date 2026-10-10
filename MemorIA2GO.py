@@ -298,6 +298,8 @@ def load_from_yaml(config_path: str | None = None,
             "by_date": get_opt(cfg, "by_month", True),
             "make_index": get_opt(cfg, "make_index", True),
             "prj_vault_name": get_opt(cfg, "prj_vault_name", None),
+            # Fuente RAW fuera de base_vault (opcional). Vacio = dentro, como siempre.
+            "raw_vault": get_path(cfg, "raw_vault"),
             "dry_run": get_opt(cfg, "dry_run", False),
             "keep_hashes": get_opt(cfg, "keep_hashes", False),
         }
@@ -316,9 +318,11 @@ def load_from_yaml(config_path: str | None = None,
 
 def _layout(params: dict):
     """Layout de carpetas del vault de estos params: el entorno si lo hay, si no
-    el marcador del vault, si no el clasico. `prj_vault_name` de la config
-    (opcion de siempre) manda sobre la carpeta de proyectos."""
-    return layout.cargar(params.get("vault_path"), params.get("prj_vault_name"))
+    el marcador del vault, si no el clasico. De la config manda `prj_vault_name`
+    (opcion de siempre) sobre la carpeta de proyectos y `raw_vault` sobre la
+    ubicacion de la fuente: que discrepe del vault lo para `layout.conflictos`."""
+    return layout.pedido(params.get("vault_path"), params.get("prj_vault_name"),
+                         params.get("raw_vault"))
 
 
 def _anotar_layout(params: dict, lay, log_path: Path) -> None:
@@ -718,10 +722,18 @@ def main():
     # Un unico layout para todo el pipeline: los procesos hijos lo heredan por
     # entorno, de modo que ninguno decida por su cuenta como se llama una carpeta.
     lay = _layout(params)
-    malos = lay.problemas()
+    malos = lay.problemas(params["vault_path"])
     if malos:
         error("El layout de carpetas no es valido:")
         for m in malos:
+            error(f"    {m}")
+        sys.exit(2)
+    # Antes de escribir NADA: si la config pide otra fuente RAW que la del vault,
+    # seguir partiria el RAW en dos sin un solo error.
+    conflicto = layout.conflictos(params["vault_path"], lay)
+    if conflicto:
+        error("No sigo: la configuracion y el vault no coinciden en donde esta la fuente (RAW):")
+        for m in conflicto:
             error(f"    {m}")
         sys.exit(2)
     os.environ.update(layout.entorno(lay))
