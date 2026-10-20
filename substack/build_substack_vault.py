@@ -167,6 +167,117 @@ def localizar_export(exports_dir: Path):
     return None
 
 
+# ─────────────────────────────────────────
+# Varias publicaciones en la misma carpeta de exports
+#
+# Cada publicacion de Substack tiene su propio export (su propio zip). Hasta
+# aqui Tintero cogia UNO -- el mas reciente --, y los demas no existian. La
+# identidad de cada publicacion esta dentro de los ficheros, no hay que
+# adivinarla: el zip trae `email_list.<slug>.csv` y el CSV de estadisticas
+# empieza por `<slug>_`.
+# ─────────────────────────────────────────
+
+LAYOUT_ANTIGUO = ("Posts", "Borradores", "Drafts", "_indice.md", "_secciones.md")
+INDICE_PUBLICACIONES = "_publicaciones.md"
+
+
+class LayoutAntiguoError(ValueError):
+    """El vault tiene el layout de un solo export y ahora hay varias publicaciones."""
+
+
+def es_csv_de_stats(ruta: Path) -> bool:
+    """Se reconoce por la cabecera, no por el nombre: en esa carpeta puede haber
+    otros CSV y meter uno equivocado daria un cruce silencioso de 0 filas.
+
+    Hay MAS DE UN ESQUEMA. El de V0raOnline trae section_name, tags, likes, comments...;
+    el de una publicacion con menos historial (BitacoraClandestina, 2026-10-20) solo
+    title, post_date, audience, views, engagement_rate, signups... Exigir section_name
+    descartaba el segundo, que cruzaba 45 de 45 con su zip. Se piden las columnas de
+    cruce (title y post_date, como columnas enteras: 'subtitle' no es 'title') y al
+    menos una metrica."""
+    try:
+        with open(ruta, "r", encoding="utf-8-sig", newline="") as f:
+            columnas = set(next(csv.reader(f), []))
+    except (OSError, UnicodeDecodeError, csv.Error):
+        return False
+    return {"title", "post_date"} <= columnas and bool(columnas & {"views", "section_name"})
+
+
+def slug_de_publicacion(nombres, zip_path: Path) -> str:
+    """El slug de la publicacion: el de `email_list.<slug>.csv` dentro del zip. Si
+    no hay (un export recortado), el nombre del zip reducido a letras y numeros."""
+    encontrados = sorted(m.group(1).lower() for n in nombres if "/" not in n
+                         for m in [re.fullmatch(r"email_list\.(.+)\.csv", n, re.I)] if m)
+    if encontrados:
+        return encontrados[0]
+    return re.sub(r"[^a-z0-9]", "", Path(zip_path).stem.lower()) or "publicacion"
+
+
+def exports_por_publicacion(exports_dir: Path):
+    """({slug: zip}, [zips ignorados]). De cada publicacion se usa el export mas
+    reciente; los demas se devuelven aparte para poder decirlo, no se descartan
+    en silencio."""
+    publicaciones, repetidos = {}, []
+    zips = sorted(Path(exports_dir).glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for z in zips:
+        try:
+            with zipfile.ZipFile(z) as zf:
+                nombres = zf.namelist()
+        except (zipfile.BadZipFile, OSError):
+            continue
+        if not es_export_substack(nombres):
+            continue
+        slug = slug_de_publicacion(nombres, z)
+        if slug in publicaciones:
+            repetidos.append(z)
+        else:
+            publicaciones[slug] = z
+    return publicaciones, repetidos
+
+
+def localizar_stats(exports_dir: Path, slug: str, unica: bool):
+    """El CSV de estadisticas de UNA publicacion: el mas reciente cuyo nombre empieza
+    por `<slug>_`. Una publicacion sin CSV propio NO se lleva el de otra.
+
+    Con una sola publicacion se acepta ademas cualquier CSV valido (compatibilidad: quien
+    ya lo usaba con el CSV renombrado no se queda sin estadisticas)."""
+    validos = [p for p in sorted(Path(exports_dir).glob("*.csv"), reverse=True) if es_csv_de_stats(p)]
+    propios = [p for p in validos if p.name.lower().startswith(slug + "_")]
+    if propios:
+        return propios[0]
+    return validos[0] if (unica and validos) else None
+
+
+def nombre_visible(slug: str, zip_path: Path) -> str:
+    """Como se muestra una publicacion: el nombre del zip sin el sufijo de fecha
+    (`BitacoraClandestina201026` -> `BitacoraClandestina`) cuando casa con el slug,
+    y si no, el propio slug."""
+    limpio = re.sub(r"[\d\W_]+$", "", Path(zip_path).stem).strip(" ._-")
+    if limpio and re.sub(r"[^a-z0-9]", "", limpio.lower()) == slug \
+            and not re.search(r'[<>:"/\\|?*]', limpio):
+        return limpio
+    return slug
+
+
+def nombre_de_carpeta(vault: Path, slug: str, zip_path: Path) -> str:
+    """Nombre de la carpeta de una publicacion dentro del vault. Estable: una carpeta
+    que ya existe se reutiliza (renombrar el zip no puede duplicar la publicacion)."""
+    vault = Path(vault)
+    if vault.is_dir():
+        for hijo in vault.iterdir():
+            if hijo.is_dir() and hijo.name.casefold() == slug.casefold():
+                return hijo.name
+    return nombre_visible(slug, zip_path)
+
+
+def layout_antiguo(vault: Path) -> list:
+    """Lo que hay en la raiz del vault del layout de un solo export."""
+    vault = Path(vault)
+    if not vault.is_dir():
+        return []
+    return [n for n in LAYOUT_ANTIGUO if (vault / n).exists()]
+
+
 def cargar_posts(zf: zipfile.ZipFile) -> list:
     datos = zf.read("posts.csv").decode("utf-8-sig")
     return list(csv.DictReader(io.StringIO(datos)))
@@ -385,7 +496,7 @@ def clasificar_estado(post: dict, tiene_stats: bool) -> str:
 
 
 def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
-                          fecha_stats: str, palabras: int) -> str:
+                          fecha_stats: str, palabras: int, publicacion: str = "") -> str:
     lineas = ["---"]
     titulo = (post.get("title") or "").strip() or slug.replace("-", " ")
     lineas.append(f"title: {yaml_escape(titulo)}")
@@ -393,6 +504,8 @@ def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
     if fecha:
         lineas.append(f"date: {fecha}")
     lineas.append("source: substack_export")
+    if publicacion:
+        lineas.append(f"publication: {yaml_escape(publicacion)}")
     lineas.append(f"post_id: {yaml_escape(post.get('post_id', '').split('.', 1)[0])}")
     lineas.append(f"slug: {yaml_escape(slug)}")
     lineas.append(f"status: {yaml_escape(estado)}")
@@ -426,9 +539,9 @@ def construir_frontmatter(post: dict, stats: dict, estado: str, slug: str,
 
 
 def construir_nota(post: dict, stats: dict, cuerpo_md: str, estado: str,
-                   slug: str, fecha_stats: str) -> str:
+                   slug: str, fecha_stats: str, publicacion: str = "") -> str:
     palabras = len(cuerpo_md.split())
-    partes = [construir_frontmatter(post, stats, estado, slug, fecha_stats, palabras), ""]
+    partes = [construir_frontmatter(post, stats, estado, slug, fecha_stats, palabras, publicacion), ""]
 
     titulo = (post.get("title") or "").strip() or slug.replace("-", " ")
     partes.append(f"# {titulo}")
@@ -553,7 +666,7 @@ def construir_indice_secciones(entradas: list) -> str:
 
 
 def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = False,
-                    log=print) -> dict:
+                    log=print, publicacion=None) -> dict:
     """Nucleo, separado de main() para poder probarlo de punta a punta y
     para que la interfaz web pueda llamarlo sin pasar por argparse.
     Devuelve el resumen; no imprime nada por su cuenta salvo via `log`."""
@@ -575,6 +688,7 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
             raise ValueError("ese zip no tiene la estructura de un export de Substack "
                              "(falta posts.csv o los posts/*.html)")
 
+        publicacion = publicacion or slug_de_publicacion(nombres, export)
         ajenos = contar_csv_de_terceros(nombres)
         log(f"[info] {ajenos} CSV con datos de suscriptores IGNORADOS (no se leen nunca)")
 
@@ -609,7 +723,7 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
             cuenta[estado] += 1
 
             cuerpo = html_a_markdown(zf.read(nombre_html).decode("utf-8"))
-            nota = construir_nota(post, stats, cuerpo, estado, slug, fecha_stats)
+            nota = construir_nota(post, stats, cuerpo, estado, slug, fecha_stats, publicacion)
 
             fecha = (post.get("post_date") or "")[:10]
             if estado == "draft" or not fecha:
@@ -640,15 +754,80 @@ def construir_vault(export: Path, vault: Path, stats_path=None, dry_run: bool = 
                 escribir(vault / "_secciones.md", secciones)
                 log("[info] indices: _indice.md y _secciones.md")
             else:
-                log("[info] indice: _indice.md (sin _secciones.md: no hay CSV de estadisticas)")
+                motivo = "el CSV no trae secciones" if stats_path else "no hay CSV de estadisticas"
+                log(f"[info] indice: _indice.md (sin _secciones.md: {motivo})")
 
     return {
         "posts": len(posts),
         "csv_ignorados": ajenos,
+        "notas": len(entradas),
+        "palabras": palabras_total,
         "cruzados": cruzados,
         "sin_html": sin_html,
         **cuenta,
     }
+
+
+def construir_indice_publicaciones(resultados: list) -> str:
+    lineas = ["---", 'title: "Publicaciones"', "generado_por: m3m0ria", "---", "", "# Publicaciones", ""]
+    for r in sorted(resultados, key=lambda r: r["carpeta"].casefold()):
+        res = r["resumen"]
+        # Enlace con ruta: todas las carpetas tienen un `_indice.md`, y el nombre
+        # a secas seria ambiguo para Obsidian.
+        nombre = f"[[{r['carpeta']}/_indice|{r['carpeta']}]]" if res["notas"] else r["carpeta"]
+        palabras = f"{res['palabras']:,}".replace(",", ".")
+        lineas.append(f"- {nombre} — {res['posts']} posts · {res['published']} publicados · "
+                      f"{res['draft']} borradores · {res['retired']} retirados · {palabras} palabras")
+    return "\n".join(lineas) + "\n"
+
+
+def construir_publicaciones(exports_dir: Path, vault: Path, dry_run: bool = False,
+                            permitir_legado: bool = False, log=print, stats_forzado=None) -> dict:
+    """Construye TODAS las publicaciones de la carpeta de exports.
+
+    Con varias (o si el vault ya esta organizado asi), una carpeta por publicacion. Con
+    una sola, el vault sigue plano, como hasta ahora: no se rompe a quien ya lo usa.
+
+    Se NIEGA a construir por carpetas encima de un vault con el layout de un solo
+    export: la publicacion de la raiz quedaria duplicada en su carpeta, sin error.
+    `permitir_legado` construye igualmente las carpetas nuevas y no toca lo antiguo."""
+    exports_dir, vault = Path(exports_dir), Path(vault)
+    publicaciones, repetidos = exports_por_publicacion(exports_dir)
+    if not publicaciones:
+        raise ValueError(f"no se encontro ningun export de Substack en {exports_dir}")
+    for z in repetidos:
+        log(f"[aviso] {z.name} se ignora: hay otro export mas reciente de la misma publicacion")
+
+    por_carpetas = len(publicaciones) > 1 or (vault / INDICE_PUBLICACIONES).exists()
+    if por_carpetas:
+        legado = layout_antiguo(vault)
+        if legado and not permitir_legado:
+            raise LayoutAntiguoError(
+                f"el vault ya tiene el layout de un solo export ({', '.join(legado)}) y hay "
+                f"{len(publicaciones)} publicaciones. Construir encima dejaria duplicada la que ya esta en "
+                "la raiz, sin ningun error. Mueve tu lo antiguo a la carpeta de su publicacion, o usa "
+                "--permitir-legado para construir las carpetas nuevas sin tocar lo antiguo.")
+    if stats_forzado and len(publicaciones) > 1:
+        raise ValueError("--stats solo vale con una publicacion; con varias, cada una busca su CSV "
+                         "(<slug>_email_stats_AAAA-MM-DD.csv) en la carpeta de exports")
+
+    resultados = []
+    for slug, z in publicaciones.items():
+        carpeta = nombre_de_carpeta(vault, slug, z) if por_carpetas else ""
+        stats = Path(stats_forzado) if stats_forzado else \
+            localizar_stats(exports_dir, slug, unica=len(publicaciones) == 1)
+        log(f"[publicacion] {slug}: {z.name}" + (f" -> {carpeta}/" if carpeta else "")
+            + (f" · estadisticas: {stats.name}" if stats else " · sin CSV de estadisticas"))
+        resumen = construir_vault(z, vault / carpeta if carpeta else vault, stats,
+                                  dry_run=dry_run, log=log, publicacion=slug)
+        resultados.append({"slug": slug, "carpeta": carpeta, "export": z.name,
+                           "stats": stats.name if stats else None, "resumen": resumen})
+
+    if por_carpetas and not dry_run:
+        escribir(vault / INDICE_PUBLICACIONES, construir_indice_publicaciones(resultados))
+        log(f"[info] indice de publicaciones: {INDICE_PUBLICACIONES}")
+    return {"modo": "carpetas" if por_carpetas else "plano", "publicaciones": resultados,
+            "ignorados": [z.name for z in repetidos]}
 
 
 def main():
@@ -656,26 +835,38 @@ def main():
         description="Construye el vault de Tintero/Inkwell desde un export de Substack.")
     origen = ap.add_mutually_exclusive_group(required=True)
     origen.add_argument("--export", help="Ruta al .zip del export de Substack")
-    origen.add_argument("--exports-dir", help="Carpeta donde buscar el export (detecta por estructura)")
+    origen.add_argument("--exports-dir", help="Carpeta donde buscar los exports (detecta por estructura); "
+                                              "construye TODAS las publicaciones que haya")
     ap.add_argument("--vault-dir", required=True, help="Carpeta de salida del vault de Obsidian")
     ap.add_argument("--stats", help="CSV de estadisticas descargado del panel (opcional)")
     ap.add_argument("--dry-run", action="store_true", help="No escribe nada, solo informa")
+    ap.add_argument("--permitir-legado", action="store_true",
+                    help="Con --exports-dir: construir las carpetas por publicacion aunque la raiz del vault "
+                         "tenga el layout de un solo export. No toca lo antiguo (y esa publicacion quedara "
+                         "duplicada hasta que lo muevas o lo borres tu).")
     args = ap.parse_args()
+    vault = Path(args.vault_dir)
 
-    if args.export:
-        export = Path(args.export)
-    else:
-        export = localizar_export(Path(args.exports_dir))
-        if export is None:
-            print(f"[error] no se encontro ningun export de Substack en {args.exports_dir}")
+    if args.exports_dir:
+        try:
+            r = construir_publicaciones(Path(args.exports_dir), vault, dry_run=args.dry_run,
+                                        permitir_legado=args.permitir_legado, stats_forzado=args.stats)
+        except ValueError as e:      # incluye LayoutAntiguoError
+            print(f"[error] {e}")
             sys.exit(1)
-        print(f"[info] export detectado: {export.name}")
+        for p in r["publicaciones"]:
+            s = p["resumen"]
+            print(f"[info] {p['carpeta'] or p['slug']}: publicados {s['published']} | retirados {s['retired']} "
+                  f"| borradores {s['draft']} | cruzados {s['cruzados']}/{s['posts']}")
+            if s["sin_html"]:
+                print(f"[aviso] {p['slug']}: {len(s['sin_html'])} post(s) del indice sin HTML en el zip: {s['sin_html'][:5]}")
+        print("[info] --dry-run: no se ha escrito nada" if args.dry_run else f"[ok] vault construido en {vault}")
+        return
 
+    export = Path(args.export)
     if not export.exists():
         print(f"[error] no existe {export}")
         sys.exit(1)
-
-    vault = Path(args.vault_dir)
 
     try:
         r = construir_vault(export, vault, args.stats, dry_run=args.dry_run)

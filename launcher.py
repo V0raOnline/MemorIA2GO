@@ -687,27 +687,10 @@ def _substack_run(script: str, args: list) -> tuple:
     return result.returncode, salida.strip()
 
 
-def _stats_csv_en(exports_dir) -> Path:
-    """Localiza el CSV de estadisticas dentro de la carpeta de exports. Se
-    coge el mas reciente por nombre: el fichero lleva la fecha dentro
-    (v0raonline_email_stats_AAAA-MM-DD.csv) y cada descarga sobreescribe la
-    foto anterior, asi que el ultimo es el bueno.
-
-    Se busca por contenido de cabecera, no por nombre a secas: en esa
-    carpeta puede haber otros CSV y meter uno equivocado daria un cruce
-    silencioso de 0 filas, que es peor que no encontrarlo."""
-    if not exports_dir:
-        return None
-    candidatos = []
-    for p in sorted(Path(exports_dir).glob("*.csv"), reverse=True):
-        try:
-            with open(p, "r", encoding="utf-8-sig") as f:
-                cabecera = f.readline()
-        except OSError:
-            continue
-        if "title" in cabecera and "post_date" in cabecera and "section_name" in cabecera:
-            candidatos.append(p)
-    return candidatos[0] if candidatos else None
+# El CSV de estadisticas de cada publicacion lo localiza el propio constructor
+# (substack/build_substack_vault.py: localizar_stats), emparejandolo por el slug
+# que lleva el nombre. Aqui ya no se elige UNO: con varias publicaciones eso
+# daba el CSV de una a todas.
 
 
 @app.route("/api/substack/verify", methods=["POST"])
@@ -723,7 +706,7 @@ def substack_verify():
         exports = get_path(cfg, "exports_dir")
         if not exports:
             return jsonify({"error": "Configura primero la carpeta de exports"}), 400
-        datos = verificar_export(exports, _stats_csv_en(exports))
+        datos = verificar_export(exports, vault=get_path(cfg, "substack_vault"))
         if not datos.get("encontrado"):
             return jsonify({"error": "No hay ningun export de Substack en la carpeta de exports. "
                                      "Descargalo desde los ajustes de tu publicacion y dejalo ahi."}), 404
@@ -744,14 +727,14 @@ def substack_build():
         if not vault:
             return jsonify({"error": "Configura primero el vault de Tintero (substack_vault)"}), 400
         args = ["--exports-dir", str(exports), "--vault-dir", str(vault)]
-        csv_stats = _stats_csv_en(exports)
-        if csv_stats:
-            args += ["--stats", str(csv_stats)]
-        if (request.get_json(silent=True) or {}).get("dry_run"):
+        cuerpo = request.get_json(silent=True) or {}
+        if cuerpo.get("dry_run"):
             args.append("--dry-run")
+        if cuerpo.get("permitir_legado"):
+            args.append("--permitir-legado")
         code, salida = _substack_run("build_substack_vault.py", args)
         if code != 0:
-            return jsonify({"error": salida[-500:] or "fallo al construir el vault"}), 500
+            return jsonify({"error": salida[-800:] or "fallo al construir el vault"}), 500
         return jsonify({"ok": True, "salida": salida[-4000:]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

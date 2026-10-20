@@ -156,6 +156,7 @@
     <div class="card" id="card-substack" style="display:none;">
       <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg><span>Tintero</span></h2>
       <div id="dashboard-substack" class="stat-grid"></div>
+      <p id="substack-pubs" class="field-help" style="display:none;"></p>
     </div>
   </section>
 
@@ -817,9 +818,10 @@
     <div class="card">
       <h2>Verificación</h2>
       <p class="card-help">
-        El export vive en tu carpeta de exports de siempre: el pipeline de conversaciones
-        lo reconoce, lo rechaza y esta pantalla lo recoge. Si además dejas ahí el CSV de
-        estadísticas que descargas del panel de Substack, se cruza solo.
+        Los exports viven en tu carpeta de exports de siempre: el pipeline de conversaciones
+        los reconoce, los rechaza y esta pantalla los recoge. Cada publicación de Substack
+        tiene su propio export; déjalos todos ahí. Si además dejas el CSV de estadísticas
+        de cada una (el nombre empieza por el de la publicación), se cruza solo.
       </p>
       <button class="btn" id="btn-substack-verify">Verificar el export</button>
       <div id="substack-verify-msg" class="msg"></div>
@@ -830,8 +832,8 @@
       <h2>Construcción</h2>
       <p class="card-help">
         Una nota por post. Los publicados se ordenan por año y mes; los borradores van a
-        su propia carpeta, porque no tienen fecha que los ordene. Nada de esto toca tu
-        vault de conversaciones.
+        su propia carpeta, porque no tienen fecha que los ordene. Con varias publicaciones,
+        cada una va a su propia carpeta. Nada de esto toca tu vault de conversaciones.
       </p>
       <label class="sb-check">
         <input type="checkbox" id="substack-dry-run">

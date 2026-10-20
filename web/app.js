@@ -628,6 +628,14 @@ function renderSubstack(stats) {
   }
   card.style.display = "";
   const retirados = s.retirados ? `${s.retirados} retirados` : "";
+  // Con varias publicaciones las cifras son la suma; la lista dice de quien es cada parte.
+  const pubs = document.getElementById("substack-pubs");
+  if (s.publicaciones && s.publicaciones.length > 1) {
+    pubs.textContent = s.publicaciones.map((p) => `${p.publicacion} ${p.posts}`).join(" · ");
+    pubs.style.display = "";
+  } else {
+    pubs.style.display = "none";
+  }
   document.getElementById("dashboard-substack").innerHTML = [
     statBox("Posts", s.posts, s.export),
     statBox("Palabras", s.palabras.toLocaleString("es-ES")),
@@ -651,7 +659,8 @@ const SB_ICONO_ZIP = '<path d="M4 4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0
 const SB_ICONO_CHART = '<path d="M3 3v18h18" /><circle cx="9" cy="12" r="1.5" /><circle cx="14" cy="8" r="1.5" /><circle cx="19" cy="14" r="1.5" />';
 const SB_ICONO_ESCUDO = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12h6" />';
 
-function pintarVerificacion(d) {
+// Una publicacion: su zip, su CSV de estadisticas y lo que el export no trae.
+function pintarPublicacion(d) {
   const e = d.export;
   const filas = [
     sbRow("ok", SB_ICONO_ZIP, e.nombre,
@@ -685,6 +694,20 @@ function pintarVerificacion(d) {
   return html;
 }
 
+// Los avisos primero (zips repetidos, layout antiguo en el vault: cosas que conviene ver
+// ANTES de construir) y luego un bloque por publicacion, con su nombre si hay mas de una.
+function pintarVerificacion(d) {
+  let html = (d.avisos || []).map((a) =>
+    sbRow("aviso", SB_ICONO_ESCUDO, a.tipo === "layout_antiguo" ? "Layout antiguo en el vault" : "Aviso", a.texto)
+  ).join("");
+  const varias = d.publicaciones.length > 1;
+  d.publicaciones.forEach((p) => {
+    if (varias) html += `<div class="sb-ausencias-label">${p.publicacion}</div>`;
+    html += pintarPublicacion(p);
+  });
+  return html;
+}
+
 async function substackVerify() {
   const btn = document.getElementById("btn-substack-verify");
   const msg = document.getElementById("substack-verify-msg");
@@ -699,7 +722,8 @@ async function substackVerify() {
     if (data.error) throw new Error(data.error);
     out.innerHTML = pintarVerificacion(data);
     out.style.display = "";
-    msg.textContent = "Export reconocido.";
+    msg.textContent = data.publicaciones.length > 1
+      ? `${data.publicaciones.length} publicaciones reconocidas.` : "Export reconocido.";
     msg.className = "msg ok";
   } catch (e) {
     msg.textContent = `Error: ${e.message}`;

@@ -33,13 +33,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "substack"))
 import build_substack_vault as bsv  # noqa: E402
 
 
-def _localizar(exports_dir) -> Path:
+def _publicaciones(exports_dir):
+    """({slug: zip}, [zips repetidos]) de la carpeta de exports; vacio si no hay carpeta."""
     if not exports_dir:
-        return None
+        return {}, []
     d = Path(exports_dir)
     if not d.is_dir():
-        return None
-    return bsv.localizar_export(d)
+        return {}, []
+    return bsv.exports_por_publicacion(d)
 
 
 def _recuento_por_estado(posts: list, indice_stats: dict) -> dict:
@@ -54,7 +55,7 @@ def _recuento_por_estado(posts: list, indice_stats: dict) -> dict:
     return cuenta, cruzados
 
 
-# Memo en proceso, invalidado por (ruta, mtime, tamaño) del zip.
+# Memo en proceso, invalidado por (ruta, mtime, tamaño) de cada zip.
 #
 # Sin esto, la tarjeta cuesta ~1,2 s POR CARGA del dashboard: convertir los
 # 109 HTML para contar palabras es lo caro. Y el dashboard de esta app tiene
@@ -66,7 +67,37 @@ def _recuento_por_estado(posts: list, indice_stats: dict) -> dict:
 # invalidacion es trivialmente correcta (si el zip cambia, cambia mtime o
 # tamaño). Un segundo cache en disco significaria una segunda invalidacion
 # que mantener, que es justo donde se cuelan los errores que no avisan.
+# Una entrada por zip: con varias publicaciones, cambiar una no invalida las otras.
 _memo = {}
+
+
+def _cifras_de(slug: str, export: Path):
+    """Las cifras de UNA publicacion, o None si el zip no se puede leer."""
+    try:
+        st = export.stat()
+        firma = (str(export), st.st_mtime, st.st_size)
+        if firma in _memo:
+            return _memo[firma]
+        with zipfile.ZipFile(export) as zf:
+            posts = bsv.cargar_posts(zf)
+            cuenta, _ = _recuento_por_estado(posts, {})
+            palabras = 0
+            for n in zf.namelist():
+                if n.startswith("posts/") and n.endswith(".html"):
+                    palabras += len(bsv.html_a_markdown(zf.read(n).decode("utf-8")).split())
+    except (zipfile.BadZipFile, OSError, KeyError):
+        return None
+    datos = {
+        "publicacion": bsv.nombre_visible(slug, export),
+        "export": export.name,
+        "posts": len(posts),
+        "palabras": palabras,
+        "publicados": cuenta["published"],
+        "borradores": cuenta["draft"],
+        "retirados": cuenta["retired"],
+    }
+    _memo[firma] = datos
+    return datos
 
 
 def compute_substack_stats(exports_dir) -> dict:
@@ -77,51 +108,29 @@ def compute_substack_stats(exports_dir) -> dict:
     se haya descargado el CSV. Pintar a cero lo que no se sabe seria mentir
     -- misma regla que en la tarjeta de musica.
 
+    Con varias publicaciones (un zip cada una) las cifras son la SUMA, y cada una
+    viaja aparte en `publicaciones`. Hasta el 2026-10-20 solo se contaba el zip mas
+    reciente, y las otras publicaciones no existian para la tarjeta.
+
     Devuelve {} si no hay export: la tarjeta entonces no se pinta.
     """
-    export = _localizar(exports_dir)
-    if export is None:
+    pubs, _ = _publicaciones(exports_dir)
+    lista = [d for d in (_cifras_de(slug, z) for slug, z in pubs.items()) if d]
+    if not lista:
         return {}
-    try:
-        st = export.stat()
-        firma = (str(export), st.st_mtime, st.st_size)
-        if _memo.get("firma") == firma:
-            return _memo["datos"]
-        with zipfile.ZipFile(export) as zf:
-            posts = bsv.cargar_posts(zf)
-            cuenta, _ = _recuento_por_estado(posts, {})
-            palabras = 0
-            for n in zf.namelist():
-                if n.startswith("posts/") and n.endswith(".html"):
-                    palabras += len(bsv.html_a_markdown(zf.read(n).decode("utf-8")).split())
-    except (zipfile.BadZipFile, OSError, KeyError):
-        return {}
-    datos = {
-        "export": export.name,
-        "posts": len(posts),
-        "palabras": palabras,
-        "publicados": cuenta["published"],
-        "borradores": cuenta["draft"],
-        "retirados": cuenta["retired"],
+    return {
+        "export": lista[0]["export"] if len(lista) == 1 else f"{len(lista)} publicaciones",
+        "posts": sum(d["posts"] for d in lista),
+        "palabras": sum(d["palabras"] for d in lista),
+        "publicados": sum(d["publicados"] for d in lista),
+        "borradores": sum(d["borradores"] for d in lista),
+        "retirados": sum(d["retirados"] for d in lista),
+        "publicaciones": sorted(lista, key=lambda d: d["publicacion"].casefold()),
     }
-    _memo["firma"], _memo["datos"] = firma, datos
-    return datos
 
 
-def verificar_export(exports_dir, stats_csv=None) -> dict:
-    """Payload de la tarjeta de verificacion: que hay, que cruza, que se
-    ignora y que NO viene en el export.
-
-    Lo ultimo es deliberado y fue decision de V0ra: es informacion que solo
-    se puede dar aqui. Una vez construido el vault, lo que falta no se ve
-    por ninguna parte, y alguien lo descubriria dentro de un año creyendo
-    que lo perdio la herramienta.
-    """
-    export = _localizar(exports_dir)
-    if export is None:
-        return {"encontrado": False}
-
-    stats_path = Path(stats_csv) if stats_csv else None
+def _verificar_una(slug: str, export: Path, stats_path, nombre: str) -> dict:
+    """Payload de UNA publicacion: que hay, que cruza, que se ignora y que NO viene."""
     indice = bsv.cargar_stats(stats_path) if stats_path else {}
 
     with zipfile.ZipFile(export) as zf:
@@ -141,7 +150,10 @@ def verificar_export(exports_dir, stats_csv=None) -> dict:
     # Cuantos comentarios existieron solo se puede saber por el CSV. Sin el,
     # la clave NO viaja: decir "0 comentarios" seria afirmar algo que no
     # sabemos, y es justo el error que este repo ya ha cazado dos veces.
-    if indice:
+    #
+    # Tampoco si el CSV no tiene la columna `comments` (hay un esquema reducido): sin la
+    # columna no se sabe cuantos hubo, y contarlos daria 0.
+    if indice and any("comments" in f for f in indice.values()):
         con_com = [f for f in indice.values() if (bsv.a_numero(f.get("comments")) or 0) > 0]
         ausencias["comentarios"] = sum(int(bsv.a_numero(f.get("comments")) or 0) for f in con_com)
         ausencias["posts_con_comentarios"] = len(con_com)
@@ -159,7 +171,8 @@ def verificar_export(exports_dir, stats_csv=None) -> dict:
         }
 
     return {
-        "encontrado": True,
+        "slug": slug,
+        "publicacion": nombre,
         "export": {
             "nombre": export.name,
             "posts": len(posts),
@@ -171,3 +184,41 @@ def verificar_export(exports_dir, stats_csv=None) -> dict:
         "csv_de_terceros": bsv.contar_csv_de_terceros(nombres),
         "ausencias": ausencias,
     }
+
+
+def verificar_export(exports_dir, stats_csv=None, vault=None) -> dict:
+    """Payload de la tarjeta de verificacion: una entrada por publicacion con que hay,
+    que cruza, que se ignora y que NO viene en el export, mas los `avisos` que conviene
+    ver ANTES de construir (zips repetidos, layout antiguo en el vault).
+
+    Lo de lo que NO viene es deliberado y fue decision de V0ra: es informacion que solo
+    se puede dar aqui. Una vez construido el vault, lo que falta no se ve
+    por ninguna parte, y alguien lo descubriria dentro de un año creyendo
+    que lo perdio la herramienta.
+
+    `stats_csv` fuerza el CSV solo si hay una unica publicacion; con varias, cada una
+    busca el suyo por el slug. `vault` (opcional) permite avisar del layout antiguo.
+    """
+    pubs, repetidos = _publicaciones(exports_dir)
+    if not pubs:
+        return {"encontrado": False}
+
+    unica = len(pubs) == 1
+    bloques = []
+    for slug, z in pubs.items():
+        sp = Path(stats_csv) if (stats_csv and unica) else bsv.localizar_stats(Path(exports_dir), slug, unica)
+        nombre = bsv.nombre_de_carpeta(vault, slug, z) if vault else bsv.nombre_visible(slug, z)
+        bloques.append(_verificar_una(slug, z, sp, nombre))
+
+    avisos = [{"tipo": "repetido",
+               "texto": f"{z.name}: hay otro export mas reciente de la misma publicacion; se ignora."}
+              for z in repetidos]
+    if vault:
+        v = Path(vault)
+        legado = bsv.layout_antiguo(v)
+        if legado and (not unica or (v / bsv.INDICE_PUBLICACIONES).exists()):
+            avisos.append({"tipo": "layout_antiguo",
+                           "texto": f"El vault de Tintero tiene el layout de un solo export ({', '.join(legado)}) "
+                                    f"y hay {len(pubs)} publicaciones. Construir se negara hasta que lo muevas "
+                                    "a la carpeta de su publicacion: dejaria esa publicacion duplicada."})
+    return {"encontrado": True, "publicaciones": bloques, "avisos": avisos}
