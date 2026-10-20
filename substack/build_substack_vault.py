@@ -178,8 +178,17 @@ def localizar_export(exports_dir: Path):
 # empieza por `<slug>_`.
 # ─────────────────────────────────────────
 
-LAYOUT_ANTIGUO = ("Posts", "Borradores", "Drafts", "_indice.md", "_secciones.md")
-INDICE_PUBLICACIONES = "_publicaciones.md"
+# Lo que deja en la RAIZ el layout de un solo export, con los nombres de las DOS ediciones: un vault
+# construido con la edicion inglesa (Drafts, _index.md, _sections.md) se tiene que reconocer, y
+# mover, igual que uno de la espanola. Las claves de frontmatter y las carpetas son compartidas.
+LAYOUT_ANTIGUO = ("Posts", "Borradores", "Drafts", "_indice.md", "_secciones.md", "_index.md", "_sections.md")
+INDICE_PUBLICACIONES = "_publicaciones.md"                      # el que escribe esta edicion
+INDICES_PUBLICACIONES = ("_publicaciones.md", "_publications.md")   # los que se reconocen (una por edicion)
+
+
+def ya_por_publicaciones(vault: Path) -> bool:
+    """El vault ya esta organizado por publicaciones (lo dice su indice, de cualquier edicion)."""
+    return any((Path(vault) / n).exists() for n in INDICES_PUBLICACIONES)
 
 
 class LayoutAntiguoError(ValueError):
@@ -799,7 +808,7 @@ def construir_publicaciones(exports_dir: Path, vault: Path, dry_run: bool = Fals
     for z in repetidos:
         log(f"[aviso] {z.name} se ignora: hay otro export mas reciente de la misma publicacion")
 
-    por_carpetas = len(publicaciones) > 1 or (vault / INDICE_PUBLICACIONES).exists()
+    por_carpetas = len(publicaciones) > 1 or ya_por_publicaciones(vault)
     if por_carpetas:
         legado = layout_antiguo(vault)
         if legado and not permitir_legado:

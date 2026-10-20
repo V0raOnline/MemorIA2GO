@@ -216,7 +216,7 @@ def verificar_export(exports_dir, stats_csv=None, vault=None) -> dict:
     if vault:
         v = Path(vault)
         legado = bsv.layout_antiguo(v)
-        if legado and (not unica or (v / bsv.INDICE_PUBLICACIONES).exists()):
+        if legado and (not unica or bsv.ya_por_publicaciones(v)):
             avisos.append({"tipo": "layout_antiguo",
                            "texto": f"El vault de Tintero tiene el layout de un solo export ({', '.join(legado)}) "
                                     f"y hay {len(pubs)} publicaciones. Construir se negara hasta que lo muevas "

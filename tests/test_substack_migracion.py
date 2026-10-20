@@ -296,3 +296,34 @@ def test_la_verificacion_ofrece_migrar_y_deja_de_avisar_al_migrar(web):
     web["cliente"].post("/api/substack/migrar", json={"aplicar": True})
     d = web["cliente"].post("/api/substack/verify").get_json()
     assert not any(a["tipo"] == "layout_antiguo" for a in d["avisos"])
+
+
+# ---- compatibilidad entre ediciones ---------------------------------------------------------------------
+# Un vault construido con la edicion inglesa usa Drafts/, _index.md, _sections.md y _publications.md.
+# Debe tratarse igual que uno de la espanola: detectarse, migrarse y no confundirse.
+
+def test_el_layout_antiguo_de_la_edicion_inglesa_se_detecta_entero(legado):
+    (legado / "_indice.md").rename(legado / "_index.md")
+    (legado / "_secciones.md").rename(legado / "_sections.md")
+    assert bsv.layout_antiguo(legado) == ["Posts", "Drafts", "_index.md", "_sections.md"]
+
+
+def test_se_mueve_tambien_lo_que_dejo_la_edicion_inglesa(tres, legado):
+    (legado / "_indice.md").rename(legado / "_index.md")
+    (legado / "_secciones.md").rename(legado / "_sections.md")
+    antes = _bytes(legado)
+    bsv.migrar_layout_antiguo(tres, legado, aplicar=True, log=_log)
+    assert not any((legado / n).exists() for n in ("Posts", "Drafts", "_index.md", "_sections.md"))
+    assert (legado / "V0raOnline" / "_index.md").is_file() and (legado / "V0raOnline" / "_sections.md").is_file()
+    assert sorted(_bytes(legado).values()) == sorted(antes.values()), "se ha perdido o alterado algun fichero"
+
+
+def test_un_vault_organizado_por_la_edicion_inglesa_sigue_organizado(tres, tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "_publications.md").write_text("# Publications\n", encoding="utf-8")
+    (tres / "BitacoraClandestina201026.zip").unlink()
+    (tres / "MasAlladelPrompt.zip").unlink()
+    assert bsv.ya_por_publicaciones(vault)
+    r = bsv.construir_publicaciones(tres, vault, log=_log)
+    assert r["modo"] == "carpetas" and not (vault / "Posts").exists()
