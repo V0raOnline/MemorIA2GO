@@ -842,6 +842,22 @@
       <button class="btn" id="btn-substack-build">Construir el vault</button>
       <div id="substack-build-msg" class="msg"></div>
       <pre id="substack-build-out" class="log-box" style="display:none;"></pre>
+
+      <!-- Solo aparece si el vault tiene el layout de cuando habia un solo export (Posts/, Borradores/...
+           en la raiz) y hay varias publicaciones. Dos pasos: primero se ve el plan, luego se aplica. -->
+      <div id="substack-migrar" style="display:none; margin-top:22px;">
+        <div class="sb-ausencias-label">Lo antiguo en la raíz del vault</div>
+        <p class="card-help">
+          Tu vault de Tintero tiene el layout de cuando había un solo export. Para construir varias
+          publicaciones hay que moverlo a la carpeta de la suya: la herramienta lo identifica por los
+          <code>post_id</code> de las notas, <strong>no borra nada</strong> y comprueba cada fichero al
+          terminar. Cierra Obsidian antes de moverlo.
+        </p>
+        <button class="btn secondary" id="btn-substack-migrar-plan">Ver qué se movería</button>
+        <button class="btn" id="btn-substack-migrar-aplicar" style="display:none;">Mover lo antiguo ahora</button>
+        <div id="substack-migrar-msg" class="msg"></div>
+        <pre id="substack-migrar-out" class="log-box" style="display:none;"></pre>
+      </div>
     </div>
   </section>
 

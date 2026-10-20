@@ -721,6 +721,7 @@ async function substackVerify() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     out.innerHTML = pintarVerificacion(data);
+    mostrarMigracion((data.avisos || []).some((a) => a.tipo === "layout_antiguo"));
     out.style.display = "";
     msg.textContent = data.publicaciones.length > 1
       ? `${data.publicaciones.length} publicaciones reconocidas.` : "Export reconocido.";
@@ -759,6 +760,7 @@ async function substackBuild() {
     msg.className = "msg ok";
     if (!seco) loadDashboard(true);
   } catch (e) {
+    if (/--migrar-legado|layout de un solo export/.test(e.message)) mostrarMigracion(true);
     msg.textContent = `Error: ${e.message}`;
     msg.className = "msg error";
   } finally {
@@ -766,6 +768,53 @@ async function substackBuild() {
   }
 }
 
+// Migrar lo antiguo a la carpeta de su publicacion. Dos pasos a proposito: el primero solo ensena
+// el plan (el servidor no mueve nada sin `aplicar`), y el boton de mover aparece despues de verlo.
+function mostrarMigracion(visible) {
+  document.getElementById("substack-migrar").style.display = visible ? "" : "none";
+}
+
+async function substackMigrar(aplicar) {
+  const msg = document.getElementById("substack-migrar-msg");
+  const out = document.getElementById("substack-migrar-out");
+  const btnPlan = document.getElementById("btn-substack-migrar-plan");
+  const btnAplicar = document.getElementById("btn-substack-migrar-aplicar");
+  btnPlan.disabled = true;
+  btnAplicar.disabled = true;
+  msg.textContent = aplicar ? "Moviendo y comprobando..." : "Calculando el plan...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/substack/migrar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aplicar }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    // La ultima linea del plan habla de --aplicar (linea de ordenes): aqui sobra, esta el boton.
+    const salida = (data.salida || "").split("\n").filter((l) => !l.includes("repite con --aplicar")).join("\n");
+    out.textContent = salida;
+    out.style.display = salida ? "" : "none";
+    if (aplicar) {
+      btnAplicar.style.display = "none";
+      msg.textContent = "Movido y comprobado. Ya puedes pulsar «Construir el vault».";
+    } else {
+      btnAplicar.style.display = "";
+      msg.textContent = "Este es el plan: no se ha movido nada. Si te parece bien, pulsa «Mover lo antiguo ahora».";
+    }
+    msg.className = "msg ok";
+  } catch (e) {
+    btnAplicar.style.display = "none";
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btnPlan.disabled = false;
+    btnAplicar.disabled = false;
+  }
+}
+
+document.getElementById("btn-substack-migrar-plan").addEventListener("click", () => substackMigrar(false));
+document.getElementById("btn-substack-migrar-aplicar").addEventListener("click", () => substackMigrar(true));
 document.getElementById("btn-substack-verify").addEventListener("click", substackVerify);
 document.getElementById("btn-substack-build").addEventListener("click", substackBuild);
 

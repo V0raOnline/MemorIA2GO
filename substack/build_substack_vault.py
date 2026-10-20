@@ -41,6 +41,7 @@ que el export no tiene: section_name y tags.
 import argparse
 import csv
 import io
+import os
 import re
 import sys
 import unicodedata
@@ -805,7 +806,8 @@ def construir_publicaciones(exports_dir: Path, vault: Path, dry_run: bool = Fals
             raise LayoutAntiguoError(
                 f"el vault ya tiene el layout de un solo export ({', '.join(legado)}) y hay "
                 f"{len(publicaciones)} publicaciones. Construir encima dejaria duplicada la que ya esta en "
-                "la raiz, sin ningun error. Mueve tu lo antiguo a la carpeta de su publicacion, o usa "
+                "la raiz, sin ningun error. Muevelo a la carpeta de su publicacion con --migrar-legado (o el boton "
+                "de Tintero), o usa "
                 "--permitir-legado para construir las carpetas nuevas sin tocar lo antiguo.")
     if stats_forzado and len(publicaciones) > 1:
         raise ValueError("--stats solo vale con una publicacion; con varias, cada una busca su CSV "
@@ -830,6 +832,128 @@ def construir_publicaciones(exports_dir: Path, vault: Path, dry_run: bool = Fals
             "ignorados": [z.name for z in repetidos]}
 
 
+class MigracionError(ValueError):
+    """No se puede migrar con seguridad; el mensaje dice por que y que hacer."""
+
+
+_ID_RX = re.compile(r'^post_id:\s*"?([^"\s]+)"?\s*$', re.M)
+_CARPETAS_DE_NOTAS = ("Posts", "Borradores", "Drafts")
+
+
+def _censo(ruta: Path):
+    """(numero de ficheros, bytes) de un fichero o de todo lo que cuelga de una carpeta."""
+    if ruta.is_file():
+        return 1, ruta.stat().st_size
+    ficheros = [p for p in ruta.rglob("*") if p.is_file()]
+    return len(ficheros), sum(p.stat().st_size for p in ficheros)
+
+
+def _ids_de_notas_antiguas(vault: Path) -> list:
+    """El `post_id` de cada nota de Posts/Borradores/Drafts (None si no lo trae)."""
+    ids = []
+    for carpeta in _CARPETAS_DE_NOTAS:
+        base = Path(vault) / carpeta
+        if not base.is_dir():
+            continue
+        for nota in sorted(base.rglob("*.md")):
+            try:
+                cabecera = nota.read_text(encoding="utf-8", errors="ignore")[:2000]
+            except OSError:
+                cabecera = ""
+            m = _ID_RX.search(cabecera)
+            ids.append(m.group(1) if m else None)
+    return ids
+
+
+def migrar_layout_antiguo(exports_dir: Path, vault: Path, aplicar: bool = False,
+                          publicacion=None, log=print) -> dict:
+    """Mueve el layout de un solo export (Posts/, Borradores/, Drafts/, _indice.md,
+    _secciones.md en la RAIZ del vault) a la carpeta de su publicacion.
+
+    La publicacion no se adivina: cada nota lleva `post_id` y se cruza con el posts.csv de
+    cada export. Si no hay una respuesta clara, se niega y pide `publicacion`. No borra nada
+    (es un renombrado dentro del mismo vault), no pisa una carpeta que ya existe, comprueba
+    ficheros y bytes antes y despues y, si algo falla a mitad, deshace lo movido.
+
+    Sin `aplicar` solo devuelve el plan."""
+    exports_dir, vault = Path(exports_dir), Path(vault)
+    presentes = layout_antiguo(vault)
+    if not presentes:
+        raise MigracionError("no hay nada que migrar: la raiz del vault no tiene el layout de un solo export.")
+    pubs, _ = exports_por_publicacion(exports_dir)
+    if not pubs:
+        raise MigracionError(f"no hay ningun export de Substack en {exports_dir}: sin el no se puede saber "
+                             "a que publicacion pertenece lo antiguo.")
+
+    notas = _ids_de_notas_antiguas(vault)
+    ids = {i for i in notas if i}
+    ids_de = {}
+    for slug, z in pubs.items():
+        with zipfile.ZipFile(z) as zf:
+            ids_de[slug] = {(p.get("post_id") or "").split(".", 1)[0] for p in cargar_posts(zf)}
+    coinciden = {slug: len(ids & s) for slug, s in ids_de.items()}
+    opciones = ", ".join(sorted(pubs))
+
+    if publicacion:
+        slug = publicacion.strip().lower()
+        if slug not in pubs:
+            raise MigracionError(f"la publicacion '{publicacion}' no esta entre los exports ({opciones}).")
+    else:
+        if not ids:
+            raise MigracionError("las notas antiguas no traen post_id: no puedo saber a que publicacion pertenecen. "
+                                 f"Indicala con --publicacion <slug> ({opciones}).")
+        orden = sorted(coinciden.items(), key=lambda kv: (-kv[1], kv[0]))
+        slug, mejor = orden[0]
+        segundo = orden[1][1] if len(orden) > 1 else 0
+        if mejor == 0 or mejor <= 2 * segundo or mejor * 2 < len(ids):
+            detalle = ", ".join(f"{s}: {n}" for s, n in orden)
+            raise MigracionError("no queda claro a que publicacion pertenece lo antiguo (ids que coinciden con cada "
+                                 f"export -> {detalle}). Indicala con --publicacion <slug> ({opciones}).")
+
+    carpeta = nombre_de_carpeta(vault, slug, pubs[slug])
+    movimientos = [(n, f"{carpeta}/{n}") for n in presentes]
+    choques = [d for _o, d in movimientos if (vault / d).exists()]
+    if choques:
+        raise MigracionError(f"ya existe {', '.join(choques)}: no piso nada. Si ya construiste esa carpeta, lo "
+                             "antiguo y lo nuevo conviven; muevelo o borralo tu a mano.")
+
+    resumen = {"publicacion": slug, "carpeta": carpeta, "movimientos": movimientos, "aplicado": False,
+               "notas": len(notas), "ids_coinciden": len(ids & ids_de[slug]),
+               "ids_ausentes": len(ids - ids_de[slug])}
+    log(f"[migracion] lo antiguo pertenece a '{slug}' ({resumen['ids_coinciden']} de {len(ids)} post_id coinciden "
+        f"con su export) -> {carpeta}/")
+    for origen, destino in movimientos:
+        n, b = _censo(vault / origen)
+        log(f"[migracion]   {origen}  ->  {destino}  ({n} ficheros, {b} bytes)")
+    if resumen["ids_ausentes"]:
+        log(f"[aviso] {resumen['ids_ausentes']} post(s) antiguos ya no estan en el export: se mueven igualmente, no se pierden")
+    if not aplicar:
+        log("[migracion] Solo es el plan: no se ha movido nada. Para hacerlo, repite con --aplicar.")
+        return resumen
+
+    antes = {o: _censo(vault / o) for o, _d in movimientos}
+    creada = not (vault / carpeta).exists()
+    hechos = []
+    try:
+        (vault / carpeta).mkdir(parents=True, exist_ok=True)
+        for origen, destino in movimientos:
+            os.replace(vault / origen, vault / destino)
+            hechos.append((origen, destino))
+    except OSError as e:
+        for origen, destino in reversed(hechos):
+            os.replace(vault / destino, vault / origen)
+        if creada and (vault / carpeta).is_dir() and not any((vault / carpeta).iterdir()):
+            (vault / carpeta).rmdir()
+        raise MigracionError(f"no se pudo mover ({e}). Se ha deshecho lo movido: el vault esta como estaba. "
+                             "Si Obsidian tiene el vault abierto, cierralo y repite.") from e
+    for origen, destino in movimientos:
+        if _censo(vault / destino) != antes[origen] or (vault / origen).exists():
+            raise MigracionError(f"la comprobacion ha fallado en {destino}: no coincide con lo que habia en {origen}.")
+    resumen["aplicado"] = True
+    log(f"[ok] migrado: {len(movimientos)} elementos movidos a {carpeta}/ y comprobados (ficheros y bytes iguales).")
+    return resumen
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Construye el vault de Tintero/Inkwell desde un export de Substack.")
@@ -844,8 +968,27 @@ def main():
                     help="Con --exports-dir: construir las carpetas por publicacion aunque la raiz del vault "
                          "tenga el layout de un solo export. No toca lo antiguo (y esa publicacion quedara "
                          "duplicada hasta que lo muevas o lo borres tu).")
+    ap.add_argument("--migrar-legado", action="store_true",
+                    help="Con --exports-dir: mueve el layout de un solo export (Posts/, Borradores/, Drafts/, "
+                         "_indice.md, _secciones.md en la raiz del vault) a la carpeta de su publicacion. "
+                         "Sin --aplicar solo ensena el plan. No borra nada.")
+    ap.add_argument("--aplicar", action="store_true", help="Con --migrar-legado: hacer el movimiento de verdad")
+    ap.add_argument("--publicacion", help="Con --migrar-legado: slug de la publicacion a la que pertenece lo "
+                                          "antiguo (solo si no se puede deducir de los post_id)")
     args = ap.parse_args()
     vault = Path(args.vault_dir)
+
+    if args.migrar_legado:
+        if not args.exports_dir:
+            print("[error] --migrar-legado necesita --exports-dir (los exports dicen a que publicacion pertenece lo antiguo)")
+            sys.exit(1)
+        try:
+            migrar_layout_antiguo(Path(args.exports_dir), vault, aplicar=args.aplicar,
+                                  publicacion=args.publicacion)
+        except ValueError as e:      # incluye MigracionError
+            print(f"[error] {e}")
+            sys.exit(1)
+        return
 
     if args.exports_dir:
         try:

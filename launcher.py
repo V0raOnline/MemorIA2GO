@@ -740,6 +740,35 @@ def substack_build():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/substack/migrar", methods=["POST"])
+def substack_migrar():
+    """Mueve el layout antiguo (un solo export) de la raiz del vault a la carpeta de su
+    publicacion. Sin `aplicar` solo devuelve el plan: es lo que ve el usuario antes de
+    confirmar. No borra nada; la publicacion se deduce de los post_id de las notas."""
+    try:
+        from config_loader import load_config, get_path
+        cfg = load_config(str(CONFIG_PATH))
+        exports = get_path(cfg, "exports_dir")
+        vault = get_path(cfg, "substack_vault")
+        if not exports:
+            return jsonify({"error": "Configura primero la carpeta de exports"}), 400
+        if not vault:
+            return jsonify({"error": "Configura primero el vault de Tintero (substack_vault)"}), 400
+        cuerpo = request.get_json(silent=True) or {}
+        aplicar = bool(cuerpo.get("aplicar"))
+        args = ["--migrar-legado", "--exports-dir", str(exports), "--vault-dir", str(vault)]
+        if aplicar:
+            args.append("--aplicar")
+        if cuerpo.get("publicacion"):
+            args += ["--publicacion", str(cuerpo["publicacion"])]
+        code, salida = _substack_run("build_substack_vault.py", args)
+        if code != 0:
+            return jsonify({"error": salida[-800:] or "fallo al migrar"}), 400
+        return jsonify({"ok": True, "aplicado": aplicar, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def _con_substack(stats: dict, cfg: dict) -> dict:
     """Añade la tarjeta de Tintero al payload del dashboard.
 

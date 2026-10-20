@@ -220,5 +220,5 @@ def verificar_export(exports_dir, stats_csv=None, vault=None) -> dict:
             avisos.append({"tipo": "layout_antiguo",
                            "texto": f"El vault de Tintero tiene el layout de un solo export ({', '.join(legado)}) "
                                     f"y hay {len(pubs)} publicaciones. Construir se negara hasta que lo muevas "
-                                    "a la carpeta de su publicacion: dejaria esa publicacion duplicada."})
+                                    "a su carpeta (boton \u00abMover lo antiguo\u00bb en Construccion): dejaria esa publicacion duplicada."})
     return {"encontrado": True, "publicaciones": bloques, "avisos": avisos}
