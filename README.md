@@ -287,7 +287,7 @@ python MemorIA2GO.py --reprocess-all  # re-parsea todos los exports válidos des
 
 - `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, mapa de gizmos) y opciones (carpetas por año/mes, generación de índice). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
 - `gizmo_map.json` — mapea IDs de proyecto (gizmo) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Cartografía); nunca se commitea.
-- `topic_map.json` — tus temas para conversaciones sin asignar: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas de índice enlazadas en `MERGED_VAULT/_Temas`. Nunca se commitea.
+- `topic_map.json` — tus temas para conversaciones sin asignar: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas de índice enlazadas en `MERGED_VAULT/_Temas`. Nunca se commitea, y es curación tuya que ningún reproceso reconstruye: guarda una copia. Cómo decide qué nota entra en cada tema (por coincidencia exacta de texto, no por IA) está en [CARTOGRAFIA.md](CARTOGRAFIA.md).
 - `substack_vault` (en `memoria_config.yaml`) — dónde se construye el vault de Tintero. Es la **única** ruta que necesita: el export de Substack y su CSV de estadísticas viven en tu carpeta de exports de siempre, porque el pipeline de conversaciones los rechaza y Tintero los recoge de ahí. Una carpeta, dos puertas.
 - `suno_backup` / `suno_vault` y `flowmusic_backup` / `flowmusic_vault` (en `memoria_config.yaml`) — las rutas de MUSIC·0LOGY, un par por fuente: dónde vive el backup crudo y dónde se construye su vault de Obsidian. Las cuatro opcionales e independientes: puedes usar una fuente, las dos o ninguna. Sin el backup configurado, la tarjeta del Observatorio de esa fuente simplemente no aparece — no se pinta a cero, porque decir "0 pistas" sobre una biblioteca que no has descargado es mentir, no informar.
 - `copilot_images_backup` / `copilot_images_vault` (en `memoria_config.yaml`) — las rutas de image.ia para Copilot: dónde vive el backup crudo (imágenes y un `.json` por imagen con su prompt) y dónde se construye el vault de Obsidian. Grok Imagine no necesita ruta propia: usa tu `base_vault` y deja lo descargado en `GROK/IMAGINE`, junto al resto de bancos de Grok.
@@ -304,6 +304,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 | ------------------------------------------ | ---------------------------------------- |
 | **README** (estás aquí)                    | ¿Qué es y cómo lo arranco?               |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)**     | ¿Cómo funciona por dentro y por qué así? |
+| **[CARTOGRAFIA.md](CARTOGRAFIA.md)**       | ¿Cómo decide Cartografía qué nota va en qué tema? |
 | **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** | ¿Y si no sé nada de esto?                |
 | **[DEVLOG.md](DEVLOG.md)**                 | ¿Qué aprendimos construyéndolo?          |
 
