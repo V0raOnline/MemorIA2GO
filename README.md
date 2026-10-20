@@ -290,7 +290,7 @@ python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
 
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
 - `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
-- `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed.
+- `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed, and it's curation of yours that no reprocess rebuilds: keep a copy. How it decides which note goes in each theme (exact text matching, not AI) is in [CARTOGRAPHY.md](CARTOGRAPHY.md).
 - `substack_vault` (in `memoria_config.yaml`) — where the Inkwell vault gets built. It's the **only** path it needs: the Substack export and its stats CSV live in your usual exports folder, because the conversation pipeline rejects them and Inkwell picks them up from there. One folder, two doors.
 - `suno_backup` / `suno_vault` and `flowmusic_backup` / `flowmusic_vault` (in `memoria_config.yaml`) — MUSIC·0LOGY's paths, one pair per source: where the raw backup lives, and where its Obsidian vault is built. All four optional and independent: use one source, both, or neither. With no backup path configured, that source's Observatory card simply doesn't appear — it isn't drawn as zero, because claiming "0 tracks" about a library you never downloaded is a lie, not information.
 - `copilot_images_backup` / `copilot_images_vault` (in `memoria_config.yaml`) — image.ia's paths for Copilot: where the raw backup lives (images plus one `.json` per image with its prompt) and where the Obsidian vault is built. Grok Imagine needs no path of its own: it uses your `base_vault` and leaves what it downloads in `GROK/IMAGINE`, next to the rest of Grok's banks.
@@ -307,6 +307,7 @@ Each document answers **one** question. If you're looking for something that isn
 |---|---|
 | **README** (you are here) | What is it and how do I start it? |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | How does it work inside and why this way? |
+| **[CARTOGRAPHY.md](CARTOGRAPHY.md)** | How does Cartography decide which note goes in which theme? |
 | **[IM_STUCK.md](IM_STUCK.md)** | What if I don't know any of this? |
 | **[DEVLOG.md](DEVLOG.md)** | What did we learn building it? |
 
