@@ -169,6 +169,13 @@ def compute_asset_stats(base_vault: Path) -> dict:
     }
 
 
+def dias_desde(timestamp: str, ahora: Optional[datetime.datetime] = None) -> int:
+    """Dias enteros entre `timestamp` (ISO) y ahora. Nunca negativo: un reloj
+    adelantado no debe pintar "hace -1 dias"."""
+    ts = datetime.datetime.fromisoformat(timestamp)
+    return max(0, ((ahora or datetime.datetime.now()) - ts).days)
+
+
 def compute_last_import(raw_vault: Path) -> Optional[dict]:
     path = raw_vault / "_last_import.json"
     if not path.exists():
@@ -176,8 +183,7 @@ def compute_last_import(raw_vault: Path) -> Optional[dict]:
     try:
         with open(path, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
-        ts = datetime.datetime.fromisoformat(data["timestamp"])
-        dias = (datetime.datetime.now() - ts).days
+        dias = dias_desde(data["timestamp"])
         return {
             "timestamp": data["timestamp"],
             "dias_transcurridos": dias,
@@ -248,14 +254,35 @@ def save_cache(base_vault: Path, stats: dict) -> Path:
     return p
 
 
-def load_cache(base_vault: Path) -> Optional[dict]:
+def _refrescar_derivados(stats: dict, ahora: Optional[datetime.datetime] = None) -> dict:
+    """Recalcula lo que depende de "ahora" y NO puede vivir en una cache.
+
+    Bug real (V0ra, 2026-10-20): el Observatorio decia "hace 0 dia(s)" con la
+    ultima importacion 31 dias atras. El paso 4 escribe esta cache justo despues
+    de importar -- cuando los dias valen 0 -- y el launcher la sirve tal cual, asi
+    que el 0 quedaba grabado. Lo guardado es el `timestamp`; los dias se derivan
+    al leer. Si el timestamp no se entiende se deja el valor viejo: mejor un dato
+    flojo que un Observatorio que no carga."""
+    ui = stats.get("ultima_importacion")
+    if isinstance(ui, dict) and ui.get("timestamp"):
+        try:
+            ui["dias_transcurridos"] = dias_desde(ui["timestamp"], ahora)
+        except (ValueError, TypeError):
+            pass
+    return stats
+
+
+def load_cache(base_vault: Path, ahora: Optional[datetime.datetime] = None) -> Optional[dict]:
     """Lee el cache si existe; None si falta o esta corrupto. El cache nunca
-    es fuente unica de verdad: ante cualquier duda, el llamante recalcula."""
+    es fuente unica de verdad: ante cualquier duda, el llamante recalcula.
+    Lo que depende del momento de la lectura (los dias desde la ultima
+    importacion) se recalcula aqui, no se sirve el valor de cuando se escribio."""
     p = cache_path(base_vault)
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        stats = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    return _refrescar_derivados(stats, ahora) if isinstance(stats, dict) else None
 
 
 def print_report(stats: dict):
