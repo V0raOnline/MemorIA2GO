@@ -45,6 +45,18 @@ UUID_SUFFIX_RE = re.compile(
 )
 IMAGE_TOKEN_RE = re.compile(r"\x00IMG:(?P<pointer>[^\x00]+)\x00")
 
+# El export de ChatGPT de 2026-10 guarda las imagenes como `file_XXXX.dat` (punteros
+# `sediment://file_XXXX`) y `file-XXXX.dat` (`file-service://file-XXXX`): SIN el sufijo
+# -<uuid> del formato anterior y con una extension que no dice el tipo (por dentro son
+# png, jpg...). Con solo UUID_SUFFIX_RE el indice salia vacio, ninguna imagen se
+# resolvia y las notas se llenaban de "imagen no disponible" sin ningun error.
+DAT_ASSET_RE = re.compile(r"^(?P<id>file[-_][A-Za-z0-9]+)\.(?P<ext>\w+)$")
+
+
+# Cuenta, por ejecucion, lo que paso con cada referencia de imagen: un fallo de formato
+# del export se nota en la primera linea del resumen, no al abrir las notas.
+IMAGE_STATS = {"resueltas": 0, "no_disponibles": 0, "omitidas": 0}
+
 # Claves de nivel superior de cada conversacion que parse_json_conversations
 # conoce y consume (clasico + fragmentado 2026+), MAS las que se han
 # revisado y confirmado inofensivas (metadatos de sesion/UI que el parser
@@ -151,6 +163,9 @@ class AssetIndex:
     def __init__(self, zf: Optional[zipfile.ZipFile]):
         self.zf = zf
         self.by_id: Dict[str, str] = {}
+        # Ficheros con pinta de asset (file-/file_) que no se supo indexar: si el export
+        # cambia otra vez de formato, esto lo delata en vez de dejarlo en silencio.
+        self.sin_indexar = 0
         if zf is None:
             return
         for name in zf.namelist():
@@ -158,6 +173,12 @@ class AssetIndex:
             m = UUID_SUFFIX_RE.match(base)
             if m:
                 self.by_id[m.group("id")] = name
+                continue
+            m = DAT_ASSET_RE.match(base)
+            if m:
+                self.by_id.setdefault(m.group("id"), name)
+            elif base.startswith(("file-", "file_")):
+                self.sin_indexar += 1
 
     @staticmethod
     def resolve_pointer_id(asset_pointer: str) -> str:
@@ -177,6 +198,9 @@ class AssetIndex:
         with self.zf.open(name) as f:
             data = f.read()
         ext = os.path.splitext(name)[1] or ".png"
+        if ext.lower() == ".dat":
+            tipo = sniff_ext(data)
+            ext = tipo if tipo != ".bin" else ext      # un .dat que no es de un tipo conocido se queda como esta
         return data, ext
 
 
@@ -259,10 +283,13 @@ def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
         origen = meta_base.get("origen") or "subida"
         target = (asset_writers or {}).get(origen)
         if asset_index is None or target is None:
+            IMAGE_STATS["omitidas"] += 1
             return f"*[imagen omitida: {pointer}]*"
         found = asset_index.get_bytes(pointer)
         if not found:
+            IMAGE_STATS["no_disponibles"] += 1
             return f"*[imagen no disponible en el export: {pointer}]*"
+        IMAGE_STATS["resueltas"] += 1
         data, ext = found
         meta = dict(meta_base) if meta_base else None
         if meta and conv_title:
@@ -1234,6 +1261,9 @@ def main():
         asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ADJUNTOS")
     if tiene_bancos:
         print(f"Assets indexados en el ZIP: {len(asset_index.by_id)}")
+        if asset_index.sin_indexar:
+            print(f"[aviso] el ZIP trae {asset_index.sin_indexar} ficheros con pinta de imagen (file-/file_) "
+                  "que no se han podido indexar: el formato del export puede haber cambiado.")
 
     # Assets de Grok: file_attachments (por mensaje, via token GROKFILE) y
     # media_posts/Imagine (raiz del export, se procesan aparte una sola vez).
@@ -1482,6 +1512,8 @@ def main():
     print(f"Listo. Exportadas {len(records)} conversaciones a: {args.output}")
     if tiene_bancos:
         print(f"Referencias de imagen procesadas: {total_images}")
+        print(f"  resueltas: {IMAGE_STATS['resueltas']} | no disponibles en el export: "
+              f"{IMAGE_STATS['no_disponibles']} | omitidas: {IMAGE_STATS['omitidas']}")
         for origen, target in asset_writers.items():
             writer = target.writer
             print(f"  [{origen}] binarios únicos copiados a {writer.assets_dir}: {len(writer.hash_to_filename)}")
