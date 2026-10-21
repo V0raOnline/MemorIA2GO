@@ -53,8 +53,6 @@ class BankSpec(NamedTuple):
     catalog: bool = False  # True: banco SIN enlaces en ninguna nota (media_posts de
     # Grok/Imagine son root-level, no viven en ninguna conversacion) -- se indexa
     # directo desde el manifest/carpeta, no cruzando con notas.
-    thumbs_dir: Optional[Path] = None   # carpeta de miniaturas de este banco (en disco)
-    thumbs_prefix: Optional[str] = None  # la misma, tal como va en los enlaces
 
 
 def _link_re(prefix: str) -> "re.Pattern[str]":
@@ -227,31 +225,8 @@ def render_catalog_branch(bank: BankSpec, items: list) -> str:
     return "\n".join(lines)
 
 
-def _render_item_con_miniatura(bank: BankSpec, it: dict, rel_path: str, existentes: Dict[str, str]) -> list:
-    """Una imagen como su miniatura, que enlaza al original, y debajo su ubicacion como
-    enlace. Sin miniatura NO se incrusta el original (es justo lo que pesa): solo el enlace."""
-    miniatura = miniatura_de(it["fname"], existentes)
-    ubicacion = f"📂 [{rel_path}]({_url(rel_path)})"
-    texto = f"*{it['caption']}* · {ubicacion}" if it["caption"] else ubicacion
-    if miniatura is None:
-        return [f"{texto} _(sin miniatura)_"]
-    thumb_path = f"{bank.thumbs_prefix}/{miniatura}"
-    return [f"[![]({_url(thumb_path)})]({_url(rel_path)})", texto]
-
-
-def contar_miniaturas(bank: BankSpec, entries: list) -> Optional[dict]:
-    """{"con": n, "sin": n} de las imagenes de este banco, o None si no usa miniaturas."""
-    if not bank.thumbs_dir:
-        return None
-    existentes = miniaturas_existentes(bank.thumbs_dir)
-    imagenes = [it for e in entries for it in e["items"] if it["es_imagen"]]
-    con = sum(1 for it in imagenes if miniatura_de(it["fname"], existentes))
-    return {"con": con, "sin": len(imagenes) - con}
-
-
 def render_bank_branch(bank: BankSpec, entries: list) -> str:
     total_items = sum(len(e["items"]) for e in entries)
-    existentes = miniaturas_existentes(bank.thumbs_dir) if bank.thumbs_dir else None
     lines = [f"<details>", f"<summary><strong>{bank.label} ({total_items})</strong></summary>", ""]
     for e in entries:
         link = f"[[{e['rel'].as_posix()}|{e['titulo']}]]"
@@ -262,9 +237,7 @@ def render_bank_branch(bank: BankSpec, entries: list) -> str:
         for it in e["items"]:
             # it["ruta"], no it["fname"]: conserva la subcarpeta de tipo.
             rel_path = f"{bank.prefix}/{it.get('ruta') or it['fname']}".replace("\\", "/")
-            if it["es_imagen"] and existentes is not None:
-                lines.extend(_render_item_con_miniatura(bank, it, rel_path, existentes))
-            elif it["es_imagen"]:
+            if it["es_imagen"]:
                 lines.append(f"![]({rel_path})")
                 if it["caption"]:
                     lines.append(f"*{it['caption']}*")
@@ -276,6 +249,76 @@ def render_bank_branch(bank: BankSpec, entries: list) -> str:
     lines.append("</details>")
     lines.append("")
     return "\n".join(lines)
+
+
+def _celda_imagen(fname: str, bank_prefix: str, thumbs_prefix: str, existentes: Dict[str, str]) -> str:
+    """La miniatura enlazada al original; sin miniatura, solo el enlace (nunca el original
+    incrustado: es lo que pesa)."""
+    ruta = f"{bank_prefix}/{fname}"
+    miniatura = miniatura_de(fname, existentes)
+    if miniatura is None:
+        return f"[{fname}]({_url(ruta)}) _(sin miniatura)_"
+    return f"[![]({_url(thumbs_prefix + '/' + miniatura)})]({_url(ruta)})"
+
+
+def collect_unreferenced(bank_dir: Path, referenced: set) -> list:
+    """Imagenes que hay en la carpeta del banco y ninguna nota enlaza."""
+    if not bank_dir or not Path(bank_dir).is_dir():
+        return []
+    return sorted(n for n in os.listdir(bank_dir)
+                  if Path(n).suffix.lower() in IMG_EXTS and n not in referenced)
+
+
+def generate_gallery(vault: Path, conversations_dir: str, provider_title: str, bank: BankSpec,
+                     thumbs_dir: Path, thumbs_prefix: str, vault_prefix: str = "") -> dict:
+    """Galeria de las imagenes de UN banco: por mes, cada conversacion con sus miniaturas
+    (cada una enlaza a la imagen original) y la ruta de cada fichero como enlace.
+    `vault_prefix` es la carpeta del vault de las conversaciones relativa a la raiz de
+    Obsidian ('MERGED_VAULT'): la galeria vive fuera de el, asi que sus wikilinks la llevan."""
+    existentes = miniaturas_existentes(thumbs_dir)
+    entries = []
+    for e in collect_bank_entries(vault, conversations_dir, bank):
+        imagenes = [it for it in e["items"] if it["es_imagen"]]
+        if imagenes:
+            entries.append({**e, "items": imagenes})
+    referenciadas = {it["fname"] for e in entries for it in e["items"]}
+    sin_conversacion = collect_unreferenced(bank.bank_dir, referenciadas)
+
+    por_mes: Dict[str, list] = {}
+    for e in entries:
+        mes = e["date"][:7] if re.match(r"[0-9]{4}-[0-9]{2}", e["date"] or "") else "sin fecha"
+        por_mes.setdefault(mes, []).append(e)
+
+    total = sum(len(e["items"]) for e in entries) + len(sin_conversacion)
+    todas = [it["fname"] for e in entries for it in e["items"]] + sin_conversacion
+    sin_miniatura = sum(1 for n in todas if miniatura_de(n, existentes) is None)
+    resumen = f"{total} imagenes · {len(entries)} conversaciones"
+    if sin_miniatura:
+        resumen += f" · {sin_miniatura} sin miniatura"
+    lines = [f"# {provider_title} — imagenes {bank.label.lower()}", f"_{resumen}_", "",
+             "Cada miniatura abre la imagen original; debajo, la ruta del fichero.", ""]
+
+    def tira(nombres):
+        return " ".join(_celda_imagen(n, bank.prefix, thumbs_prefix, existentes) for n in nombres)
+
+    def ubicaciones(nombres):
+        return "📂 " + " · ".join(f"[{n}]({_url(bank.prefix + '/' + n)})" for n in nombres)
+
+    for mes, es in por_mes.items():
+        n = sum(len(e["items"]) for e in es)
+        lines += ["<details>", f"<summary><strong>{mes} ({n})</strong></summary>", ""]
+        for e in es:
+            ruta = f"{vault_prefix}/{e['rel'].as_posix()}" if vault_prefix else e["rel"].as_posix()
+            nombres = [it["fname"] for it in e["items"]]
+            lines += [f"**{e['date'] or 'sin fecha'} — [[{ruta}|{e['titulo']}]]**", "",
+                      tira(nombres), "", ubicaciones(nombres), ""]
+        lines += ["</details>", ""]
+    if sin_conversacion:
+        lines += ["<details>", f"<summary><strong>Sin conversacion ({len(sin_conversacion)})</strong></summary>", "",
+                  tira(sin_conversacion), "", ubicaciones(sin_conversacion), "", "</details>", ""]
+    return {"markdown": "\n".join(lines),
+            "stats": {"imagenes": total, "conversaciones": len(entries), "sin_conversacion": len(sin_conversacion),
+                      "con_miniatura": total - sin_miniatura, "sin_miniatura": sin_miniatura}}
 
 
 def generate_provider_index(vault: Path, conversations_dir: str, provider_title: str,
@@ -295,9 +338,6 @@ def generate_provider_index(vault: Path, conversations_dir: str, provider_title:
         entries = collect_bank_entries(vault, conversations_dir, bank)
         total = sum(len(e["items"]) for e in entries)
         stats[bank.label] = {"conversaciones": len(entries), "items": total}
-        miniaturas = contar_miniaturas(bank, entries)
-        if miniaturas is not None:
-            stats[bank.label]["miniaturas"] = miniaturas
         resumen_partes.append(f"{total} {bank.label.lower()}")
         lines.append(render_bank_branch(bank, entries))
     resumen = " · ".join(resumen_partes) if resumen_partes else "sin contenido"
@@ -371,10 +411,15 @@ def main():
     ap.add_argument("--banco", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, un --banco por rama con enlaces en notas. "
                           "Ejemplo: 'CHATGPT/GENERADAS:Generadas'")
-    ap.add_argument("--miniaturas", action="append", default=[],
-                     help="prefijo_del_banco=prefijo_de_sus_miniaturas -- repetible. Con ello las imagenes "
-                          "de ese banco salen como su miniatura (enlazada al original) en vez de incrustar "
-                          "el original. Si la carpeta no existe, el banco se indexa como siempre.")
+    ap.add_argument("--galeria", action="store_true",
+                     help="En vez del indice colapsable, una GALERIA de las imagenes de UN banco (el primer "
+                          "--banco): miniaturas enlazadas al original. Necesita --miniaturas.")
+    ap.add_argument("--miniaturas", default=None,
+                     help="prefijo_del_banco=prefijo_de_sus_miniaturas (solo con --galeria): la carpeta donde "
+                          "estan las miniaturas del banco, tal como va en los enlaces.")
+    ap.add_argument("--out-dir", default=None,
+                     help="Carpeta donde se escribe --out. Por defecto, el vault. La galeria vive junto a su "
+                          "banco (CHATGPT/), no dentro del vault de conversaciones.")
     ap.add_argument("--banco-catalogo", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, para bancos SIN enlace en ninguna nota "
                           "(p.ej. GROK/GENERADAS_IMAGEN: media_posts es root-level). Se lista "
@@ -395,32 +440,47 @@ def main():
         raise SystemExit(f"No existe la carpeta del vault: {vault}")
     base_vault = Path(args.base_vault).expanduser().resolve() if args.base_vault else vault
 
-    miniaturas = dict(raw.split("=", 1) for raw in args.miniaturas)
     bancos = []
     for raw in args.banco:
         prefix, label = raw.split(":", 1)
-        thumbs_prefix = miniaturas.get(prefix)
-        thumbs_dir = base_vault / thumbs_prefix if thumbs_prefix else None
-        if thumbs_dir is not None and not thumbs_dir.is_dir():
-            print(f"[aviso] no existe la carpeta de miniaturas {thumbs_dir}: {label} se indexa con las "
-                  "imagenes originales.")
-            thumbs_dir = thumbs_prefix = None
-        bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix,
-                               thumbs_dir=thumbs_dir, thumbs_prefix=thumbs_prefix))
+        bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix))
     for raw in args.banco_catalogo:
         prefix, label = raw.split(":", 1)
         bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix, catalog=True))
 
+    out_dir = Path(args.out_dir).expanduser().resolve() if args.out_dir else vault
+
+    if args.galeria:
+        if not args.miniaturas or "=" not in args.miniaturas:
+            raise SystemExit("--galeria necesita --miniaturas prefijo_del_banco=prefijo_de_las_miniaturas")
+        prefijo_banco, thumbs_prefix = args.miniaturas.split("=", 1)
+        banco = next((b for b in bancos if b.prefix == prefijo_banco), None)
+        if banco is None:
+            raise SystemExit(f"--miniaturas habla del banco '{prefijo_banco}', que no esta entre los --banco")
+        thumbs_dir = base_vault / thumbs_prefix
+        if not thumbs_dir.is_dir():
+            raise SystemExit(f"no existe la carpeta de miniaturas: {thumbs_dir}")
+        try:
+            vault_prefix = vault.relative_to(base_vault).as_posix()
+        except ValueError:
+            vault_prefix = ""
+        g = generate_gallery(vault, args.conversations_dir, args.proveedor, banco, thumbs_dir, thumbs_prefix, vault_prefix)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / args.out).write_text(g["markdown"], encoding="utf-8")
+        s = g["stats"]
+        print(f"Galeria generada: {out_dir / args.out}")
+        print(f"  {s['imagenes']} imagenes en {s['conversaciones']} conversaciones "
+              f"({s['con_miniatura']} con miniatura, {s['sin_miniatura']} sin ella, "
+              f"{s['sin_conversacion']} sin conversacion)")
+        return
+
     resultado = generate_provider_index(vault, args.conversations_dir, args.proveedor, bancos)
-    out_path = vault / args.out
+    out_path = out_dir / args.out
     out_path.write_text(resultado["markdown"], encoding="utf-8")
 
     print(f"Indice generado: {out_path}")
     for label, s in resultado["stats"].items():
         print(f"  {label}: {s['conversaciones']} conversaciones, {s['items']} items")
-        if s.get("miniaturas"):
-            m = s["miniaturas"]
-            print(f"    miniaturas: {m['con']} con miniatura, {m['sin']} sin ella")
 
     if args.pendientes_json and args.pendientes_out:
         pend_path = Path(args.pendientes_json)

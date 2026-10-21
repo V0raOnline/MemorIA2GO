@@ -514,14 +514,10 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     ]
     grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
 
-    # Miniaturas de los bancos de imagenes: banco -> carpeta de sus miniaturas. Las
-    # genera una herramienta aparte (no el pipeline). Si la carpeta existe, el indice
-    # muestra la miniatura enlazada al original en vez de incrustar el original: con
-    # cientos de imagenes de varios MB, la nota entera pesa gigas. Si no existe, todo
-    # sigue como siempre.
-    miniaturas_por_proveedor = {
-        "ChatGPT": ["CHATGPT/GENERADAS=CHATGPT/GENERADAS_Thmbnails"],
-    }
+    # Miniaturas de las imagenes generadas de ChatGPT: las genera una herramienta
+    # aparte (no el pipeline). Si la carpeta existe, ademas del indice general se
+    # escribe una galeria con ellas en CHATGPT/ (ver generate_gallery).
+    chatgpt_miniaturas = "CHATGPT/GENERADAS_Thmbnails"
 
     # Indices viejos, uno por banco de ChatGPT, superados por _index_chatgpt.md.
     # Se retiran en cada corrida para que no queden colgando desincronizados.
@@ -561,9 +557,6 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
                     args += ["--banco", b]
                 for b in bancos_catalogo:
                     args += ["--banco-catalogo", b]
-                for par in miniaturas_por_proveedor.get(titulo, []):
-                    if (base_vault / par.split("=", 1)[1]).is_dir():
-                        args += ["--miniaturas", par]
                 if titulo == "Grok":
                     args += [
                         "--pendientes-json", grok_pendientes_json,
@@ -571,6 +564,18 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
                         "--pendientes-titulo", "Grok — pendientes de descarga",
                     ]
                 run_script(content_script, args, log_path)
+            # La galeria vive junto a su banco, no en el vault de conversaciones, y se
+            # escribe una sola vez: las miniaturas cuelgan del vault fusionado.
+            if vault == merged_vault and (base_vault / chatgpt_miniaturas).is_dir():
+                run_script(content_script, [
+                    vault, "--base-vault", base_vault,
+                    "--conversations-dir", conv_dir,
+                    "--proveedor", "ChatGPT",
+                    "--banco", "CHATGPT/GENERADAS:Generadas",
+                    "--galeria", "--miniaturas", f"CHATGPT/GENERADAS={chatgpt_miniaturas}",
+                    "--out-dir", base_vault / "CHATGPT",
+                    "--out", "_indice_imagenes.md",
+                ], log_path)
         else:
             warn("No encuentro content_index.py — omitiendo indice de contenido.")
 
