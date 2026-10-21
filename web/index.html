@@ -156,6 +156,7 @@
     <div class="card" id="card-substack" style="display:none;">
       <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" /><line x1="16" y1="8" x2="2" y2="22" /><line x1="17.5" y1="15" x2="9" y2="15" /></svg><span>Inkwell</span></h2>
       <div id="dashboard-substack" class="stat-grid"></div>
+      <p id="substack-pubs" class="field-help" style="display:none;"></p>
     </div>
   </section>
 
@@ -819,9 +820,10 @@
     <div class="card">
       <h2>Verification</h2>
       <p class="card-help">
-        The export lives in your usual exports folder: the conversation pipeline recognizes
-        it, rejects it, and this screen picks it up. If you also drop the stats CSV you
-        download from your Substack dashboard, it gets matched automatically.
+        The exports live in your usual exports folder: the conversation pipeline recognizes
+        them, rejects them, and this screen picks them up. Each Substack publication has its
+        own export; leave them all there. If you also drop the stats CSV of each one (its name
+        starts with the publication's), it gets matched automatically.
       </p>
       <button class="btn" id="btn-substack-verify">Verify the export</button>
       <div id="substack-verify-msg" class="msg"></div>
@@ -832,8 +834,8 @@
       <h2>Build</h2>
       <p class="card-help">
         One note per post. Published ones are filed by year and month; drafts go to their
-        own folder, because they have no date to file them by. None of this touches your
-        conversation vault.
+        own folder, because they have no date to file them by. With several publications, each
+        goes to its own folder. None of this touches your conversation vault.
       </p>
       <label class="sb-check">
         <input type="checkbox" id="substack-dry-run">
@@ -842,6 +844,22 @@
       <button class="btn" id="btn-substack-build">Build the vault</button>
       <div id="substack-build-msg" class="msg"></div>
       <pre id="substack-build-out" class="log-box" style="display:none;"></pre>
+
+      <!-- Solo aparece si el vault tiene el layout de cuando habia un solo export (Posts/, Borradores/...
+           en la raiz) y hay varias publicaciones. Dos pasos: primero se ve el plan, luego se aplica. -->
+      <div id="substack-migrar" style="display:none; margin-top:22px;">
+        <div class="sb-ausencias-label">The old layout at the vault root</div>
+        <p class="card-help">
+          Your Inkwell vault has the layout from when there was a single export. To build several
+          publications it has to be moved to its own publication's folder: the tool identifies it by
+          the notes' <code>post_id</code> values, <strong>deletes nothing</strong> and checks every file
+          when it finishes. Close Obsidian before moving it.
+        </p>
+        <button class="btn secondary" id="btn-substack-migrar-plan">See what would be moved</button>
+        <button class="btn" id="btn-substack-migrar-aplicar" style="display:none;">Move the old layout now</button>
+        <div id="substack-migrar-msg" class="msg"></div>
+        <pre id="substack-migrar-out" class="log-box" style="display:none;"></pre>
+      </div>
     </div>
   </section>
 

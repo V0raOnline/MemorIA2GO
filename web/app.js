@@ -625,6 +625,14 @@ function renderSubstack(stats) {
   }
   card.style.display = "";
   const retirados = s.retirados ? `${s.retirados} retired` : "";
+  // Con varias publicaciones las cifras son la suma; la lista dice de quien es cada parte.
+  const pubs = document.getElementById("substack-pubs");
+  if (s.publicaciones && s.publicaciones.length > 1) {
+    pubs.textContent = s.publicaciones.map((p) => `${p.publicacion} ${p.posts}`).join(" · ");
+    pubs.style.display = "";
+  } else {
+    pubs.style.display = "none";
+  }
   document.getElementById("dashboard-substack").innerHTML = [
     statBox("Posts", s.posts, s.export),
     statBox("Words", s.palabras.toLocaleString("en-GB")),
@@ -648,7 +656,8 @@ const SB_ICONO_ZIP = '<path d="M4 4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0
 const SB_ICONO_CHART = '<path d="M3 3v18h18" /><circle cx="9" cy="12" r="1.5" /><circle cx="14" cy="8" r="1.5" /><circle cx="19" cy="14" r="1.5" />';
 const SB_ICONO_ESCUDO = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12h6" />';
 
-function pintarVerificacion(d) {
+// Una publicacion: su zip, su CSV de estadisticas y lo que el export no trae.
+function pintarPublicacion(d) {
   const e = d.export;
   const filas = [
     sbRow("ok", SB_ICONO_ZIP, e.nombre,
@@ -682,6 +691,20 @@ function pintarVerificacion(d) {
   return html;
 }
 
+// Los avisos primero (zips repetidos, layout antiguo en el vault: cosas que conviene ver
+// ANTES de construir) y luego un bloque por publicacion, con su nombre si hay mas de una.
+function pintarVerificacion(d) {
+  let html = (d.avisos || []).map((a) =>
+    sbRow("aviso", SB_ICONO_ESCUDO, a.tipo === "layout_antiguo" ? "Old layout in the vault" : "Notice", a.texto)
+  ).join("");
+  const varias = d.publicaciones.length > 1;
+  d.publicaciones.forEach((p) => {
+    if (varias) html += `<div class="sb-ausencias-label">${p.publicacion}</div>`;
+    html += pintarPublicacion(p);
+  });
+  return html;
+}
+
 async function substackVerify() {
   const btn = document.getElementById("btn-substack-verify");
   const msg = document.getElementById("substack-verify-msg");
@@ -695,8 +718,10 @@ async function substackVerify() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     out.innerHTML = pintarVerificacion(data);
+    mostrarMigracion((data.avisos || []).some((a) => a.tipo === "layout_antiguo"));
     out.style.display = "";
-    msg.textContent = "Export recognized.";
+    msg.textContent = data.publicaciones.length > 1
+      ? `${data.publicaciones.length} publications recognized.` : "Export recognized.";
     msg.className = "msg ok";
   } catch (e) {
     msg.textContent = `Error: ${e.message}`;
@@ -732,6 +757,7 @@ async function substackBuild() {
     msg.className = "msg ok";
     if (!seco) loadDashboard(true);
   } catch (e) {
+    if (/--migrar-legado|layout de un solo export/.test(e.message)) mostrarMigracion(true);
     msg.textContent = `Error: ${e.message}`;
     msg.className = "msg error";
   } finally {
@@ -739,6 +765,53 @@ async function substackBuild() {
   }
 }
 
+// Migrar lo antiguo a la carpeta de su publicacion. Dos pasos a proposito: el primero solo ensena
+// el plan (el servidor no mueve nada sin `aplicar`), y el boton de mover aparece despues de verlo.
+function mostrarMigracion(visible) {
+  document.getElementById("substack-migrar").style.display = visible ? "" : "none";
+}
+
+async function substackMigrar(aplicar) {
+  const msg = document.getElementById("substack-migrar-msg");
+  const out = document.getElementById("substack-migrar-out");
+  const btnPlan = document.getElementById("btn-substack-migrar-plan");
+  const btnAplicar = document.getElementById("btn-substack-migrar-aplicar");
+  btnPlan.disabled = true;
+  btnAplicar.disabled = true;
+  msg.textContent = aplicar ? "Moving and checking..." : "Working out the plan...";
+  msg.className = "msg";
+  try {
+    const res = await fetch("/api/substack/migrar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aplicar }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    // La ultima linea del plan habla de --aplicar (linea de ordenes): aqui sobra, esta el boton.
+    const salida = (data.salida || "").split("\n").filter((l) => !l.includes("repeat with --aplicar")).join("\n");
+    out.textContent = salida;
+    out.style.display = salida ? "" : "none";
+    if (aplicar) {
+      btnAplicar.style.display = "none";
+      msg.textContent = "Moved and checked. You can now press \u201cBuild the vault\u201d.";
+    } else {
+      btnAplicar.style.display = "";
+      msg.textContent = "This is the plan: nothing has been moved. If it looks right, press \u201cMove the old layout now\u201d.";
+    }
+    msg.className = "msg ok";
+  } catch (e) {
+    btnAplicar.style.display = "none";
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btnPlan.disabled = false;
+    btnAplicar.disabled = false;
+  }
+}
+
+document.getElementById("btn-substack-migrar-plan").addEventListener("click", () => substackMigrar(false));
+document.getElementById("btn-substack-migrar-aplicar").addEventListener("click", () => substackMigrar(true));
 document.getElementById("btn-substack-verify").addEventListener("click", substackVerify);
 document.getElementById("btn-substack-build").addEventListener("click", substackBuild);
 

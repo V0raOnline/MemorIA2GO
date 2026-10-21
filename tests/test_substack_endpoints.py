@@ -83,7 +83,9 @@ def test_verify_sin_export_no_inventa_nada(entorno):
 def test_verify_cuenta_estados_y_ausencias(entorno):
     _make_export(entorno["exports"])
     _make_stats(entorno["exports"])
-    datos = entorno["cliente"].post("/api/substack/verify").get_json()
+    respuesta = entorno["cliente"].post("/api/substack/verify").get_json()
+    assert len(respuesta["publicaciones"]) == 1          # un solo export: una sola publicacion
+    datos = respuesta["publicaciones"][0]
     assert datos["export"]["posts"] == 4
     assert datos["export"]["publicados"] == 2
     assert datos["export"]["retirados"] == 1
@@ -100,7 +102,7 @@ def test_sin_csv_no_se_afirma_cuantos_comentarios_hubo(entorno):
     """Sin el CSV no hay forma de saberlo. La clave NO debe viajar: un 0 ahí
     sería afirmar que no hubo conversación, que es distinto de no saberlo."""
     _make_export(entorno["exports"])
-    datos = entorno["cliente"].post("/api/substack/verify").get_json()
+    datos = entorno["cliente"].post("/api/substack/verify").get_json()["publicaciones"][0]
     assert datos["stats"] is None
     assert "comentarios" not in datos["ausencias"]
     assert datos["ausencias"]["imagenes"] == 1
@@ -178,10 +180,11 @@ def test_build_en_seco_no_escribe(entorno):
 def test_el_csv_de_stats_se_localiza_por_cabecera_no_por_nombre(entorno):
     """En exports_dir puede haber otros CSV. Coger el equivocado daría un
     cruce silencioso de 0 filas, que es peor que no encontrarlo."""
+    import substack_stats
     (entorno["exports"] / "otra_cosa.csv").write_text("a,b,c\n1,2,3\n", encoding="utf-8")
-    assert launcher._stats_csv_en(entorno["exports"]) is None
+    assert substack_stats.bsv.localizar_stats(entorno["exports"], "pub", unica=True) is None
     esperado = _make_stats(entorno["exports"])
-    assert launcher._stats_csv_en(entorno["exports"]) == esperado
+    assert substack_stats.bsv.localizar_stats(entorno["exports"], "pub", unica=True) == esperado
 
 
 def test_una_clave_de_ruta_nueva_no_se_pierde_al_guardar(tmp_path, monkeypatch):
