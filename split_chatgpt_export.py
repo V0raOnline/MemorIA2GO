@@ -50,7 +50,7 @@ IMAGE_TOKEN_RE = re.compile(r"\x00IMG:(?P<pointer>[^\x00]+)\x00")
 # -<uuid> del formato anterior y con una extension que no dice el tipo (por dentro son
 # png, jpg...). Con solo UUID_SUFFIX_RE el indice salia vacio, ninguna imagen se
 # resolvia y las notas se llenaban de "imagen no disponible" sin ningun error.
-DAT_ASSET_RE = re.compile(r"^(?P<id>file[-_][A-Za-z0-9]+)\.(?P<ext>\w+)$")
+DAT_ASSET_RE = re.compile(r"^(?P<id>file[-_][A-Za-z0-9_-]+)\.(?P<ext>\w+)$")
 
 
 # Cuenta, por ejecucion, lo que paso con cada referencia de imagen: un fallo de formato

@@ -42,6 +42,13 @@ def test_indexa_los_dat_del_esquema_sediment():
     assert idx.by_id == {"file_00000000abc": "file_00000000abc.dat"}
 
 
+def test_un_id_con_guion_o_guion_bajo_dentro_tambien_se_indexa():
+    """Los ids reales son alfanumericos, pero que un id futuro lleve _ o - no debe dejarlo sin indexar."""
+    idx = sce.AssetIndex(_zip({"file_ab_cd-ef.dat": PNG}))
+    assert list(idx.by_id) == ["file_ab_cd-ef"]
+    assert idx.sin_indexar == 0
+
+
 def test_indexa_los_dat_del_esquema_file_service():
     idx = sce.AssetIndex(_zip({"file-1zNVGzKhM9w9hA5asY7Ff2.dat": JPG}))
     assert "file-1zNVGzKhM9w9hA5asY7Ff2" in idx.by_id
