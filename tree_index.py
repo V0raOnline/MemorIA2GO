@@ -112,29 +112,35 @@ def to_wikilink(rel_md_path: Path, title: str) -> str:
     return f"[[{without_ext}|{alias}]]"
 
 
-def collect_notes(vault_root: Path, conversations_dir: str) -> list:
-    base = vault_root / conversations_dir
-    out = []
-    for root, _, files in os.walk(base):
-        for fn in files:
-            if not fn.lower().endswith(".md"):
-                continue
-            if fn in INDEX_FILENAMES:
-                continue
-            p = Path(root) / fn
-            fm = read_frontmatter(p)
-            project = (fm.get("Project_name") or "none").strip()
-            title = (fm.get("title") or p.stem).strip()
-            date = (fm.get("date") or "").strip()
-            if not DATE_RX.match(date):
-                date = infer_date_from_any(p, title)
+def _carpetas(conversations_dir) -> list:
+    """Una o varias subcarpetas de conversaciones. Varias cuando el vault fusionado
+    esta partido por proveedor: una por proveedor."""
+    return [conversations_dir] if isinstance(conversations_dir, str) else list(conversations_dir)
 
-            y, m, d = (date[0:4], date[5:7], date[8:10]) if len(date) >= 10 else ("0000", "00", "00")
-            rel = p.relative_to(vault_root)
-            out.append({
-                "project": project or "none", "title": title, "date": date,
-                "year": y, "month": m, "day": d, "rel": rel,
-            })
+
+def collect_notes(vault_root: Path, conversations_dir) -> list:
+    out = []
+    for carpeta in _carpetas(conversations_dir):
+        for root, _, files in os.walk(vault_root / carpeta):
+            for fn in files:
+                if not fn.lower().endswith(".md"):
+                    continue
+                if fn in INDEX_FILENAMES:
+                    continue
+                p = Path(root) / fn
+                fm = read_frontmatter(p)
+                project = (fm.get("Project_name") or "none").strip()
+                title = (fm.get("title") or p.stem).strip()
+                date = (fm.get("date") or "").strip()
+                if not DATE_RX.match(date):
+                    date = infer_date_from_any(p, title)
+
+                y, m, d = (date[0:4], date[5:7], date[8:10]) if len(date) >= 10 else ("0000", "00", "00")
+                rel = p.relative_to(vault_root)
+                out.append({
+                    "project": project or "none", "title": title, "date": date,
+                    "year": y, "month": m, "day": d, "rel": rel,
+                })
     out.sort(key=lambda r: (r["date"], r["title"].lower()), reverse=True)
     return out
 
@@ -148,13 +154,14 @@ def group_by_project_year_month(rows: list):
     return tree, counts
 
 
-def render_markdown(tree, counts, max_per_month: int, conversations_dir: str) -> str:
+def render_markdown(tree, counts, max_per_month: int, conversations_dir) -> str:
     lines = []
     total_projects = len(tree)
     total_notes = sum(counts.values())
 
     lines.append("# Índice por Proyecto\n")
-    lines.append(f"_Subcarpeta:_ `{conversations_dir}`  ·  _Proyectos:_ **{total_projects}**  ·  _Notas:_ **{total_notes}**\n")
+    subcarpetas = ", ".join(_carpetas(conversations_dir))
+    lines.append(f"_Subcarpeta:_ `{subcarpetas}`  ·  _Proyectos:_ **{total_projects}**  ·  _Notas:_ **{total_notes}**\n")
 
     for proj in sorted(tree.keys(), key=lambda s: s.lower()):
         n = counts.get(proj, 0)
@@ -189,16 +196,19 @@ def main():
     ap.add_argument("vault", help="Ruta al vault (raiz que contiene la carpeta de conversaciones)")
     ap.add_argument("--out", default="_tree_index.md", help="Archivo de salida dentro del vault")
     ap.add_argument("--max-per-month", type=int, default=0, help="Limite de notas por mes (0 = sin limite)")
-    ap.add_argument("--conversations-dir", default=layout.cargar().rel("conversaciones"), help="Subcarpeta a escanear dentro del vault")
+    ap.add_argument("--conversations-dir", action="append",
+                    help="Subcarpeta a escanear dentro del vault; repetible (una por proveedor si el "
+                         "vault esta partido). Sin ella, la de conversaciones del layout.")
     args = ap.parse_args()
 
     vault = Path(args.vault).expanduser().resolve()
     if not vault.is_dir():
         raise SystemExit(f"No existe la carpeta del vault: {vault}")
 
-    rows = collect_notes(vault, args.conversations_dir)
+    carpetas = args.conversations_dir or [layout.cargar().rel("conversaciones")]
+    rows = collect_notes(vault, carpetas)
     tree, counts = group_by_project_year_month(rows)
-    md = render_markdown(tree, counts, args.max_per_month, args.conversations_dir)
+    md = render_markdown(tree, counts, args.max_per_month, carpetas)
 
     out_path = vault / args.out
     out_path.write_text(md, encoding="utf-8")

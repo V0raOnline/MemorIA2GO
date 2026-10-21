@@ -136,6 +136,9 @@ async function loadConfig() {
   document.getElementById("cfg-copilot_images_vault").value = paths.copilot_images_vault || "";
   document.getElementById("cfg-substack_vault").value = paths.substack_vault || "";
   document.getElementById("cfg-prj_vault_name").value = opts.prj_vault_name || "PRJ_VAULT";
+  const presetSel = document.getElementById("cfg-layout_preset");
+  presetSel.value = ["unico", "proveedor", "proyectos"].includes(opts.layout_preset) ? opts.layout_preset : "proyectos";
+  await refreshLayoutPresets();
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
   document.getElementById("cfg-by_month").checked = opts.by_month !== false;
   document.getElementById("cfg-make_index").checked = opts.make_index !== false;
@@ -148,6 +151,52 @@ async function loadConfig() {
 
   updateConfigBadge(Boolean((paths.base_vault || "").trim() && (paths.exports_dir || "").trim()));
 }
+
+// Que significa cada preset de organizacion, en una frase.
+const PRESET_HELP = {
+  proyectos: "Todas las conversaciones juntas en MERGED_VAULT y, además, un vault de proyectos con una carpeta por proyecto. Es lo de siempre.",
+  unico: "Todas las conversaciones juntas en MERGED_VAULT. No se crea vault de proyectos.",
+  proveedor: "MERGED_VAULT con una carpeta por proveedor (ChatGPT, Claude, Grok…), cada una con sus conversaciones. Los temas siguen cruzando proveedores. No se crea vault de proyectos.",
+};
+
+function presetHelpText(id, help) {
+  return (PRESET_HELP[id] || "") + (help.dataset.nota ? " " + help.dataset.nota : "");
+}
+
+// Pregunta al servidor que presets admite el vault de la config guardada. Un vault
+// que ya tiene conversaciones fusionadas no cambia de organizacion sin migrarlo, y
+// es mejor decirlo aqui, junto al campo, que dejar elegir y fallar al importar.
+async function refreshLayoutPresets() {
+  const sel = document.getElementById("cfg-layout_preset");
+  const help = document.getElementById("layout-preset-help");
+  const prj = document.getElementById("cfg-prj_vault_name");
+  let bloqueados = {};
+  try {
+    const res = await fetch("/api/layout/presets");
+    const data = await res.json();
+    (data.presets || []).forEach((p) => { if (p.conflictos && p.conflictos.length) bloqueados[p.id] = p.conflictos[0]; });
+  } catch (_) {}
+  Array.from(sel.options).forEach((o) => {
+    o.disabled = Boolean(bloqueados[o.value]) && o.value !== sel.value;
+  });
+  const actual = sel.value;
+  const hayBloqueo = Object.keys(bloqueados).length > 0;
+  help.dataset.nota = hayBloqueo
+    ? "Las otras organizaciones no se pueden elegir: este vault ya tiene conversaciones fusionadas y cambiarlas de sitio requiere migrarlo, que aún no está disponible."
+    : "";
+  help.textContent = presetHelpText(actual, help);
+  // El nombre del vault de proyectos solo cuenta si hay vault de proyectos.
+  prj.disabled = actual !== "proyectos";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const presetSel = document.getElementById("cfg-layout_preset");
+  if (presetSel) presetSel.addEventListener("change", () => {
+    const help = document.getElementById("layout-preset-help");
+    help.textContent = presetHelpText(presetSel.value, help);
+    document.getElementById("cfg-prj_vault_name").disabled = presetSel.value !== "proyectos";
+  });
+});
 
 // Cambio en vivo del tema desde el select: aplica al instante para que
 // V0ra vea el cambio antes de guardar. La persistencia real llega con
@@ -177,6 +226,7 @@ async function saveConfig() {
     },
     options: {
       prj_vault_name: document.getElementById("cfg-prj_vault_name").value.trim() || "PRJ_VAULT",
+      layout_preset: document.getElementById("cfg-layout_preset").value,
       by_year: document.getElementById("cfg-by_year").checked,
       by_month: document.getElementById("cfg-by_month").checked,
       make_index: document.getElementById("cfg-make_index").checked,

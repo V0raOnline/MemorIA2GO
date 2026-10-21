@@ -806,7 +806,8 @@ def ingest_extras(carpeta: Any, base_vault: Any,
 
     Rutas (segun D2/D3/D4 en bck/NewClaude/PLAN.md; los nombres vienen
     del layout, aqui los del clasico):
-        base_vault/PRJ_VAULT/<name>/…               (D3)
+        base_vault/PRJ_VAULT/<name>/…               (D3; sin vault de proyectos,
+                                                     MERGED_VAULT/CLAUDE_WEB/PROYECTOS)
         base_vault/MERGED_VAULT/CLAUDE_WEB/FRAMES/…  (banco propio)
         base_vault/Claude_Mem/…                     (D2, vault nuevo)
 
@@ -814,7 +815,7 @@ def ingest_extras(carpeta: Any, base_vault: Any,
     base_vault = Path(base_vault)
     lay = layout.cargar(base_vault, prj_vault_name)
     return {
-        "projects": write_projects(carpeta, lay.ruta(base_vault, "prj")),
+        "projects": write_projects(carpeta, lay.ruta(base_vault, "claude.proyectos")),
         "frames": write_frames(carpeta, lay.ruta(base_vault, "claude.web_frames")),
         "memories": write_memories(carpeta, lay.ruta(base_vault, "claude.memorias")),
     }

@@ -298,6 +298,9 @@ def load_from_yaml(config_path: str | None = None,
             "by_date": get_opt(cfg, "by_month", True),
             "make_index": get_opt(cfg, "make_index", True),
             "prj_vault_name": get_opt(cfg, "prj_vault_name", None),
+            # Como se organiza el vault fusionado: unico | proveedor | proyectos.
+            # Vacio = lo de siempre (MERGED mezclado y PRJ_VAULT).
+            "layout_preset": get_opt(cfg, "layout_preset", None),
             # Fuente RAW fuera de base_vault (opcional). Vacio = dentro, como siempre.
             "raw_vault": get_path(cfg, "raw_vault"),
             "dry_run": get_opt(cfg, "dry_run", False),
@@ -322,7 +325,7 @@ def _layout(params: dict):
     (opcion de siempre) sobre la carpeta de proyectos y `raw_vault` sobre la
     ubicacion de la fuente: que discrepe del vault lo para `layout.conflictos`."""
     return layout.pedido(params.get("vault_path"), params.get("prj_vault_name"),
-                         params.get("raw_vault"))
+                         params.get("raw_vault"), params.get("layout_preset"))
 
 
 def _anotar_layout(params: dict, lay, log_path: Path) -> None:
@@ -491,6 +494,9 @@ def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
 
 def paso3_organizar(params: dict, merged_vault: Path, log_path: Path):
     """Reorganiza MERGED_VAULT por Project_name en PRJ_VAULT."""
+    if not _layout(params).proyectos:
+        rule("Paso 3 — Omitido (el vault de proyectos esta desactivado en esta configuracion)")
+        return None
     rule(f"Paso 3 — Organizar por proyectos ({_layout(params).rel('prj')})")
 
     script = HERE / "project_organizer.py"
@@ -550,20 +556,22 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     # Se retiran en cada corrida para que no queden colgando desincronizados.
     archivos_obsoletos = ["_image_index.md", "_index_generadas.md", "_index_adjuntos.md"]
 
-    targets = [(merged_vault, lay.rel("conversaciones"))]
+    # Con MERGED partido por proveedor hay una carpeta de conversaciones por proveedor.
+    targets = [(merged_vault, lay.conv_dirs(merged_vault))]
     if project_vault is not None:
         # PRJ_VAULT no tiene subcarpeta "Conversaciones": project_organizer.py
         # organiza directo como {proyecto}/{ano}/{mes}/nota.md desde la raiz.
-        targets.append((project_vault, "."))
+        targets.append((project_vault, ["."]))
 
-    for vault, conv_dir in targets:
+    for vault, conv_dirs in targets:
+        conv_args = [a for d in conv_dirs for a in ("--conversations-dir", d)]
         for nombre in archivos_obsoletos:
             obsoleto = vault / nombre
             if obsoleto.exists():
                 obsoleto.unlink()
 
         if tree_script.exists():
-            run_script(tree_script, [vault, "--conversations-dir", conv_dir, "--max-per-month", "0"], log_path)
+            run_script(tree_script, [vault, *conv_args, "--max-per-month", "0"], log_path)
         else:
             warn("No encuentro tree_index.py — omitiendo indice de proyectos.")
 
@@ -576,7 +584,7 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
             for titulo, out_name, bancos, bancos_catalogo in proveedores:
                 args = [
                     vault, "--base-vault", base_vault,
-                    "--conversations-dir", conv_dir,
+                    *conv_args,
                     "--proveedor", titulo,
                     "--out", out_name,
                 ]
@@ -742,7 +750,7 @@ def main():
     if args.reindex_only:
         merged_vault = lay.ruta(params["vault_path"], "merged")
         project_vault = lay.ruta(params["vault_path"], "prj")
-        if not project_vault.exists():
+        if not lay.proyectos or not project_vault.exists():
             project_vault = None
         paso4_indices(params["vault_path"], merged_vault, project_vault, log_path)
         ok("Índices regenerados.")

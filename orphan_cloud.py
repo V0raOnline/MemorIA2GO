@@ -195,16 +195,18 @@ def project_vocabulary(prj_vault: Path,
 
 def iter_orphans(merged_vault: Path):
     """(ruta, frontmatter) de cada nota huérfana del vault fusionado."""
-    conv = merged_vault / layout.cargar().rel("conversaciones")
-    if not conv.exists():
-        return
-    for f in iter_markdown_files(conv):
-        if f.name in INDEX_FILENAMES:
+    # Una carpeta de conversaciones, o una por proveedor si el vault esta partido.
+    for d in layout.cargar().conv_dirs(merged_vault):
+        conv = merged_vault / d
+        if not conv.exists():
             continue
-        fm = read_frontmatter(f)
-        prj = (fm.get("Project_name") or "none").strip().strip('"').lower()
-        if prj in ("none", ""):
-            yield f, fm
+        for f in iter_markdown_files(conv):
+            if f.name in INDEX_FILENAMES:
+                continue
+            fm = read_frontmatter(f)
+            prj = (fm.get("Project_name") or "none").strip().strip('"').lower()
+            if prj in ("none", ""):
+                yield f, fm
 
 
 def build_cloud(base_vault: Path, prj_vault_name: Optional[str] = None,

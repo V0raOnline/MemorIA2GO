@@ -29,9 +29,12 @@ def main():
 
     src = Path(args.source).expanduser().resolve()
     dst = Path(args.target).expanduser().resolve()
-    conv = layout.cargar().rel("conversaciones")
-    if not (src / conv).exists():
-        raise SystemExit(f"❌ No encuentro {src / conv}")
+    lay = layout.cargar()
+    # Con MERGED partido por proveedor hay una carpeta de conversaciones por
+    # proveedor, y PRJ las junta: un proyecto cruza proveedores.
+    carpetas = [src / d for d in lay.conv_dirs(src) if (src / d).exists()]
+    if not carpetas:
+        raise SystemExit(f"❌ No encuentro {src / lay.rel('conversaciones')}")
     dst.mkdir(parents=True, exist_ok=True)
 
     # Solo las conversaciones, no todo el vault. Bug real (2026-07-28): al
@@ -44,7 +47,7 @@ def main():
     # PRJ_VAULT es una vista de CONVERSACIONES por proyecto -- los indices
     # no pintan nada ahi. Filtrar por carpeta en vez de por lista de
     # nombres evita tener que acordarse de cada indice nuevo que se anada.
-    notes = list(iter_markdown_files(src / conv))
+    notes = [md for c in carpetas for md in iter_markdown_files(c)]
     created = 0
     for md in notes:
         try:

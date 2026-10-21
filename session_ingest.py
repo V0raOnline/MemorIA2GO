@@ -187,7 +187,9 @@ def ingest_sesion(jsonl: Any, base_vault: Any, nivel: int = sn.NIVEL_PLEGADO
     # 2. Notas: madre a Conversaciones/<sub>/AAAA/MM, hijas al banco.
     fecha = sn._fecha(sesion.get("create_time"))  # AAAA-MM-DD o 'sin-fecha'
     y, m = (fecha.split("-")[0], fecha.split("-")[1]) if "-" in fecha else ("sin-fecha", "")
-    madre_dir = merged / lay.rel("conversaciones") / cfg["sub"] / y / m
+    # Con MERGED partido por proveedor, la madre va a la carpeta de su proveedor
+    # (Claude Code -> Claude, Codex -> ChatGPT); `_clave` es el valor de `provider`.
+    madre_dir = merged / lay.conv_rel(_clave) / cfg["sub"] / y / m
 
     extra_madre = {
         "Project_name": "none",           # huerfana: se agrupa a mano

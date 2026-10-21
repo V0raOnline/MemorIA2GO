@@ -235,6 +235,15 @@
     <div class="card">
       <h2>Opciones</h2>
       <div class="field">
+        <label for="cfg-layout_preset">Organización del vault fusionado</label>
+        <select id="cfg-layout_preset" class="theme-select">
+          <option value="proyectos">Todo junto + proyectos (por defecto)</option>
+          <option value="unico">Todo junto</option>
+          <option value="proveedor">Una carpeta por proveedor</option>
+        </select>
+        <p class="field-help" id="layout-preset-help"></p>
+      </div>
+      <div class="field">
         <label for="cfg-prj_vault_name">Nombre del vault de proyectos</label>
         <input type="text" id="cfg-prj_vault_name">
       </div>

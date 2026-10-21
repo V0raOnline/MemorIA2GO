@@ -33,10 +33,12 @@ def human_size(num_bytes: int) -> str:
     return f"{size:.1f} TB"
 
 
-def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict:
+def compute_single_vault_stats(vault_path: Path, conversations_dir) -> dict:
     """conversations_dir='.' si las notas cuelgan directo de vault_path (caso
-    vault de proyectos); si no, la subcarpeta de conversaciones (RAW/MERGED)."""
-    conv_base = vault_path if conversations_dir == "." else vault_path / conversations_dir
+    vault de proyectos); si no, la subcarpeta de conversaciones (RAW/MERGED), o
+    una lista de ellas si el vault esta partido por proveedor."""
+    carpetas = [conversations_dir] if isinstance(conversations_dir, str) else list(conversations_dir)
+    conv_bases = [vault_path if d == "." else vault_path / d for d in carpetas]
 
     total_size = 0
     if vault_path.exists():
@@ -60,30 +62,29 @@ def compute_single_vault_stats(vault_path: Path, conversations_dir: str) -> dict
     por_mes: dict = {}
     por_proyecto: dict = {}
     por_proveedor: dict = {}
-    if conv_base.exists():
-        for f in iter_markdown_files(conv_base):
-            if f.name in INDEX_FILENAMES:
-                continue
-            note_count += 1
-            fm = read_frontmatter(f)
-            d = (fm.get("date") or "").strip()
-            if DATE_RX.match(d):
-                if min_date is None or d < min_date:
-                    min_date = d
-                if max_date is None or d > max_date:
-                    max_date = d
-                mes = d[:7]
-            else:
-                mes = "sin fecha"
-            por_mes[mes] = por_mes.get(mes, 0) + 1
-            # Notas anteriores al multi-proveedor no traen provider: son de
-            # ChatGPT por definicion (el campo nacio con los adaptadores).
-            prov = (fm.get("provider") or "chatgpt").strip()
-            por_proveedor[prov] = por_proveedor.get(prov, 0) + 1
-            if conversations_dir == ".":
-                rel = f.relative_to(conv_base)
-                proyecto = rel.parts[0] if len(rel.parts) > 1 else "(sin proyecto)"
-                por_proyecto[proyecto] = por_proyecto.get(proyecto, 0) + 1
+    for conv_base, f in ((b, f) for b in conv_bases if b.exists() for f in iter_markdown_files(b)):
+        if f.name in INDEX_FILENAMES:
+            continue
+        note_count += 1
+        fm = read_frontmatter(f)
+        d = (fm.get("date") or "").strip()
+        if DATE_RX.match(d):
+            if min_date is None or d < min_date:
+                min_date = d
+            if max_date is None or d > max_date:
+                max_date = d
+            mes = d[:7]
+        else:
+            mes = "sin fecha"
+        por_mes[mes] = por_mes.get(mes, 0) + 1
+        # Notas anteriores al multi-proveedor no traen provider: son de
+        # ChatGPT por definicion (el campo nacio con los adaptadores).
+        prov = (fm.get("provider") or "chatgpt").strip()
+        por_proveedor[prov] = por_proveedor.get(prov, 0) + 1
+        if conversations_dir == ".":
+            rel = f.relative_to(conv_base)
+            proyecto = rel.parts[0] if len(rel.parts) > 1 else "(sin proyecto)"
+            por_proyecto[proyecto] = por_proyecto.get(proyecto, 0) + 1
 
     result = {
         "existe": vault_path.exists(),
@@ -221,11 +222,13 @@ def compute_stats(base_vault: Path, prj_vault_name: Optional[str] = None) -> dic
         "base_vault": str(base_vault),
         # `vaults` va por NOMBRE de carpeta (contrato de siempre); `layout` dice
         # cual es cual, para quien necesite el vault fusionado sin saber como se llama.
-        "layout": {"raw": lay.rel("raw"), "merged": lay.rel("merged"), "prj": lay.rel("prj")},
+        "layout": {"raw": lay.rel("raw"), "merged": lay.rel("merged"), "prj": lay.rel("prj"),
+                   "preset": lay.preset, "particion": lay.particion, "proyectos": lay.proyectos},
+        # Sin vault de proyectos no hay tarjeta de proyectos: no existe, no es "0 notas".
         "vaults": {
             lay.rel("raw"): compute_single_vault_stats(raw_vault, lay.rel("conversaciones")),
-            lay.rel("merged"): compute_single_vault_stats(merged_vault, lay.rel("conversaciones")),
-            lay.rel("prj"): compute_single_vault_stats(project_vault, "."),
+            lay.rel("merged"): compute_single_vault_stats(merged_vault, lay.conv_dirs(merged_vault)),
+            **({lay.rel("prj"): compute_single_vault_stats(project_vault, ".")} if lay.proyectos else {}),
         },
         "assets": compute_asset_stats(base_vault),
         "ultima_importacion": compute_last_import(raw_vault),

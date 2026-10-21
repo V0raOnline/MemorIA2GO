@@ -70,7 +70,8 @@ def _fijar_layout_activo():
         base = get_path(cfg, "base_vault")
         raw_cfg = get_path(cfg, "raw_vault")
         lay = layout.cargar(base, get_opt(cfg, "prj_vault_name", None), usar_entorno=False,
-                            raw_vault=str(raw_cfg) if raw_cfg else None)
+                            raw_vault=str(raw_cfg) if raw_cfg else None,
+                            preset=get_opt(cfg, "layout_preset", None))
         os.environ.update(layout.entorno(lay))
     except Exception:
         os.environ.pop(layout.ENV_LAYOUT, None)
@@ -240,6 +241,48 @@ def api_browse():
         return jsonify({"opciones": [], "error": str(e)}), 200
 
 
+def _conflictos_de_preset(preset: str, updates: dict | None = None) -> list:
+    """Por que el vault de la config NO admite `preset` (vacia = se puede). Los
+    valores de `updates`, si vienen, mandan sobre los de la config guardada: es la
+    config que se esta a punto de escribir."""
+    from config_loader import load_config, get_path, get_opt
+    cfg = load_config(str(CONFIG_PATH)) if CONFIG_PATH.exists() else {"paths": {}, "options": {}}
+    updates = updates or {}
+    base = updates.get("base_vault") or get_path(cfg, "base_vault")
+    if not base:
+        return []
+    raw = updates.get("raw_vault") if "raw_vault" in updates else get_path(cfg, "raw_vault")
+    prj = updates.get("prj_vault_name") or get_opt(cfg, "prj_vault_name", None)
+    pedido = layout.pedido(base, prj, str(raw) if raw else None, preset)
+    return layout.conflictos(base, pedido)
+
+
+@app.route("/api/layout/presets")
+def layout_presets():
+    """Los presets de organizacion del vault y, de cada uno, por que NO se puede
+    elegir ahora (vacio = se puede). Un vault con notas fusionadas no cambia de
+    organizacion sin migrarlo, y la interfaz lo dice en vez de dejar elegir y
+    fallar despues."""
+    try:
+        from config_loader import load_config, get_path, get_opt
+        cfg = load_config(str(CONFIG_PATH)) if CONFIG_PATH.exists() else {"paths": {}, "options": {}}
+        base = get_path(cfg, "base_vault")
+        marcador = layout.leer_marcador(base) if base and Path(base).is_dir() else None
+        presets = []
+        for nombre, (particion, proyectos) in layout.PRESETS.items():
+            motivo = _conflictos_de_preset(nombre) if base and Path(base).is_dir() else []
+            presets.append({"id": nombre, "particion": particion, "proyectos": proyectos,
+                            "conflictos": motivo})
+        return jsonify({
+            "presets": presets,
+            "configurado": layout.normalizar_preset(get_opt(cfg, "layout_preset", None)),
+            "del_vault": layout.normalizar_preset(marcador.preset) if marcador and marcador.preset in
+                         (*layout.PRESETS, "clasico") else None,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/config", methods=["GET"])
 def get_config():
     try:
@@ -258,6 +301,15 @@ def set_config():
     updates = {}
     updates.update(data.get("paths", {}))
     updates.update(data.get("options", {}))
+    # Un preset que el vault no admite no se guarda: el pipeline se negaria a
+    # arrancar despues, y es mejor decirlo aqui, junto al campo, que en un log.
+    if updates.get("layout_preset"):
+        try:
+            motivo = _conflictos_de_preset(updates["layout_preset"], updates)
+        except layout.LayoutError as e:
+            motivo = [str(e)]
+        if motivo:
+            return jsonify({"error": " ".join(motivo)}), 400
     try:
         patch_config_yaml(updates)
         return jsonify({"ok": True})

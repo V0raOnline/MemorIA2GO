@@ -78,7 +78,7 @@ def comprobar_destino(origen: Path, destino: Path, base_vault: Path, lay: layout
         raise ErrorDeMovimiento("el destino esta DENTRO del RAW actual: la copia se copiaria a si misma.")
     if layout.dentro(layout.norm(origen), layout.norm(destino)):
         raise ErrorDeMovimiento("el RAW actual esta dentro del destino: mezclaria la fuente con otras carpetas.")
-    pedido = layout.Layout(lay.a_dict(), preset=lay.preset, externas={"raw": str(destino)})
+    pedido = lay.con(externas={"raw": str(destino)})
     malos = pedido.problemas(base_vault)
     if malos:
         raise ErrorDeMovimiento("el destino no es valido:\n  - " + "\n  - ".join(malos))
@@ -179,7 +179,7 @@ def mover(base_vault: Path, hacia: Path, dry_run: bool = False, log=print) -> in
             f"la verificacion ha fallado en {len(fallos)} fichero(s). El marcador NO se ha tocado "
             "y el original sigue intacto. Puedes repetir el comando.")
 
-    nuevo = layout.Layout(lay.a_dict(), preset=lay.preset, externas={"raw": str(destino)})
+    nuevo = lay.con(externas={"raw": str(destino)})
     layout.escribir_marcador(base_vault, nuevo)
     log(f"✓ Copia verificada: {len(origen)} ficheros identicos (tamano, SHA-1 y fecha).")
     log("")
