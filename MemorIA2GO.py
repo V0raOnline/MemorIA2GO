@@ -514,6 +514,15 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     ]
     grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
 
+    # Miniaturas de los bancos de imagenes: banco -> carpeta de sus miniaturas. Las
+    # genera una herramienta aparte (no el pipeline). Si la carpeta existe, el indice
+    # muestra la miniatura enlazada al original en vez de incrustar el original: con
+    # cientos de imagenes de varios MB, la nota entera pesa gigas. Si no existe, todo
+    # sigue como siempre.
+    miniaturas_por_proveedor = {
+        "ChatGPT": ["CHATGPT/GENERADAS=CHATGPT/GENERADAS_Thmbnails"],
+    }
+
     # Indices viejos, uno por banco de ChatGPT, superados por _index_chatgpt.md.
     # Se retiran en cada corrida para que no queden colgando desincronizados.
     archivos_obsoletos = ["_image_index.md", "_index_generadas.md", "_index_adjuntos.md"]
@@ -552,6 +561,9 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
                     args += ["--banco", b]
                 for b in bancos_catalogo:
                     args += ["--banco-catalogo", b]
+                for par in miniaturas_por_proveedor.get(titulo, []):
+                    if (base_vault / par.split("=", 1)[1]).is_dir():
+                        args += ["--miniaturas", par]
                 if titulo == "Grok":
                     args += [
                         "--pendientes-json", grok_pendientes_json,

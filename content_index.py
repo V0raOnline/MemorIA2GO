@@ -53,12 +53,41 @@ class BankSpec(NamedTuple):
     catalog: bool = False  # True: banco SIN enlaces en ninguna nota (media_posts de
     # Grok/Imagine son root-level, no viven en ninguna conversacion) -- se indexa
     # directo desde el manifest/carpeta, no cruzando con notas.
+    thumbs_dir: Optional[Path] = None   # carpeta de miniaturas de este banco (en disco)
+    thumbs_prefix: Optional[str] = None  # la misma, tal como va en los enlaces
 
 
 def _link_re(prefix: str) -> "re.Pattern[str]":
     """Casa tanto ![](prefix/...) como [texto](prefix/...) -- ver docstring
     del modulo. El grupo 'bang' distingue cual de los dos era."""
     return re.compile(r"(?P<bang>!)?\[(?P<text>[^\]]*)\]\(" + re.escape(prefix) + r"/(?P<fname>[^)]+)\)")
+
+
+# Las miniaturas las genera una herramienta externa (no el pipeline) con una miniatura
+# por imagen: `thmbnail_<nombre>.png` para casi todas, y el MISMO nombre cuando la
+# original es una .webp. Se buscan en ese orden, sin distinguir mayusculas.
+THUMB_PREFIJO = "thmbnail_"
+
+
+def miniaturas_existentes(thumbs_dir: Optional[Path]) -> Dict[str, str]:
+    """{nombre en minusculas: nombre real} de lo que hay en la carpeta de miniaturas."""
+    if not thumbs_dir or not Path(thumbs_dir).is_dir():
+        return {}
+    return {n.lower(): n for n in os.listdir(thumbs_dir)}
+
+
+def miniatura_de(fname: str, existentes: Dict[str, str]) -> Optional[str]:
+    """Nombre de la miniatura de `fname`, o None si no tiene."""
+    for candidata in (f"{THUMB_PREFIJO}{Path(fname).stem}.png", fname):
+        real = existentes.get(candidata.lower())
+        if real:
+            return real
+    return None
+
+
+def _url(ruta: str) -> str:
+    """Ruta para un enlace markdown: un espacio la cortaria."""
+    return ruta.replace(" ", "%20")
 
 
 def _display_title(line: str, link_text: str, fname: str) -> str:
@@ -198,8 +227,31 @@ def render_catalog_branch(bank: BankSpec, items: list) -> str:
     return "\n".join(lines)
 
 
+def _render_item_con_miniatura(bank: BankSpec, it: dict, rel_path: str, existentes: Dict[str, str]) -> list:
+    """Una imagen como su miniatura, que enlaza al original, y debajo su ubicacion como
+    enlace. Sin miniatura NO se incrusta el original (es justo lo que pesa): solo el enlace."""
+    miniatura = miniatura_de(it["fname"], existentes)
+    ubicacion = f"📂 [{rel_path}]({_url(rel_path)})"
+    texto = f"*{it['caption']}* · {ubicacion}" if it["caption"] else ubicacion
+    if miniatura is None:
+        return [f"{texto} _(sin miniatura)_"]
+    thumb_path = f"{bank.thumbs_prefix}/{miniatura}"
+    return [f"[![]({_url(thumb_path)})]({_url(rel_path)})", texto]
+
+
+def contar_miniaturas(bank: BankSpec, entries: list) -> Optional[dict]:
+    """{"con": n, "sin": n} de las imagenes de este banco, o None si no usa miniaturas."""
+    if not bank.thumbs_dir:
+        return None
+    existentes = miniaturas_existentes(bank.thumbs_dir)
+    imagenes = [it for e in entries for it in e["items"] if it["es_imagen"]]
+    con = sum(1 for it in imagenes if miniatura_de(it["fname"], existentes))
+    return {"con": con, "sin": len(imagenes) - con}
+
+
 def render_bank_branch(bank: BankSpec, entries: list) -> str:
     total_items = sum(len(e["items"]) for e in entries)
+    existentes = miniaturas_existentes(bank.thumbs_dir) if bank.thumbs_dir else None
     lines = [f"<details>", f"<summary><strong>{bank.label} ({total_items})</strong></summary>", ""]
     for e in entries:
         link = f"[[{e['rel'].as_posix()}|{e['titulo']}]]"
@@ -210,7 +262,9 @@ def render_bank_branch(bank: BankSpec, entries: list) -> str:
         for it in e["items"]:
             # it["ruta"], no it["fname"]: conserva la subcarpeta de tipo.
             rel_path = f"{bank.prefix}/{it.get('ruta') or it['fname']}".replace("\\", "/")
-            if it["es_imagen"]:
+            if it["es_imagen"] and existentes is not None:
+                lines.extend(_render_item_con_miniatura(bank, it, rel_path, existentes))
+            elif it["es_imagen"]:
                 lines.append(f"![]({rel_path})")
                 if it["caption"]:
                     lines.append(f"*{it['caption']}*")
@@ -241,6 +295,9 @@ def generate_provider_index(vault: Path, conversations_dir: str, provider_title:
         entries = collect_bank_entries(vault, conversations_dir, bank)
         total = sum(len(e["items"]) for e in entries)
         stats[bank.label] = {"conversaciones": len(entries), "items": total}
+        miniaturas = contar_miniaturas(bank, entries)
+        if miniaturas is not None:
+            stats[bank.label]["miniaturas"] = miniaturas
         resumen_partes.append(f"{total} {bank.label.lower()}")
         lines.append(render_bank_branch(bank, entries))
     resumen = " · ".join(resumen_partes) if resumen_partes else "sin contenido"
@@ -314,6 +371,10 @@ def main():
     ap.add_argument("--banco", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, un --banco por rama con enlaces en notas. "
                           "Ejemplo: 'CHATGPT/GENERADAS:Generadas'")
+    ap.add_argument("--miniaturas", action="append", default=[],
+                     help="prefijo_del_banco=prefijo_de_sus_miniaturas -- repetible. Con ello las imagenes "
+                          "de ese banco salen como su miniatura (enlazada al original) en vez de incrustar "
+                          "el original. Si la carpeta no existe, el banco se indexa como siempre.")
     ap.add_argument("--banco-catalogo", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, para bancos SIN enlace en ninguna nota "
                           "(p.ej. GROK/GENERADAS_IMAGEN: media_posts es root-level). Se lista "
@@ -334,10 +395,18 @@ def main():
         raise SystemExit(f"No existe la carpeta del vault: {vault}")
     base_vault = Path(args.base_vault).expanduser().resolve() if args.base_vault else vault
 
+    miniaturas = dict(raw.split("=", 1) for raw in args.miniaturas)
     bancos = []
     for raw in args.banco:
         prefix, label = raw.split(":", 1)
-        bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix))
+        thumbs_prefix = miniaturas.get(prefix)
+        thumbs_dir = base_vault / thumbs_prefix if thumbs_prefix else None
+        if thumbs_dir is not None and not thumbs_dir.is_dir():
+            print(f"[aviso] no existe la carpeta de miniaturas {thumbs_dir}: {label} se indexa con las "
+                  "imagenes originales.")
+            thumbs_dir = thumbs_prefix = None
+        bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix,
+                               thumbs_dir=thumbs_dir, thumbs_prefix=thumbs_prefix))
     for raw in args.banco_catalogo:
         prefix, label = raw.split(":", 1)
         bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix, catalog=True))
@@ -349,6 +418,9 @@ def main():
     print(f"Indice generado: {out_path}")
     for label, s in resultado["stats"].items():
         print(f"  {label}: {s['conversaciones']} conversaciones, {s['items']} items")
+        if s.get("miniaturas"):
+            m = s["miniaturas"]
+            print(f"    miniaturas: {m['con']} con miniatura, {m['sin']} sin ella")
 
     if args.pendientes_json and args.pendientes_out:
         pend_path = Path(args.pendientes_json)
