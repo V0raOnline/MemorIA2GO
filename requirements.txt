@@ -11,3 +11,7 @@ flask>=3.0.0
 # ModuleNotFoundError justo al pulsar "Descargar biblioteca" -- funcionaba
 # solo en maquinas que ya lo tenian por otra cosa.
 requests>=2.32.0
+
+# Galeria de imagenes (galeria.py, complemento): las miniaturas. Sin el, la galeria
+# funciona con --sin-miniaturas y tira de los originales.
+pillow>=10.0.0
