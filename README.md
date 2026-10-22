@@ -287,6 +287,7 @@ python MemorIA2GO.py                  # interactivo, pipeline completo
 python MemorIA2GO.py --reprocess-all  # re-parsea todos los exports válidos desde cero
 python galeria.py                     # la galería de imágenes, en <base>/.galeria/index.html
 python recuperar_imagenes.py --export <zip de ChatGPT>   # devolver las imágenes a tus notas (simulación)
+python galeria_tintero.py             # la galería de tus posts de Substack, en <vault de Tintero>/.galeria/index.html
 ```
 
 En el paquete de Windows, desde la carpeta `app` y con su Python: `python\python.exe galeria.py`.
@@ -321,6 +322,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 | **[CARTOGRAFIA.md](CARTOGRAFIA.md)**       | ¿Cómo decide Cartografía qué nota va en qué tema? |
 | **[GALERIA.md](GALERIA.md)**               | ¿Qué enseña la galería de cada imagen, y de dónde lo saca? |
 | **[RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md)** | ¿Cómo devuelvo a mis notas las imágenes de ChatGPT que faltan? |
+| **[GALERIA_TINTERO.md](GALERIA_TINTERO.md)** | ¿Qué enseña la galería de mis posts de Substack, y de dónde saca las portadas? |
 | **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** | ¿Y si no sé nada de esto?                |
 | **[DEVLOG.md](DEVLOG.md)**                 | ¿Qué aprendimos construyéndolo?          |
 
@@ -331,7 +333,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 - **Notas con prompt para Grok Imagine**, como las de Copilot en image.ia: la API de la biblioteca de Grok da el fichero, las fechas y el linaje, pero no el prompt, que solo está en el export (`media_posts`). Falta unir los dos por identificador de activo; antes de escribir código, mirar cómo se enlazan en un export real.
 - **Observatorio con las imágenes**: tarjetas de image.ia junto a las de música, con el mismo criterio de no pintar cero cuando no hay backup configurado.
 - Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
-- **La galería, desde la app**: un botón en image.ia para generarla y abrirla, sin consola.
+- **Las galerías, desde la app**: un botón en image.ia y otro en Tintero para generarlas y abrirlas, sin consola.
 - **Las imágenes generadas de ChatGPT de marzo a mayo de 2026**: ni el export ni su biblioteca las traen. Mirar si la galería web de ChatGPT las da por su API, como Copilot y Grok.
 - **Un documento por herramienta**, como [CARTOGRAFIA.md](CARTOGRAFIA.md), con su test: Observatorio, Verificación, Construcción, Reconexión, music.ia, image.ia y Tintero.
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
