@@ -63,7 +63,11 @@ BANCOS = [
     ("GROK/IMAGINE", "grok", "generada", "grok-imagine"),
     ("GROK/ADJUNTOS", "grok", "subida", None),
 ]
+# Copilot: su vault lo construye image.ia donde diga `paths.copilot_images_vault`; si no se dice, se
+# busca en el sitio de siempre dentro de la base. Notas en una subcarpeta, ficheros en otra.
 COPILOT = "COPILOT/GENERADAS_IMAGEN"
+COPILOT_NOTAS = "Imágenes"
+COPILOT_FICHEROS = "Archivos"
 MINIATURAS_PROPIAS = {"CHATGPT/GENERADAS": ("CHATGPT/GENERADAS_Thmbnails", "thmbnail_")}
 
 ETIQUETAS = {
@@ -176,8 +180,9 @@ def _tipo(nombre: str) -> Optional[str]:
     return "imagen" if ext in IMG_EXTS else "video" if ext in VID_EXTS else None
 
 
-def recoger(base: Path) -> List[dict]:
-    """Todas las imagenes y videos de los bancos, con todo lo que se sabe de cada uno."""
+def recoger(base: Path, copilot: Optional[Path] = None) -> List[dict]:
+    """Todas las imagenes y videos de los bancos, con todo lo que se sabe de cada uno. `copilot` es el
+    vault de imagenes de Copilot (por defecto, el sitio de siempre dentro de la base)."""
     base = Path(base)
     contexto = leer_conversaciones(base)
     items: List[dict] = []
@@ -198,7 +203,7 @@ def recoger(base: Path) -> List[dict]:
             conv = ctx.get("conv")
             fecha = (conv or {}).get("fecha") or (meta.get("creada") or meta.get("create_time") or "")[:10]
             items.append({
-                "ruta": ruta, "banco": rel, "prov": prov, "origen": origen, "tipo": tipo,
+                "ruta": ruta, "abs": str(f), "banco": rel, "prov": prov, "origen": origen, "tipo": tipo,
                 "gen": (meta.get("generador") or gen_defecto) if origen == "generada" else None,
                 "modelo": meta.get("modelo"), "ed": bool(meta.get("edicion")),
                 "titulo": ctx.get("titulo") or meta.get("titulo_biblioteca") or
@@ -207,7 +212,7 @@ def recoger(base: Path) -> List[dict]:
                 "pet": ctx.get("peticion") or "", "hora": ctx.get("hora") or "",
                 "fecha": fecha or _fecha_fichero(f), "conv": conv,
             })
-    items.extend(_recoger_copilot(base))
+    items.extend(_recoger_copilot(base, Path(copilot) if copilot else base / COPILOT))
     return items
 
 
@@ -218,11 +223,11 @@ def _fecha_fichero(f: Path) -> str:
         return ""
 
 
-def _recoger_copilot(base: Path) -> List[dict]:
+def _recoger_copilot(base: Path, raiz: Path) -> List[dict]:
     """Copilot no asocia sus imagenes a conversaciones: cada imagen tiene su nota (la que construye
-    image.ia) con el prompt y la fecha, y el fichero esta en Archivos/."""
-    raiz = base / COPILOT
-    notas = raiz / "Imágenes"
+    image.ia) con el prompt y la fecha, y el fichero esta en su carpeta de ficheros. El vault puede
+    estar fuera de la base: entonces no hay enlace a Obsidian (es otro vault)."""
+    notas = raiz / COPILOT_NOTAS
     if not notas.is_dir():
         return []
     items = []
@@ -232,20 +237,31 @@ def _recoger_copilot(base: Path) -> List[dict]:
         m = re.search(r"!\[\[([^\]|]+)", cuerpo)
         if not m:
             continue
-        fichero = raiz / "Archivos" / m.group(1)
+        fichero = raiz / COPILOT_FICHEROS / m.group(1)
         if not fichero.is_file() or not _tipo(fichero.name):
             continue
         prompt = fm.get("prompt", "")
         fecha = (fm.get("created_at") or "")[:10]
+        dentro = _dentro_de(fichero, base)
         items.append({
-            "ruta": fichero.relative_to(base).as_posix(), "banco": COPILOT, "prov": "copilot", "origen": "generada",
+            "ruta": fichero.relative_to(base).as_posix() if dentro else
+                    f"COPILOT/{fichero.relative_to(raiz).as_posix()}",
+            "abs": str(fichero), "banco": COPILOT, "prov": "copilot", "origen": "generada",
             "tipo": _tipo(fichero.name), "gen": "copilot", "modelo": None, "ed": False,
             "titulo": "", "prompt": _limpiar(prompt, 1200), "pet": "", "hora": "", "fecha": fecha,
-            "nota": nota.relative_to(base).with_suffix("").as_posix(),
+            "nota": nota.relative_to(base).with_suffix("").as_posix() if _dentro_de(nota, base) else None,
             "conv": {"titulo": _limpiar(prompt, 90) or fm.get("title", "Copilot"), "fecha": fecha, "nota": None,
                      "proveedor": "copilot", "proyecto": "", "clave": f"copilot|{fecha}|{prompt}"},
         })
     return items
+
+
+def _dentro_de(ruta: Path, base: Path) -> bool:
+    try:
+        Path(ruta).resolve().relative_to(Path(base).resolve())
+        return True
+    except ValueError:
+        return False
 
 
 # ---------------------------------------------------------------- agrupar
@@ -292,7 +308,7 @@ def generar_miniaturas(items: List[dict], base: Path, salida: Path, log=print) -
     for it in items:
         if it["tipo"] != "imagen":
             continue
-        original = base / it["ruta"]
+        original = Path(it["abs"])
         destino = salida / "miniaturas" / Path(it["ruta"]).with_suffix(".jpg")
         it["mini"] = destino
         if al_dia and destino.is_file() and destino.stat().st_mtime >= original.stat().st_mtime:
@@ -363,7 +379,7 @@ def copiar_icono(salida: Path) -> None:
 def tema_configurado() -> str:
     try:
         from config_loader import load_config, get_opt
-        return get_opt(load_config(str(HERE / "memoria_config.yaml")), "theme", "warm") or "warm"
+        return get_opt(load_config(_ruta_config()), "theme", "warm") or "warm"
     except Exception:
         return "warm"
 
@@ -376,7 +392,7 @@ def construir_pagina(grupos: List[dict], base: Path, salida: Path, tema: str = "
         for it in g["imgs"]:
             mini = it.get("mini")
             imgs.append({k: v for k, v in {
-                "t": _url(mini, salida) if mini else "", "o": _url(base / it["ruta"], salida),
+                "t": _url(mini, salida) if mini else "", "o": _url(Path(it["abs"]), salida),
                 "tipo": it["tipo"], "prov": it["prov"], "origen": it["origen"], "gen": it.get("gen"),
                 "modelo": it.get("modelo"), "ed": it.get("ed") or None, "titulo": it.get("titulo"),
                 "prompt": it.get("prompt"), "pet": it.get("pet"), "hora": it.get("hora"), "fecha": it.get("fecha"),
@@ -390,13 +406,13 @@ def construir_pagina(grupos: List[dict], base: Path, salida: Path, tema: str = "
 
 
 def generar(base: Path, salida: Optional[Path] = None, miniaturas: bool = True, tema: Optional[str] = None,
-            log=print) -> dict:
+            copilot: Optional[Path] = None, log=print) -> dict:
     base = Path(base)
     if not base.is_dir():
         raise ErrorGaleria(f"no existe la carpeta base: {base}")
     salida = Path(salida) if salida else base / CARPETA_SALIDA
     log(f"Recogiendo imagenes y videos de {base} ...")
-    items = recoger(base)
+    items = recoger(base, copilot)
     if not items:
         raise ErrorGaleria(f"no he encontrado imagenes en los bancos de {base}")
     salida.mkdir(parents=True, exist_ok=True)
@@ -407,7 +423,7 @@ def generar(base: Path, salida: Optional[Path] = None, miniaturas: bool = True, 
     else:
         for it in items:                          # sin miniaturas, la pagina tira de los originales
             if it["tipo"] == "imagen":
-                it["mini"] = base / it["ruta"]
+                it["mini"] = Path(it["abs"])
     grupos = agrupar(items)
     copiar_icono(salida)
     pagina = salida / "index.html"
@@ -420,13 +436,23 @@ def generar(base: Path, salida: Optional[Path] = None, miniaturas: bool = True, 
     return r
 
 
-def _config_base() -> Optional[str]:
+def _ruta_config() -> str:
+    """La configuracion: la de MEMORIA_CONFIG si esta puesta (como en el resto de scripts), si no la de
+    junto a la app."""
+    return os.environ.get("MEMORIA_CONFIG") or str(HERE / "memoria_config.yaml")
+
+
+def _config_ruta(clave: str) -> Optional[str]:
     try:
         from config_loader import load_config, get_path
-        base = get_path(load_config(str(HERE / "memoria_config.yaml")), "base_vault")
-        return str(base) if base else None
+        ruta = get_path(load_config(_ruta_config()), clave)
+        return str(ruta) if ruta else None
     except Exception:
         return None
+
+
+def _config_base() -> Optional[str]:
+    return _config_ruta("base_vault")
 
 
 def main(argv=None) -> int:
@@ -440,12 +466,15 @@ def main(argv=None) -> int:
     ap.add_argument("--salida", help=f"Carpeta de la galeria (por defecto <base>/{CARPETA_SALIDA})")
     ap.add_argument("--sin-miniaturas", action="store_true", help="No hacer miniaturas (la pagina usa los originales)")
     ap.add_argument("--tema", choices=["warm", "cool", "light"], help="Tema por defecto (si no, el de la configuracion)")
+    ap.add_argument("--copilot-vault", help="Vault de imagenes de Copilot (por defecto, copilot_images_vault de la configuracion)")
     args = ap.parse_args(argv)
     base = args.base_vault or _config_base()
     if not base:
         ap.error("hace falta --base-vault (no hay base_vault en memoria_config.yaml)")
     try:
+        copilot = args.copilot_vault or _config_ruta("copilot_images_vault")
         r = generar(Path(base), Path(args.salida) if args.salida else None, miniaturas=not args.sin_miniaturas,
+                    copilot=Path(copilot) if copilot else None,
                     tema=args.tema)
     except ErrorGaleria as e:
         print(f"[error] {e}")

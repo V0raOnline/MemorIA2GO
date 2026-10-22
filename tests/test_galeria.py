@@ -274,13 +274,23 @@ def test_una_base_sin_imagenes_se_niega(tmp_path):
         gal.generar(tmp_path / "vacio", log=lambda *_: None)
 
 
+def _entorno_sin_config(tmp_path):
+    """Una configuracion vacia: el test no debe leer NUNCA la configuracion real de quien lo ejecuta
+    (paso: el vault de Copilot de la config real se colaba en la galeria del test)."""
+    cfg = tmp_path / "config_vacia.yaml"
+    cfg.write_text("paths: {}\noptions: {}\n", encoding="utf-8")
+    return {**os.environ, "MEMORIA_CONFIG": str(cfg), "PYTHONIOENCODING": "utf-8"}
+
+
 def test_cli(vault, tmp_path):
     r = subprocess.run([sys.executable, str(RAIZ / "galeria.py"), "--base-vault", str(vault), "--salida", str(tmp_path / "g")],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=RAIZ)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=RAIZ,
+                       env=_entorno_sin_config(tmp_path))
     assert r.returncode == 0, r.stdout + r.stderr
     assert "9 imagenes y videos" in r.stdout and "miniaturas: 7 nuevas" in r.stdout and "1 fallidas" in r.stdout
     r = subprocess.run([sys.executable, str(RAIZ / "galeria.py"), "--base-vault", str(tmp_path / "no_existe")],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=RAIZ)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=RAIZ,
+                       env=_entorno_sin_config(tmp_path))
     assert r.returncode == 2 and "[error]" in r.stdout
 
 
@@ -342,3 +352,32 @@ def test_lleva_el_cerebrito_de_image_ia(vault, tmp_path):
     assert 'image<span class="ia">.ia</span>' in html
     with Image.open(salida / "imageIA.png") as im:
         assert max(im.size) <= 96
+
+
+def test_un_vault_de_copilot_fuera_de_la_base_tambien_entra(vault, tmp_path):
+    """El vault de Copilot es el que diga copilot_images_vault: puede estar fuera de la base."""
+    import shutil
+    fuera = tmp_path / "otro_sitio" / "copilot"
+    shutil.move(str(vault / "COPILOT" / "GENERADAS_IMAGEN"), str(fuera))
+    assert not any(i["prov"] == "copilot" for i in gal.recoger(vault))
+    items = [i for i in gal.recoger(vault, fuera) if i["prov"] == "copilot"]
+    assert len(items) == 2 and all(i["nota"] is None for i in items)       # otro vault: sin enlace a Obsidian
+    r = gal.generar(vault, tmp_path / "g", copilot=fuera, log=lambda *_: None)
+    datos = _datos_de(Path(r["pagina"]).read_text(encoding="utf-8"))
+    from urllib.parse import unquote
+    cop = [im for g in datos["grupos"] for im in g["imgs"] if im["prov"] == "copilot"]
+    assert len(cop) == 2 and all((tmp_path / "g" / unquote(im["t"])).resolve().is_file() for im in cop)
+    assert all((tmp_path / "g" / unquote(im["o"])).resolve().is_file() for im in cop)
+
+
+def test_la_cli_toma_el_vault_de_copilot_de_la_configuracion(vault, tmp_path):
+    import shutil
+    fuera = tmp_path / "otro" / "copilot"
+    shutil.move(str(vault / "COPILOT" / "GENERADAS_IMAGEN"), str(fuera))
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(f"paths:\n  copilot_images_vault: '{fuera.as_posix()}'\noptions: {{}}\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, str(RAIZ / "galeria.py"), "--base-vault", str(vault), "--salida", str(tmp_path / "g")],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=RAIZ,
+                       env={**os.environ, "MEMORIA_CONFIG": str(cfg), "PYTHONIOENCODING": "utf-8"})
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "'copilot': 2" in r.stdout
