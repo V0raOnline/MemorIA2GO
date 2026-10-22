@@ -1,0 +1,268 @@
+<!doctype html>
+<!--
+  M3M0R·IA (MemorIA2GO)  ·  https://v0raonline.github.io/MemorIA2GO/
+  Copyright (c) 2024-2026 V0ra (v0raonline)
+  License CC BY-NC-SA 4.0 — non-commercial use only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="author" content="V0ra (v0raonline)">
+<meta name="copyright" content="CC BY-NC-SA 4.0">
+<link rel="license" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inkwell · gallery</title>
+<link rel="icon" href="tintero.png">
+<style>
+/* Los mismos tokens que la app (web/style.css): warm por defecto, cool y light.
+   Los copia galeria_tintero.py al generar la pagina. */
+/*__TOKENS__*/
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, select, input { font: inherit; color: inherit; }
+
+header {
+  position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; padding: 12px 20px;
+}
+.marca { font-weight: 700; display: flex; align-items: center; gap: 8px; font-size: 16px; white-space: nowrap; }
+.marca .logo { width: 36px; height: 36px; display: block; }
+.marca small { font-weight: 400; color: var(--text-dim); margin-left: 6px; }
+.buscar { flex: 1 1 280px; position: relative; }
+.buscar input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-inset); outline: none; }
+.buscar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.buscar::before { content: "⌕"; position: absolute; left: 11px; top: 6px; color: var(--text-dim); font-size: 16px; }
+.acciones { display: flex; gap: 8px; align-items: center; }
+select, .btn { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; cursor: pointer; max-width: 220px; }
+.btn:hover, select:hover { border-color: var(--accent); }
+select.activo { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+#b-filtros .n { display: inline-block; margin-left: 7px; min-width: 18px; padding: 0 6px; border-radius: 999px;
+  background: var(--accent); color: var(--bg); font-size: 11.5px; font-weight: 700; text-align: center; }
+#b-filtros .n:empty { display: none; }
+#b-filtros[aria-expanded="true"] { border-color: var(--accent); }
+.panel-filtros { width: 100%; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 10px 12px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; }
+.panel-filtros[hidden] { display: none; }
+.grupo-f { display: flex; align-items: center; gap: 8px; }
+.etq-f { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { background: var(--bg-inset); border: 0; padding: 6px 11px; cursor: pointer; color: var(--text-dim); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.resumen { width: 100%; color: var(--text-dim); font-size: 12.5px; font-family: var(--mono); }
+.resumen b { color: var(--accent); font-weight: 600; }
+
+main { padding: 6px 20px 60px; max-width: 1500px; margin: 0 auto; }
+.mes > h2 { position: sticky; top: var(--alto-cabecera, 120px); z-index: 10; background: var(--bg); margin: 0; padding: 14px 0 8px;
+  font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.mes > h2 span { color: var(--accent); font-family: var(--mono); letter-spacing: 0; margin-left: 6px; }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding-bottom: 6px; }
+.tarjeta { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  display: flex; flex-direction: column; transition: transform .12s, border-color .12s; }
+.tarjeta:hover { transform: translateY(-2px); border-color: var(--accent); }
+.portada { aspect-ratio: 16 / 9; background: var(--bg-inset); position: relative; overflow: hidden; }
+/* Recortada desde arriba: en las portadas verticales lo importante (una cara, un titulo) suele estar
+   en la parte de arriba, y centrar se lo comia. Lo pidio V0ra al ver la maqueta. */
+.portada img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.portada .inicial { position: absolute; inset: 0; display: grid; place-items: center; font-size: 54px; font-weight: 700;
+  color: var(--accent); background: linear-gradient(135deg, var(--accent-soft), var(--bg-inset)); }
+.insignias { position: absolute; top: 8px; left: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+.insignia { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; background: rgba(0, 0, 0, .68); color: #fff; }
+.insignia.retired { background: rgba(150, 40, 40, .85); }
+.insignia.draft { background: rgba(120, 100, 20, .9); }
+.cuerpo { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.meta { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); display: flex; gap: 8px; flex-wrap: wrap; }
+.titulo { font-weight: 650; font-size: 15px; line-height: 1.3; }
+.sub { font-style: italic; color: var(--text-dim); font-size: 13px; }
+.ext { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+.pie { margin-top: auto; padding-top: 6px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+  gap: 4px 8px; font-size: 12px; }
+.stats { font-family: var(--mono); color: var(--text-dim); font-size: 11.5px; white-space: nowrap; }
+.enlaces { display: flex; gap: 10px; white-space: nowrap; margin-left: auto; }
+mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+.vacio { color: var(--text-dim); text-align: center; padding: 60px 0; }
+
+/* Footer: el mismo que la app (web/style.css, ver .claude/footer.TXT). */
+footer { max-width: 1500px; margin: 0 auto; padding: 1.2rem 20px 2rem; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; }
+.footer-left, .footer-right { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); letter-spacing: 0.03em; }
+.footer-right a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+.footer-right a:hover { opacity: 0.75; }
+@media (max-width: 760px) { header { padding: 10px 12px; } main { padding: 4px 12px 40px; } }
+</style>
+</head>
+<body>
+<header id="cabecera">
+  <div class="marca"><img src="tintero.png" alt="" class="logo" onerror="this.style.display='none'"><span>Inkwell</span><small>gallery</small></div>
+  <div class="buscar"><input id="q" type="search" placeholder="Search titles, subtitles, text, sections, tags…  ( / )" autocomplete="off"></div>
+  <div class="acciones">
+    <button class="btn" id="b-filtros" type="button" aria-expanded="false" aria-controls="panel-filtros">Filters<span class="n" id="n-filtros"></span></button>
+    <select id="tema" title="Theme"><option value="warm">warm</option><option value="cool">cool</option><option value="light">light</option></select>
+  </div>
+  <div class="panel-filtros" id="panel-filtros" hidden>
+    <div class="grupo-f"><span class="etq-f">Status</span>
+      <div class="seg" id="f-estado" role="group" aria-label="Status" data-valor=""><button type="button" data-v="" aria-pressed="true">No drafts</button><button type="button" data-v="published" aria-pressed="false">Published</button><button type="button" data-v="retired" aria-pressed="false">Retired</button><button type="button" data-v="draft" aria-pressed="false">Drafts</button><button type="button" data-v="todo" aria-pressed="false">All</button></div>
+    </div>
+    <div class="grupo-f"><span class="etq-f">Type</span>
+      <div class="seg" id="f-tipo" role="group" aria-label="Type" data-valor=""><button type="button" data-v="" aria-pressed="true">All</button><button type="button" data-v="texto" aria-pressed="false">Text</button><button type="button" data-v="podcast" aria-pressed="false">Podcast</button></div>
+    </div>
+    <select id="f-pub" title="Publication"><option value="">All publications</option></select>
+    <select id="f-sec" title="Section"><option value="">All sections</option></select>
+    <select id="f-tag" title="Tag"><option value="">All tags</option></select>
+    <select id="f-mes" title="Month"><option value="">All months</option></select>
+    <button class="btn" id="limpiar" type="button">Clear filters</button>
+  </div>
+  <div class="resumen" id="resumen"></div>
+</header>
+<main id="lista"></main>
+<footer>
+  <div class="footer-left"><strong>M3M0R·IA</strong> · Own your AI memory</div>
+  <div class="footer-right">
+    <a href="https://github.com/V0raOnline/MemorIA2GO" target="_blank" rel="noopener">GitHub</a>
+    ·
+    <a href="https://v0raonline.substack.com" target="_blank" rel="noopener">Substack</a>
+  </div>
+</footer>
+
+<script>
+const DATOS = /*__DATOS__*/null;
+const MESES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const ESTADO = DATOS.etiquetas.estado;
+
+// Tema: el que tengas guardado en este navegador; si no, el de tu configuracion al generar.
+document.documentElement.dataset.theme = DATOS.tema || "warm";
+try { const t = localStorage.getItem("m3m0ria_theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+const temaSel = document.getElementById("tema");
+temaSel.value = document.documentElement.dataset.theme;
+temaSel.addEventListener("change", () => {
+  document.documentElement.dataset.theme = temaSel.value;
+  try { localStorage.setItem("m3m0ria_theme", temaSel.value); } catch (_) {}
+});
+
+const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const esc = (s) => String(s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function marcar(texto, terminos) {
+  texto = texto || "";
+  if (!terminos.length) return esc(texto);
+  const base = norm(texto), rangos = [];
+  for (const t of terminos) { let i = base.indexOf(t); while (i >= 0) { rangos.push([i, i + t.length]); i = base.indexOf(t, i + t.length); } }
+  if (!rangos.length) return esc(texto);
+  rangos.sort((a, b) => a[0] - b[0]);
+  let out = "", pos = 0;
+  for (const [a, b] of rangos) { if (a < pos) continue; out += esc(texto.slice(pos, a)) + "<mark>" + esc(texto.slice(a, b)) + "</mark>"; pos = b; }
+  return out + esc(texto.slice(pos));
+}
+const nombreMes = (m) => { const [a, n] = m.split("-"); return n ? `${MESES[+n - 1]} ${a}` : m; };
+
+// Texto de busqueda de cada post: titulo, subtitulo, las primeras palabras, seccion, publicacion y etiquetas.
+DATOS.posts.forEach((p) => { p.tags = p.tags || []; p.busca = norm([p.titulo, p.sub, p.ext, p.seccion, p.pub, p.tags.join(" ")].join(" ")); });
+
+// Opciones de los filtros: solo las que existen en tus datos.
+function rellenar(id, valores, texto) {
+  const sel = document.getElementById(id);
+  [...new Set(valores)].filter(Boolean).sort().forEach((v) => {
+    const o = document.createElement("option"); o.value = v; o.textContent = texto ? texto(v) : v; sel.appendChild(o);
+  });
+}
+rellenar("f-pub", DATOS.posts.map((p) => p.pub));
+rellenar("f-sec", DATOS.posts.map((p) => p.seccion));
+rellenar("f-tag", DATOS.posts.flatMap((p) => p.tags));
+rellenar("f-mes", DATOS.posts.map((p) => (p.fecha || "").slice(0, 7)).reverse(), nombreMes);
+const FILTROS = ["f-estado", "f-tipo", "f-pub", "f-sec", "f-tag", "f-mes"];
+const valor = (id) => { const el = document.getElementById(id); return el.classList.contains("seg") ? el.dataset.valor : el.value; };
+function poner(id, v) {
+  const el = document.getElementById(id);
+  if (!el.classList.contains("seg")) { el.value = v; return; }
+  el.dataset.valor = v;
+  el.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+}
+document.querySelectorAll(".seg").forEach((seg) => seg.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) { poner(seg.id, b.dataset.v); pintar(); }
+}));
+const panel = document.getElementById("panel-filtros"), botonFiltros = document.getElementById("b-filtros");
+botonFiltros.addEventListener("click", () => {
+  panel.hidden = !panel.hidden;
+  botonFiltros.setAttribute("aria-expanded", String(!panel.hidden));
+  ajustarCabecera();
+});
+
+function pasa(p, f, terminos) {
+  // Por defecto, sin borradores: no tienen fecha y muchos ni titulo. Se ven con su filtro o con "Todo".
+  if (!f["f-estado"] && p.estado === "draft") return false;
+  if (f["f-estado"] && f["f-estado"] !== "todo" && p.estado !== f["f-estado"]) return false;
+  if (f["f-tipo"] === "podcast" && p.tipo !== "podcast") return false;
+  if (f["f-tipo"] === "texto" && p.tipo === "podcast") return false;
+  if (f["f-pub"] && p.pub !== f["f-pub"]) return false;
+  if (f["f-sec"] && p.seccion !== f["f-sec"]) return false;
+  if (f["f-tag"] && !p.tags.includes(f["f-tag"])) return false;
+  if (f["f-mes"] && !(p.fecha || "").startsWith(f["f-mes"])) return false;
+  return terminos.every((t) => p.busca.includes(t));
+}
+
+function inicial(titulo) { return ((titulo || "").match(/[\p{L}\p{N}]/u) || ["·"])[0].toUpperCase(); }
+function tarjeta(p, terminos) {
+  const insignias = [`<span class="insignia">${esc(p.pub)}</span>`];
+  if (p.estado && p.estado !== "published") insignias.push(`<span class="insignia ${esc(p.estado)}">${esc(ESTADO[p.estado] || p.estado)}</span>`);
+  if (p.tipo === "podcast") insignias.push(`<span class="insignia">🎙 podcast</span>`);
+  const imagen = p.portada ? `<img src="${esc(p.portada)}" alt="" loading="lazy">` : `<div class="inicial">${esc(inicial(p.titulo))}</div>`;
+  const s = p.stats || {};
+  const stats = "views" in s ? `${s.views} views · ${s.likes || 0} ♥ · ${s.comments || 0} comm.` : "";
+  return `<article class="tarjeta"><div class="portada">${imagen}<div class="insignias">${insignias.join("")}</div></div>
+    <div class="cuerpo"><div class="meta"><span>${esc(p.fecha || "no date")}</span>${p.seccion ? `<span>· ${marcar(p.seccion, terminos)}</span>` : ""}</div>
+    <div class="titulo">${marcar(p.titulo, terminos)}</div>${p.sub ? `<div class="sub">${marcar(p.sub, terminos)}</div>` : ""}
+    ${p.ext ? `<div class="ext">${marcar(p.ext, terminos)}</div>` : ""}
+    <div class="pie"><span class="stats">${stats}</span><span class="enlaces"><a href="${esc(p.obs)}">Obsidian ↗</a>${p.web ? `<a href="${esc(p.web)}" target="_blank" rel="noopener">Substack ↗</a>` : ""}</span></div></div></article>`;
+}
+
+function pintar() {
+  const terminos = norm(document.getElementById("q").value).split(/\s+/).filter(Boolean);
+  const f = {};
+  FILTROS.forEach((id) => { f[id] = valor(id); document.getElementById(id).classList.toggle("activo", !!f[id]); });
+  const activos = FILTROS.filter((id) => f[id]).length;
+  document.getElementById("n-filtros").textContent = activos ? String(activos) : "";
+  const visibles = DATOS.posts.filter((p) => pasa(p, f, terminos));
+  const lista = document.getElementById("lista");
+  lista.innerHTML = "";
+  let mesActual = null, rejilla = null, cuenta = null;
+  for (const p of visibles) {
+    const m = (p.fecha || "").slice(0, 7) || "no date";
+    if (m !== mesActual) {
+      mesActual = m;
+      const seccion = document.createElement("section"); seccion.className = "mes";
+      seccion.innerHTML = `<h2>${esc(m.includes("-") ? nombreMes(m) : m)}<span>0</span></h2><div class="rejilla"></div>`;
+      lista.appendChild(seccion);
+      rejilla = seccion.querySelector(".rejilla"); cuenta = seccion.querySelector("h2 span");
+    }
+    rejilla.insertAdjacentHTML("beforeend", tarjeta(p, terminos));
+    cuenta.textContent = +cuenta.textContent + 1;
+  }
+  if (!visibles.length) lista.innerHTML = `<div class="vacio">Nothing matches the search or the filters.</div>`;
+  const pubs = new Set(visibles.map((p) => p.pub)).size;
+  const borradores = DATOS.posts.filter((p) => p.estado === "draft").length;
+  document.getElementById("resumen").innerHTML =
+    `<b>${visibles.length}</b> of ${DATOS.posts.length} posts in <b>${pubs}</b> publications`
+    + (!f["f-estado"] && borradores ? ` · ${borradores} drafts hidden` : "")
+    + (DATOS.generado ? ` · built ${esc(DATOS.generado)}` : "");
+}
+document.getElementById("limpiar").addEventListener("click", () => {
+  FILTROS.forEach((id) => poner(id, ""));
+  document.getElementById("q").value = "";
+  pintar();
+});
+let espera;
+document.getElementById("q").addEventListener("input", () => { clearTimeout(espera); espera = setTimeout(pintar, 150); });
+FILTROS.forEach((id) => { const el = document.getElementById(id); if (el.tagName === "SELECT") el.addEventListener("change", pintar); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement.id !== "q") { e.preventDefault(); document.getElementById("q").focus(); }
+});
+function ajustarCabecera() { document.documentElement.style.setProperty("--alto-cabecera", document.getElementById("cabecera").offsetHeight + "px"); }
+window.addEventListener("resize", ajustarCabecera);
+pintar(); ajustarCabecera();
+</script>
+</body>
+</html>
