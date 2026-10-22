@@ -339,7 +339,7 @@ def _colgar_biblioteca(zf, indice, image_meta, base: Path, aplicar: bool, escrit
             candidatas.append(x)
     for x in candidatas:
         data, ext = indice.get_bytes(x["file_id"])
-        meta = {"origen": "generada", "titulo_biblioteca": sce.titulo_biblioteca(x),
+        meta = {"origen": "generada", "generador": "chatgpt-biblioteca", "titulo_biblioteca": sce.titulo_biblioteca(x),
                 "creada": (x.get("created_at") or "")[:19]}
         enlace_de[x["file_id"]] = f"{BANCOS['generada']}/{escritor.write(data, ext, meta=meta)}"
     r["copiadas"] = len(candidatas)

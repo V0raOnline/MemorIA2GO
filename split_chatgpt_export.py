@@ -338,7 +338,8 @@ def anadir_imagenes_de_biblioteca(conversaciones: List[Dict[str, Any]], zf: Opti
     for conv in conversaciones:
         for x in por_hilo.get(conv.get("conv_id"), []):
             puntero = puntero_de_biblioteca(x)
-            image_meta[puntero] = {"origen": "generada", "titulo_biblioteca": titulo_biblioteca(x),
+            image_meta[puntero] = {"origen": "generada", "generador": "chatgpt-biblioteca",
+                                   "titulo_biblioteca": titulo_biblioteca(x),
                                    "creada": (x.get("created_at") or "")[:19]}
             conv["messages"].append({"role": "tool", "content": texto_biblioteca(x, f"\x00IMG:{puntero}\x00")})
             n += 1
@@ -729,7 +730,8 @@ class MarkerContext:
 def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                    att_ids: Optional[Dict[str, str]] = None,
                    refs: Optional[List[dict]] = None,
-                   markers_ctx: Optional["MarkerContext"] = None) -> str:
+                   markers_ctx: Optional["MarkerContext"] = None,
+                   modelo: Optional[str] = None) -> str:
     """Convierte el campo 'content' de un mensaje en texto.
     - Imágenes -> marcador \\x00IMG:<pointer>\\x00 (resuelto luego con --assets-dir)
     - tether_quote -> texto legible "📄 Archivo cargado: ..."
@@ -774,6 +776,16 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                             meta["origen"] = "generada"
                         else:
                             meta["origen"] = "subida"
+                        if meta["origen"] == "generada":
+                            # Con que se genero, exacto del export (para filtrar en la
+                            # galeria): la herramienta (DALL-E con su prompt, o la
+                            # generacion nativa), el modelo del chat en ese turno y si
+                            # es una edicion de otra imagen (parent_gen_id).
+                            meta["generador"] = "chatgpt-dalle" if dalle.get("prompt") else "chatgpt-imagen"
+                            if modelo:
+                                meta["modelo"] = modelo
+                            if generation.get("parent_gen_id") or dalle.get("parent_gen_id"):
+                                meta["edicion"] = True
                         if p.get("width"):
                             meta["width"] = p.get("width")
                         if p.get("height"):
@@ -885,6 +897,12 @@ def _resolver_marcadores(texto: str, refs: Optional[List[dict]],
     )
 
 
+def _modelo_de(msg: Dict[str, Any]) -> Optional[str]:
+    """Modelo del chat en ese mensaje (gpt-4o, gpt-5...), si el export lo dice."""
+    md = msg.get("metadata") or {}
+    return md.get("model_slug") or md.get("default_model_slug") or None
+
+
 def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                               markers_ctx: Optional["MarkerContext"] = None) -> List[Dict[str, Any]]:
     conversations: List[Dict[str, Any]] = []
@@ -952,7 +970,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
                 content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids,
                                         refs=(msg.get("metadata") or {}).get("content_references"),
-                                        markers_ctx=markers_ctx)
+                                        markers_ctx=markers_ctx, modelo=_modelo_de(msg))
                 attachments_txt = render_attachments(msg)
                 if attachments_txt:
                     content = f"{attachments_txt}\n\n{content}".strip() if content.strip() else attachments_txt
@@ -966,7 +984,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 content = _render_parts(m.get("content") or "", image_meta_out=image_meta_out,
                                         att_ids=att_ids,
                                         refs=(m.get("metadata") or {}).get("content_references"),
-                                        markers_ctx=markers_ctx)
+                                        markers_ctx=markers_ctx, modelo=_modelo_de(m))
                 attachments_txt = render_attachments(m)
                 if attachments_txt:
                     content = f"{attachments_txt}\n\n{content}".strip() if content.strip() else attachments_txt
