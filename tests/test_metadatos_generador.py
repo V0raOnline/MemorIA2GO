@@ -111,3 +111,103 @@ def test_las_de_la_biblioteca_se_marcan_como_biblioteca(tmp_path):
     _importar(z, base / "RAW" / "Conversaciones", base)
     man = json.loads((base / "CHATGPT" / "GENERADAS" / "_image_manifest.json").read_text(encoding="utf-8"))
     assert sorted(m["generador"] for m in man.values()) == ["chatgpt-biblioteca", "chatgpt-imagen"]
+
+
+# ---- completar lo ya importado (recuperar_imagenes.py --metadatos) ------------------------------------
+import hashlib
+from pathlib import Path
+
+import pytest
+
+import recuperar_imagenes as rec
+
+
+def _vault_viejo(tmp_path, entradas: dict):
+    """Un banco de GENERADAS como lo dejaba el importador antes: sin generador en el manifiesto."""
+    base = tmp_path / "vault"
+    gen = base / "CHATGPT" / "GENERADAS"
+    gen.mkdir(parents=True)
+    man = {}
+    for datos, extra in entradas.items():
+        fname = _nombre(datos)
+        (gen / fname).write_bytes(datos)
+        man[fname] = {"origen": "generada", "width": 1024, "height": 1024, **extra}
+    (gen / "_image_manifest.json").write_text(json.dumps(man, ensure_ascii=False, indent=2), encoding="utf-8")
+    return base, gen / "_image_manifest.json"
+
+
+def _nombre(datos):
+    return hashlib.sha1(datos).hexdigest()[:16] + sce.sniff_ext(datos)
+
+
+def _completar(base, z, tmp_path, aplicar=False):
+    return rec.completar_metadatos(z, base, aplicar=aplicar, carpeta_logs=tmp_path / "logs", log=lambda *_: None)
+
+
+def test_completar_en_simulacion_cuenta_y_no_escribe(tmp_path):
+    base, man = _vault_viejo(tmp_path, {PNG: {}})
+    antes = man.read_bytes()
+    r = _completar(base, _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG}), tmp_path)
+    assert (r["sin_generador"], r["completables"], r["copia"]) == (1, 1, None)
+    assert man.read_bytes() == antes and not (tmp_path / "logs").exists()
+
+
+def test_completar_anade_generador_modelo_y_edicion_sin_tocar_lo_demas(tmp_path):
+    base, man = _vault_viejo(tmp_path, {PNG: {"primera_conversacion": "Algo"}})
+    _completar(base, _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG}), tmp_path, aplicar=True)
+    m = json.loads(man.read_text(encoding="utf-8"))[_nombre(PNG)]
+    assert m == {"origen": "generada", "width": 1024, "height": 1024, "primera_conversacion": "Algo",
+                 "generador": "chatgpt-imagen", "modelo": "gpt-5-2", "edicion": True}
+
+
+def test_completar_no_toca_las_que_ya_tienen_generador(tmp_path):
+    base, man = _vault_viejo(tmp_path, {PNG: {"generador": "chatgpt-dalle"}})
+    r = _completar(base, _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG}), tmp_path, aplicar=True)
+    assert r["sin_generador"] == 0 and json.loads(man.read_text(encoding="utf-8"))[_nombre(PNG)]["generador"] == "chatgpt-dalle"
+
+
+def test_completar_casa_por_huella_no_por_puntero(tmp_path):
+    """Otra imagen con el mismo puntero pero otros bytes no completa la del vault."""
+    base, man = _vault_viejo(tmp_path, {PNG: {}})
+    r = _completar(base, _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG2}), tmp_path, aplicar=True)
+    assert r["completables"] == 0 and "generador" not in json.loads(man.read_text(encoding="utf-8"))[_nombre(PNG)]
+
+
+def test_completar_marca_las_de_la_biblioteca(tmp_path):
+    base, man = _vault_viejo(tmp_path, {JPG: {}})
+    z = _export(tmp_path, [_conv_completa()], {"file_lib.dat": JPG}, [_entrada("file_lib", "De la biblioteca.png")])
+    _completar(base, z, tmp_path, aplicar=True)
+    assert json.loads(man.read_text(encoding="utf-8"))[_nombre(JPG)]["generador"] == "chatgpt-biblioteca"
+
+
+def test_completar_no_toma_metadatos_de_subidas(tmp_path):
+    base, man = _vault_viejo(tmp_path, {PNG: {}})
+    conv = _conv_completa()
+    conv["mapping"]["n1"]["message"]["author"]["role"] = "user"
+    conv["mapping"]["n1"]["message"]["content"]["parts"] = [_parte("sediment://file_gen")]
+    r = _completar(base, _export(tmp_path, [conv], {"file_gen.dat": PNG}), tmp_path, aplicar=True)
+    assert r["completables"] == 0
+
+
+def test_completar_es_idempotente_y_se_deshace(tmp_path):
+    base, man = _vault_viejo(tmp_path, {PNG: {}})
+    original = man.read_bytes()
+    z = _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG})
+    r = _completar(base, z, tmp_path, aplicar=True)
+    despues = man.read_bytes()
+    r2 = _completar(base, z, tmp_path, aplicar=True)
+    assert r2["sin_generador"] == 0 and r2["copia"] is None and man.read_bytes() == despues
+    rec.deshacer(Path(r["copia"]), log=lambda *_: None)
+    assert man.read_bytes() == original
+
+
+def test_completar_sin_manifiesto_se_niega(tmp_path):
+    (tmp_path / "vault").mkdir()
+    with pytest.raises(rec.ErrorRecuperar, match="manifiesto"):
+        _completar(tmp_path / "vault", _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG}), tmp_path)
+
+
+def test_completar_no_deja_temporales(tmp_path):
+    base, man = _vault_viejo(tmp_path, {PNG: {}})
+    _completar(base, _export(tmp_path, [_conv_completa()], {"file_gen.dat": PNG}), tmp_path, aplicar=True)
+    assert not list(base.rglob("*.recuperar.part"))

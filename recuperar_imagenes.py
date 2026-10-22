@@ -384,6 +384,73 @@ def _colgar_biblioteca(zf, indice, image_meta, base: Path, aplicar: bool, escrit
     return r
 
 
+CAMPOS_GENERADOR = ("generador", "modelo", "edicion")
+
+
+def completar_metadatos(export: Path, base: Path, aplicar: bool = False, carpeta_logs: Optional[Path] = None,
+                        log=print) -> dict:
+    """Las generadas importadas antes de que el importador guardara con que se genero: saca del
+    export, exacto, la herramienta, el modelo del chat y si es una edicion, y lo anade a su entrada
+    del manifiesto de GENERADAS. Casa cada imagen por su huella (el nombre del fichero), asi que
+    no depende de en que nota este. No toca entradas que ya lo tienen ni nada mas del manifiesto."""
+    export, base = Path(export), Path(base)
+    if not export.is_file() or export.suffix.lower() != ".zip":
+        raise ErrorRecuperar(f"--export tiene que ser el .zip del export de ChatGPT: {export}")
+    ruta_man = base / BANCOS["generada"] / "_image_manifest.json"
+    if not ruta_man.is_file():
+        raise ErrorRecuperar(f"no encuentro el manifiesto de las generadas: {ruta_man}")
+    manifiesto = json.loads(ruta_man.read_text(encoding="utf-8-sig"))
+    faltan = {k for k, v in manifiesto.items() if isinstance(v, dict) and "generador" not in v}
+    r = {"aplicado": aplicar, "en_manifiesto": len(manifiesto), "sin_generador": len(faltan),
+         "completables": 0, "copia": None}
+    if not faltan:
+        log("Todas las generadas del manifiesto tienen ya su generador.")
+        return r
+
+    log(f"Leyendo el export {export.name} ...")
+    image_meta: Dict[str, dict] = {}
+    _, zf = sce.load_conversations(str(export), image_meta_out=image_meta)
+    if zf is None:
+        raise ErrorRecuperar("el export no es un .zip con imagenes dentro")
+    indice = sce.AssetIndex(zf)
+    for x in sce.entradas_biblioteca_generadas(zf):
+        image_meta.setdefault(sce.puntero_de_biblioteca(x), {"origen": "generada", "generador": "chatgpt-biblioteca"})
+    nuevos: Dict[str, dict] = {}
+    for puntero, meta in image_meta.items():
+        if meta.get("origen") != "generada" or "generador" not in meta:
+            continue
+        hallado = indice.get_bytes(puntero)
+        if not hallado:
+            continue
+        data, ext = hallado
+        fname = f"{hashlib.sha1(data).hexdigest()[:16]}{ext}"
+        if fname in faltan and fname not in nuevos:
+            nuevos[fname] = {k: meta[k] for k in CAMPOS_GENERADOR if k in meta}
+    zf.close()
+    r["completables"] = len(nuevos)
+    log(f"  {len(faltan)} generadas sin generador en el manifiesto; {len(nuevos)} se completan con este export.")
+    if not aplicar or not nuevos:
+        return r
+
+    marca_tiempo = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    copia = (Path(carpeta_logs) if carpeta_logs else HERE / "logs") / f"recuperar_imagenes_{marca_tiempo}_metadatos"
+    copia.mkdir(parents=True, exist_ok=True)
+    _hacer_copia(ruta_man, base, copia)
+    (copia / "diario.json").write_text(json.dumps({
+        "export": str(export), "base": str(base), "fecha": marca_tiempo,
+        "notas": [str(ruta_man.relative_to(base))],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    actual = json.loads(ruta_man.read_text(encoding="utf-8-sig"))     # releido: por si cambio mientras tanto
+    for fname, campos in nuevos.items():
+        if fname in actual and "generador" not in actual[fname]:
+            actual[fname].update(campos)
+    tmp = ruta_man.with_name(ruta_man.name + ".recuperar.part")
+    tmp.write_text(json.dumps(actual, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, ruta_man)
+    r["copia"] = str(copia)
+    return r
+
+
 def deshacer(copia: Path, log=print) -> int:
     """Restaura las notas desde la copia hecha antes de --aplicar. Devuelve cuantas."""
     copia = Path(copia)
@@ -427,6 +494,9 @@ def main(argv=None) -> int:
     ap.add_argument("--biblioteca", action="store_true",
                     help="Copiar tambien a GENERADAS las imagenes generadas que el export trae y ninguna "
                          "conversacion enlaza")
+    ap.add_argument("--metadatos", action="store_true",
+                    help="En vez de reparar notas: completar en el manifiesto de GENERADAS con que se genero cada "
+                         "imagen (herramienta, modelo del chat, si es una edicion), sacado exacto del export")
     ap.add_argument("--deshacer", metavar="CARPETA", help="Restaurar las notas desde la copia de un --aplicar")
     args = ap.parse_args(argv)
 
@@ -439,6 +509,15 @@ def main(argv=None) -> int:
         base = args.base_vault or _config_base()
         if not base:
             ap.error("hace falta --base-vault (no hay base_vault en memoria_config.yaml)")
+        if args.metadatos:
+            m = completar_metadatos(Path(args.export), Path(base), aplicar=args.aplicar)
+            print()
+            print("SIMULACION (no se ha escrito nada)" if not m["aplicado"] else "HECHO")
+            print(f"  generadas en el manifiesto: {m['en_manifiesto']} | sin generador: {m['sin_generador']} | "
+                  f"{'completadas' if m['aplicado'] else 'se completan'} con este export: {m['completables']}")
+            if m["copia"]:
+                print(f"  para deshacer:              python recuperar_imagenes.py --deshacer \"{m['copia']}\"")
+            return 0
         r = recuperar(Path(args.export), Path(base), aplicar=args.aplicar, biblioteca=args.biblioteca)
     except ErrorRecuperar as e:
         print(f"[error] {e}")
