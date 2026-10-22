@@ -316,3 +316,13 @@ def test_los_enlaces_son_relativos_para_que_la_galeria_viaje_con_el_vault(vault)
     imgs = [im for g in _datos_de(Path(r["pagina"]).read_text(encoding="utf-8"))["grupos"] for im in g["imgs"]]
     assert all(not im["o"].startswith("file:") and im["o"].startswith("../") for im in imgs)
     assert all(im["t"].startswith("miniaturas/") for im in imgs if im.get("t"))
+
+
+def test_los_filtros_van_bajo_su_boton_con_segmentados_y_sin_modelo(vault, tmp_path):
+    html = Path(gal.generar(vault, tmp_path / "g", log=lambda *_: None)["pagina"]).read_text(encoding="utf-8")
+    assert 'id="b-filtros"' in html and 'id="panel-filtros" hidden' in html
+    for seg, valores in (("f-origen", ("generada", "subida")), ("f-tipo", ("imagen", "video"))):
+        bloque = html[html.index(f'id="{seg}"'):html.index("</div>", html.index(f'id="{seg}"'))]
+        assert 'class="seg"' in html[html.index(f'id="{seg}"') - 30:html.index(f'id="{seg}"')]
+        assert all(f'data-v="{v}"' in bloque for v in valores) and 'data-v=""' in bloque
+    assert "f-modelo" not in html

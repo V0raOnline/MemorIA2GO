@@ -39,14 +39,31 @@ header {
 }
 .buscar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .buscar::before { content: "⌕"; position: absolute; left: 11px; top: 6px; color: var(--text-dim); font-size: 16px; }
-.filtros { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; }
+.acciones { display: flex; gap: 8px; align-items: center; }
+#b-filtros .n {
+  display: inline-block; margin-left: 7px; min-width: 18px; padding: 0 6px; border-radius: 999px;
+  background: var(--accent); color: var(--bg); font-size: 11.5px; font-weight: 700; text-align: center;
+}
+#b-filtros .n:empty { display: none; }
+#b-filtros[aria-expanded="true"] { border-color: var(--accent); }
+.panel-filtros {
+  width: 100%; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 10px 12px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+}
+.panel-filtros[hidden] { display: none; }
+.grupo-f { display: flex; align-items: center; gap: 8px; }
+.etq-f { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { background: var(--bg-inset); border: 0; padding: 6px 11px; cursor: pointer; color: var(--text-dim); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 select, .btn {
   background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; cursor: pointer;
   max-width: 220px;
 }
 .btn:hover, select:hover { border-color: var(--accent); }
 select.activo { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.derecha { margin-left: auto; display: flex; gap: 8px; }
 .resumen { width: 100%; color: var(--text-dim); font-size: 12.5px; font-family: var(--mono); }
 .resumen b { color: var(--accent); font-weight: 600; }
 
@@ -144,7 +161,6 @@ figure img, figure video { display: block; width: 100%; height: 180px; object-fi
   figure { width: 140px; } figure img, figure video, .sin-mini { height: 140px; }
   .visor { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
   .visor .lado { max-height: 40vh; border-left: 0; border-top: 1px solid var(--border); }
-  .derecha { margin-left: 0; }
 }
 </style>
 </head>
@@ -152,19 +168,23 @@ figure img, figure video { display: block; width: 100%; height: 180px; object-fi
 <header id="cabecera">
   <div class="marca">M3M0R<span class="ia">·IA</span><small>galería</small></div>
   <div class="buscar"><input id="q" type="search" placeholder="Buscar en títulos, prompts, lo que pediste, proyectos…  ( / )" autocomplete="off"></div>
-  <div class="filtros">
+  <div class="acciones">
+    <button class="btn" id="b-filtros" type="button" aria-expanded="false" aria-controls="panel-filtros">Filtros<span class="n" id="n-filtros"></span></button>
+    <button class="btn" id="plegar" type="button">Desplegar todo</button>
+    <select id="tema" title="Tema"><option value="warm">warm</option><option value="cool">cool</option><option value="light">claro</option></select>
+  </div>
+  <div class="panel-filtros" id="panel-filtros" hidden>
+    <div class="grupo-f"><span class="etq-f">Origen</span>
+      <div class="seg" id="f-origen" role="group" aria-label="Origen" data-valor=""><button type="button" data-v="" aria-pressed="true">Todo</button><button type="button" data-v="generada" aria-pressed="false">Generadas</button><button type="button" data-v="subida" aria-pressed="false">Subidas</button></div>
+    </div>
+    <div class="grupo-f"><span class="etq-f">Tipo</span>
+      <div class="seg" id="f-tipo" role="group" aria-label="Tipo" data-valor=""><button type="button" data-v="" aria-pressed="true">Todo</button><button type="button" data-v="imagen" aria-pressed="false">Imágenes</button><button type="button" data-v="video" aria-pressed="false">Vídeos</button></div>
+    </div>
     <select id="f-prov" title="Proveedor"><option value="">Todos los proveedores</option></select>
-    <select id="f-origen" title="Origen"><option value="">Generadas y subidas</option><option value="generada">Solo generadas</option><option value="subida">Solo subidas</option></select>
-    <select id="f-tipo" title="Tipo"><option value="">Imágenes y vídeos</option><option value="imagen">Solo imágenes</option><option value="video">Solo vídeos</option></select>
     <select id="f-gen" title="Generador"><option value="">Todos los generadores</option></select>
-    <select id="f-modelo" title="Modelo del chat"><option value="">Todos los modelos</option></select>
     <select id="f-proy" title="Proyecto"><option value="">Todos los proyectos</option></select>
     <select id="f-mes" title="Mes"><option value="">Todos los meses</option></select>
-    <div class="derecha">
-      <button class="btn" id="limpiar" type="button">Quitar filtros</button>
-      <button class="btn" id="plegar" type="button">Desplegar todo</button>
-      <select id="tema" title="Tema"><option value="warm">warm</option><option value="cool">cool</option><option value="light">claro</option></select>
-    </div>
+    <button class="btn" id="limpiar" type="button">Quitar filtros</button>
   </div>
   <div class="resumen" id="resumen"></div>
 </header>
@@ -237,17 +257,33 @@ function rellenar(id, valores, grupo) {
 const todasImgs = DATOS.grupos.flatMap((g) => g.imgs);
 rellenar("f-prov", todasImgs.map((i) => i.prov), "proveedor");
 rellenar("f-gen", todasImgs.map((i) => i.gen), "generador");
-rellenar("f-modelo", todasImgs.map((i) => i.modelo));
 rellenar("f-proy", DATOS.grupos.map((g) => g.proyecto));
 rellenar("f-mes", DATOS.grupos.map((g) => (g.fecha || "").slice(0, 7)).reverse());
-const FILTROS = ["f-prov", "f-origen", "f-tipo", "f-gen", "f-modelo", "f-proy", "f-mes"];
+const FILTROS = ["f-prov", "f-origen", "f-tipo", "f-gen", "f-proy", "f-mes"];
+// Un filtro es un desplegable o un segmentado (pocas opciones: botones con estado).
+const valor = (id) => { const el = document.getElementById(id); return el.classList.contains("seg") ? el.dataset.valor : el.value; };
+function poner(id, v) {
+  const el = document.getElementById(id);
+  if (!el.classList.contains("seg")) { el.value = v; return; }
+  el.dataset.valor = v;
+  el.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+}
+document.querySelectorAll(".seg").forEach((seg) => seg.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) { poner(seg.id, b.dataset.v); pintar(); }
+}));
+const panel = document.getElementById("panel-filtros"), botonFiltros = document.getElementById("b-filtros");
+botonFiltros.addEventListener("click", () => {
+  panel.hidden = !panel.hidden;
+  botonFiltros.setAttribute("aria-expanded", String(!panel.hidden));
+  ajustarCabecera();
+});
 
 function pasa(g, im, f, terminos) {
   if (f["f-prov"] && im.prov !== f["f-prov"]) return false;
   if (f["f-origen"] && im.origen !== f["f-origen"]) return false;
   if (f["f-tipo"] && im.tipo !== f["f-tipo"]) return false;
   if (f["f-gen"] && im.gen !== f["f-gen"]) return false;
-  if (f["f-modelo"] && im.modelo !== f["f-modelo"]) return false;
   if (f["f-proy"] && g.proyecto !== f["f-proy"]) return false;
   if (f["f-mes"] && !(g.fecha || "").startsWith(f["f-mes"])) return false;
   return terminos.every((t) => im.busca.includes(t));
@@ -270,7 +306,9 @@ function pintar() {
   const terminos = norm(document.getElementById("q").value).split(/\s+/).filter(Boolean);
   terminosActuales = terminos;
   const f = {};
-  FILTROS.forEach((id) => { const s = document.getElementById(id); f[id] = s.value; s.classList.toggle("activo", !!s.value); });
+  FILTROS.forEach((id) => { f[id] = valor(id); document.getElementById(id).classList.toggle("activo", !!f[id]); });
+  const activos = FILTROS.filter((id) => f[id]).length;
+  document.getElementById("n-filtros").textContent = activos ? String(activos) : "";
   const lista = document.getElementById("lista");
   lista.innerHTML = "";
   visibles = [];
@@ -363,14 +401,15 @@ plegarBtn.addEventListener("click", () => {
   plegarBtn.textContent = abrirTodo ? "Plegar todo" : "Desplegar todo";
 });
 document.getElementById("limpiar").addEventListener("click", () => {
-  FILTROS.forEach((id) => (document.getElementById(id).value = ""));
+  FILTROS.forEach((id) => poner(id, ""));
   document.getElementById("q").value = "";
   pintar();
 });
 let espera;
 document.getElementById("q").addEventListener("input", () => { clearTimeout(espera); espera = setTimeout(pintar, 150); });
-FILTROS.forEach((id) => document.getElementById(id).addEventListener("change", pintar));
-const ajustarCabecera = () => document.documentElement.style.setProperty("--alto-cabecera", document.getElementById("cabecera").offsetHeight + "px");
+FILTROS.forEach((id) => { const el = document.getElementById(id); if (el.tagName === "SELECT") el.addEventListener("change", pintar); });
+function ajustarCabecera() { _ajustar(); }
+const _ajustar = () => document.documentElement.style.setProperty("--alto-cabecera", document.getElementById("cabecera").offsetHeight + "px");
 window.addEventListener("resize", ajustarCabecera);
 pintar(); ajustarCabecera();
 </script>
