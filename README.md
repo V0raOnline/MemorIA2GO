@@ -13,7 +13,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-### ⬇ **[Download M3M0R·IA for Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.1.0-en/M3M0R-IA-3.1.0-en.zip)** · 21 MB
+### ⬇ **[Download M3M0R·IA for Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.2.0-en/M3M0R-IA-3.2.0-en.zip)** · 21 MB
 
 Unpack it and double-click. **No programming, nothing installed** — it carries
 its own Python inside. The details are under *Installation — the Windows
@@ -42,6 +42,16 @@ You don't have to use them all. Each one works on its own, and the ones you don'
 Unlike generic migration tools that only transfer saved memories, M3M0R·IA brings **the full history**: deduplicated, merged, with images and attachments extracted to their own banks, and navigation indexes generated. Providers are recognized by the internal structure of their export, never by filename.
 
 The conversations from all four providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell, MUSIC·0LOGY and image.ia build vaults of their own: it made no sense to treat an editorial archive, a music library and an image gallery the same way.
+
+### New — ChatGPT's images, and a gallery for all of them (v3.2.0)
+
+In 2026 OpenAI changed the ChatGPT export, without notice. Images started being called `file_XXXX.dat`, and M3M0R·IA didn't recognise them: each one appeared in your note as *imagen no disponible en el export* (image not available in the export), **without a single error**. In the vault it was built with, that was over 20,000 notices. On top of that, generated images no longer travel inside the conversations: they only arrive loose, in a separate "library". And the prompt they were generated with no longer travels.
+
+- **The import reads the new format** and attaches each generated image to its conversation, at the end, with the title and time ChatGPT gave it.
+- **`recuperar_imagenes.py` repairs what you already had** without reimporting —reimporting would duplicate your conversations—, note by note, with a backup and a way back. What it does, what it doesn't and why: **[RECOVER_IMAGES.md](RECOVER_IMAGES.md)**.
+- **The gallery**: an HTML page with all your images and videos from ChatGPT, Grok and Copilot, one strip per conversation, search and filters (generated or uploaded, image or video, provider, generator, project, month), with the same themes as the app. It's an add-on: you build it whenever you want and it doesn't touch the vault. **[GALLERY.md](GALLERY.md)**.
+
+Also: **Inkwell builds all your Substack publications**, each in its own folder (before, only the one from the newest export), with a tool to move what you'd already built into its folder. And the Observatory's last import no longer gets stuck at "0 days ago".
 
 ### New — image.ia (v3.1.0)
 
@@ -157,7 +167,7 @@ M3M0R·IA is maintained as two parallel product lines, one per language. Both ar
 
 - **Obsidian**, to browse the result. And optionally Claude Desktop with an MCP filesystem server, if you want your vault as live context.
 
-If you'd rather run it from the source, then yes: Python **3.10+** and `pip install -r requirements.txt` (beautifulsoup4, lxml, rich, pyyaml, flask, requests). For the test suite, `pip install -r requirements-dev.txt && python -m pytest tests/`.
+If you'd rather run it from the source, then yes: Python **3.10+** and `pip install -r requirements.txt` (beautifulsoup4, lxml, rich, pyyaml, flask, requests, pillow). For the test suite, `pip install -r requirements-dev.txt && python -m pytest tests/`.
 
 Developed and battle-tested on Windows; the pipeline itself is cross-platform.
 
@@ -192,7 +202,7 @@ The stats CSV is optional, but it's the only source carrying each post's **secti
 ### Installation — the Windows package
 
 **If you've never opened a console in your life, this is your path.** Download
-**[`M3M0R-IA-3.1.0-en.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.1.0-en/M3M0R-IA-3.1.0-en.zip)**
+**[`M3M0R-IA-3.2.0-en.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.2.0-en/M3M0R-IA-3.2.0-en.zip)**
 (21 MB), unpack it wherever you like, and double-click **`M3M0R-IA.bat`**.
 That's it: your browser opens with M3M0R·IA inside.
 
@@ -278,7 +288,11 @@ You can run everything from a terminal. No web server.
 ```bash
 python MemorIA2GO.py                  # interactive, full pipeline
 python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
+python galeria.py                     # the image gallery, in <base>/.gallery/index.html
+python recuperar_imagenes.py --export <ChatGPT zip>   # put the images back into your notes (dry run)
 ```
+
+In the Windows package, from the `app` folder and with its own Python: `python\python.exe galeria.py`.
 
 ---
 
@@ -308,6 +322,8 @@ Each document answers **one** question. If you're looking for something that isn
 | **README** (you are here) | What is it and how do I start it? |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | How does it work inside and why this way? |
 | **[CARTOGRAPHY.md](CARTOGRAPHY.md)** | How does Cartography decide which note goes in which theme? |
+| **[GALLERY.md](GALLERY.md)** | What does the gallery show about each image, and where does it get it? |
+| **[RECOVER_IMAGES.md](RECOVER_IMAGES.md)** | How do I put back into my notes the ChatGPT images that are missing? |
 | **[IM_STUCK.md](IM_STUCK.md)** | What if I don't know any of this? |
 | **[DEVLOG.md](DEVLOG.md)** | What did we learn building it? |
 
@@ -318,7 +334,9 @@ Each document answers **one** question. If you're looking for something that isn
 - **Notes with prompts for Grok Imagine**, like Copilot's in image.ia: the Grok library API gives the file, the dates and the lineage, but not the prompt, which only lives in the export (`media_posts`). The two have to be joined by asset identifier; before writing code, look at how they link in a real export.
 - **Observatory with the images**: image.ia cards next to the music ones, with the usual rule of not drawing zero when no backup is configured.
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
-- Asset extraction for the fragmented 2026+ ChatGPT export's `.dat` attachments (a separate binary layout from the one already handled)
+- **The gallery, from the app**: a button in image.ia to build it and open it, no console.
+- **ChatGPT's generated images from March to May 2026**: neither the export nor its library carries them. Check whether ChatGPT's web gallery gives them through its API, like Copilot and Grok.
+- **One document per tool**, like [CARTOGRAPHY.md](CARTOGRAPHY.md), with its test: Observatory, Verification, Build, Reconnection, music.ia, image.ia and Inkwell.
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
 
 ---
