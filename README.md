@@ -290,6 +290,7 @@ python MemorIA2GO.py                  # interactive, full pipeline
 python MemorIA2GO.py --reprocess-all  # re-parse every valid export from scratch
 python galeria.py                     # the image gallery, in <base>/.gallery/index.html
 python recuperar_imagenes.py --export <ChatGPT zip>   # put the images back into your notes (dry run)
+python galeria_tintero.py             # the gallery of your Substack posts, in <Inkwell vault>/.gallery/index.html
 ```
 
 In the Windows package, from the `app` folder and with its own Python: `python\python.exe galeria.py`.
@@ -324,6 +325,7 @@ Each document answers **one** question. If you're looking for something that isn
 | **[CARTOGRAPHY.md](CARTOGRAPHY.md)** | How does Cartography decide which note goes in which theme? |
 | **[GALLERY.md](GALLERY.md)** | What does the gallery show about each image, and where does it get it? |
 | **[RECOVER_IMAGES.md](RECOVER_IMAGES.md)** | How do I put back into my notes the ChatGPT images that are missing? |
+| **[INKWELL_GALLERY.md](INKWELL_GALLERY.md)** | What does the gallery of my Substack posts show, and where does it get the covers? |
 | **[IM_STUCK.md](IM_STUCK.md)** | What if I don't know any of this? |
 | **[DEVLOG.md](DEVLOG.md)** | What did we learn building it? |
 
@@ -334,7 +336,7 @@ Each document answers **one** question. If you're looking for something that isn
 - **Notes with prompts for Grok Imagine**, like Copilot's in image.ia: the Grok library API gives the file, the dates and the lineage, but not the prompt, which only lives in the export (`media_posts`). The two have to be joined by asset identifier; before writing code, look at how they link in a real export.
 - **Observatory with the images**: image.ia cards next to the music ones, with the usual rule of not drawing zero when no backup is configured.
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
-- **The gallery, from the app**: a button in image.ia to build it and open it, no console.
+- **The galleries, from the app**: a button in image.ia and another in Inkwell to build them and open them, no console.
 - **ChatGPT's generated images from March to May 2026**: neither the export nor its library carries them. Check whether ChatGPT's web gallery gives them through its API, like Copilot and Grok.
 - **One document per tool**, like [CARTOGRAPHY.md](CARTOGRAPHY.md), with its test: Observatory, Verification, Build, Reconnection, music.ia, image.ia and Inkwell.
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
