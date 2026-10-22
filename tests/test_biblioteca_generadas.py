@@ -319,6 +319,7 @@ def test_cli_cuenta_la_biblioteca_en_la_simulacion_y_en_aplicar(vault_viejo):
                        encoding="utf-8", errors="replace", cwd=raiz)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "6 anadidas a sus conversaciones (3 notas)" in r.stdout and "--deshacer" in r.stdout
+    assert "copia (biblioteca):" in r.stdout            # si no, la limpieza de abajo no la encuentra
     for linea in r.stdout.splitlines():                  # la copia cae en logs/ del repo: se limpia
         if "copia (biblioteca):" in linea:
             shutil.rmtree(linea.split(":", 1)[1].strip(), ignore_errors=True)
