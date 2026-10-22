@@ -326,3 +326,10 @@ def test_los_filtros_van_bajo_su_boton_con_segmentados_y_sin_modelo(vault, tmp_p
         assert 'class="seg"' in html[html.index(f'id="{seg}"') - 30:html.index(f'id="{seg}"')]
         assert all(f'data-v="{v}"' in bloque for v in valores) and 'data-v=""' in bloque
     assert "f-modelo" not in html
+
+
+def test_lleva_el_footer_de_la_app_fuera_de_la_lista_que_se_repinta(vault, tmp_path):
+    html = Path(gal.generar(vault, tmp_path / "g", log=lambda *_: None)["pagina"]).read_text(encoding="utf-8")
+    assert "Own your AI memory" in html
+    assert 'href="https://github.com/V0raOnline/MemorIA2GO"' in html and 'href="https://v0raonline.substack.com"' in html
+    assert html.index('<main id="lista"></main>') < html.index("<footer>")

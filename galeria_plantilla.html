@@ -130,6 +130,15 @@ figure img, figure video { display: block; width: 100%; height: 180px; object-fi
 .peticion em { color: var(--text); font-style: normal; }
 .vacio { color: var(--text-dim); text-align: center; padding: 60px 0; }
 
+/* Footer: el mismo que la app (web/style.css, ver .claude/footer.TXT). */
+footer {
+  max-width: 1500px; margin: 0 auto; padding: 1.2rem 20px 2rem; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem;
+}
+.footer-left, .footer-right { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); letter-spacing: 0.03em; }
+.footer-right a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+.footer-right a:hover { opacity: 0.75; }
+
 .visor {
   position: fixed; inset: 0; z-index: 50; display: none; background: rgba(0, 0, 0, .82);
   grid-template-columns: 1fr minmax(260px, 340px);
@@ -189,6 +198,14 @@ figure img, figure video { display: block; width: 100%; height: 180px; object-fi
   <div class="resumen" id="resumen"></div>
 </header>
 <main id="lista"></main>
+<footer>
+  <div class="footer-left"><strong>M3M0R·IA</strong> · Own your AI memory</div>
+  <div class="footer-right">
+    <a href="https://github.com/V0raOnline/MemorIA2GO" target="_blank" rel="noopener">GitHub</a>
+    ·
+    <a href="https://v0raonline.substack.com" target="_blank" rel="noopener">Substack</a>
+  </div>
+</footer>
 
 <div class="visor" id="visor" aria-modal="true" role="dialog">
   <div class="lienzo" id="lienzo">
