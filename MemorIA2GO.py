@@ -514,11 +514,6 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
     ]
     grok_pendientes_json = base_vault / "GROK" / "_pendientes_descarga.json"
 
-    # Miniaturas de las imagenes generadas de ChatGPT: las genera una herramienta
-    # aparte (no el pipeline). Si la carpeta existe, ademas del indice general se
-    # escribe una galeria con ellas en CHATGPT/ (ver generate_gallery).
-    chatgpt_miniaturas = "CHATGPT/GENERADAS_Thmbnails"
-
     # Indices viejos, uno por banco de ChatGPT, superados por _index_chatgpt.md.
     # Se retiran en cada corrida para que no queden colgando desincronizados.
     archivos_obsoletos = ["_image_index.md", "_index_generadas.md", "_index_adjuntos.md"]
@@ -564,18 +559,6 @@ def paso4_indices(base_vault: Path, merged_vault: Path, project_vault: Path | No
                         "--pendientes-titulo", "Grok — pendientes de descarga",
                     ]
                 run_script(content_script, args, log_path)
-            # La galeria vive junto a su banco, no en el vault de conversaciones, y se
-            # escribe una sola vez: las miniaturas cuelgan del vault fusionado.
-            if vault == merged_vault and (base_vault / chatgpt_miniaturas).is_dir():
-                run_script(content_script, [
-                    vault, "--base-vault", base_vault,
-                    "--conversations-dir", conv_dir,
-                    "--proveedor", "ChatGPT",
-                    "--banco", "CHATGPT/GENERADAS:Generadas",
-                    "--galeria", "--miniaturas", f"CHATGPT/GENERADAS={chatgpt_miniaturas}",
-                    "--out-dir", base_vault / "CHATGPT",
-                    "--out", "_indice_imagenes.md",
-                ], log_path)
         else:
             warn("No encuentro content_index.py — omitiendo indice de contenido.")
 
