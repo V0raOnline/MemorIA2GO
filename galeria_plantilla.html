@@ -11,7 +11,8 @@
 <meta name="copyright" content="CC BY-NC-SA 4.0">
 <link rel="license" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Galería de imágenes · M3M0R·IA</title>
+<title>image.ia · galería</title>
+<link rel="icon" href="imageIA.png">
 <style>
 /* Los mismos tokens que la app (web/style.css): warm por defecto, cool y light.
    Si cambian alli, cambian aqui: los copia galeria.py al generar la pagina. */
@@ -29,7 +30,8 @@ header {
   position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--border);
   display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; padding: 12px 20px;
 }
-.marca { font-weight: 700; letter-spacing: .5px; white-space: nowrap; }
+.marca { font-weight: 700; letter-spacing: .5px; white-space: nowrap; display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.marca .logo { width: 36px; height: 36px; display: block; }
 .marca .ia { color: var(--brand); }
 .marca small { font-weight: 400; color: var(--text-dim); margin-left: 6px; }
 .buscar { flex: 1 1 280px; position: relative; }
@@ -175,7 +177,7 @@ footer {
 </head>
 <body>
 <header id="cabecera">
-  <div class="marca">M3M0R<span class="ia">·IA</span><small>galería</small></div>
+  <div class="marca"><img src="imageIA.png" alt="" class="logo" onerror="this.style.display='none'"><span>image<span class="ia">.ia</span></span><small>galería</small></div>
   <div class="buscar"><input id="q" type="search" placeholder="Buscar en títulos, prompts, lo que pediste, proyectos…  ( / )" autocomplete="off"></div>
   <div class="acciones">
     <button class="btn" id="b-filtros" type="button" aria-expanded="false" aria-controls="panel-filtros">Filtros<span class="n" id="n-filtros"></span></button>

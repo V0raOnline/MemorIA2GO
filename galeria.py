@@ -44,6 +44,7 @@ from urllib.parse import quote
 HERE = Path(__file__).resolve().parent
 PLANTILLA = HERE / "galeria_plantilla.html"
 ESTILO_APP = HERE / "web" / "style.css"
+ICONO = HERE / "web" / "assets" / "imageIA.png"      # el cerebrito de image.ia
 CARPETA_SALIDA = ".galeria"
 LADO_MINIATURA = 480
 # Sube cuando cambia como se hacen las miniaturas: rehace todas aunque el original no haya cambiado.
@@ -344,6 +345,21 @@ def tokens_de_la_app() -> str:
     return "\n".join(f"{sel} {{{cuerpo}}}" for sel, cuerpo in bloques)
 
 
+def copiar_icono(salida: Path) -> None:
+    """El cerebrito de image.ia junto a la pagina (cabecera e icono de la pestana). Pequeno si hay
+    Pillow; si no, tal cual. La galeria no depende de la carpeta de la app."""
+    destino = salida / "imageIA.png"
+    if not ICONO.is_file():
+        return
+    try:
+        from PIL import Image
+        with Image.open(ICONO) as im:
+            im.thumbnail((96, 96))
+            im.save(destino, "PNG")
+    except Exception:
+        destino.write_bytes(ICONO.read_bytes())
+
+
 def tema_configurado() -> str:
     try:
         from config_loader import load_config, get_opt
@@ -393,6 +409,7 @@ def generar(base: Path, salida: Optional[Path] = None, miniaturas: bool = True, 
             if it["tipo"] == "imagen":
                 it["mini"] = base / it["ruta"]
     grupos = agrupar(items)
+    copiar_icono(salida)
     pagina = salida / "index.html"
     tmp = pagina.with_name("index.html.part")
     tmp.write_text(construir_pagina(grupos, base, salida, tema or tema_configurado()), encoding="utf-8")

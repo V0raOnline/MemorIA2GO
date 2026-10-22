@@ -333,3 +333,12 @@ def test_lleva_el_footer_de_la_app_fuera_de_la_lista_que_se_repinta(vault, tmp_p
     assert "Own your AI memory" in html
     assert 'href="https://github.com/V0raOnline/MemorIA2GO"' in html and 'href="https://v0raonline.substack.com"' in html
     assert html.index('<main id="lista"></main>') < html.index("<footer>")
+
+
+def test_lleva_el_cerebrito_de_image_ia(vault, tmp_path):
+    salida = tmp_path / "g"
+    html = Path(gal.generar(vault, salida, log=lambda *_: None)["pagina"]).read_text(encoding="utf-8")
+    assert 'src="imageIA.png"' in html and '<link rel="icon" href="imageIA.png">' in html
+    assert 'image<span class="ia">.ia</span>' in html
+    with Image.open(salida / "imageIA.png") as im:
+        assert max(im.size) <= 96
