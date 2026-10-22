@@ -354,13 +354,13 @@ def vault_minimo(tmp_path):
 def test_biblioteca_copia_solo_las_generadas_que_ninguna_conversacion_enlaza(vault_minimo, export_con_biblioteca,
                                                                               tmp_path):
     r = _recuperar(vault_minimo, export_con_biblioteca, tmp_path, aplicar=True, biblioteca=True)
-    assert r["biblioteca"] == {"generadas": 3, "sin_fichero": 1, "ya_enlazadas": 1, "copiadas": 1}
+    assert {k: r["biblioteca"][k] for k in ("generadas", "sin_fichero", "ya_enlazadas", "copiadas")} ==         {"generadas": 3, "sin_fichero": 1, "ya_enlazadas": 1, "copiadas": 1}
     ficheros = [p for p in (vault_minimo / "CHATGPT" / "GENERADAS").iterdir() if not p.name.startswith("_")]
     assert len(ficheros) == 1 and ficheros[0].read_bytes() == PNG2
     meta = json.loads((vault_minimo / "CHATGPT" / "GENERADAS" / "_image_manifest.json").read_text(encoding="utf-8"))
     (m,) = meta.values()
-    assert m["origen"] == "generada" and m["titulo_biblioteca"] == "Polluelo de gorrion.png"
-    assert m["creada"] == "2026-10-17T21:12:23" and m["sin_conversacion"] is True
+    assert m["origen"] == "generada" and m["titulo_biblioteca"] == "Polluelo de gorrion"
+    assert m["creada"] == "2026-10-17T21:12:23"
 
 
 def test_biblioteca_en_simulacion_no_escribe(vault_minimo, export_con_biblioteca, tmp_path):

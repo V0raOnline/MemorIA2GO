@@ -30,10 +30,13 @@ LO QUE HACE
      (subida -> CHATGPT/ADJUNTOS, generada -> CHATGPT/GENERADAS), con el mismo
      criterio, la misma huella y el mismo manifiesto que la importacion.
   3. Sustituye el aviso por el enlace en las notas.
-  4. Con --biblioteca, ademas, copia a GENERADAS las imagenes generadas que el export
-     trae en `library_files.json` y ninguna conversacion enlaza (el export nuevo no
-     lleva imagenes en los mensajes del asistente). No las puede devolver a su
-     conversacion: el mensaje de origen no viene en el export.
+  4. Con --biblioteca, ademas, copia a GENERADAS las imagenes generadas que el export trae en
+     `library_files.json` y ninguna conversacion enlaza (el export nuevo no lleva imagenes en los
+     mensajes del asistente), y cada una la cuelga de SU conversacion: `origination_thread_id`
+     es el conversation_id. Va como un mensaje `tool` al final de la nota (con el titulo y la
+     hora de ChatGPT), igual que dejaban los exports antiguos, y el importador hace lo mismo
+     con los exports nuevos. El mensaje exacto de origen no viene en el export, asi que no se
+     puede colocar entre sus turnos.
 
 LO QUE NO HACE
 ──────────────
@@ -164,6 +167,59 @@ def _escribir_conservando_fecha(ruta: Path, datos: bytes) -> None:
     os.replace(tmp, ruta)
 
 
+def _cambiar_notas(base: Path, notas, transformar, export: Path, aplicar: bool,
+                   carpeta_logs: Optional[Path], etiqueta: str, log) -> tuple:
+    """Aplica `transformar(ruta, datos) -> datos` a cada nota. Con aplicar guarda antes una copia
+    EXACTA de las que cambian, conserva la fecha de modificacion y escribe de forma atomica.
+    Devuelve (notas_cambiadas, carpeta_de_la_copia)."""
+    if not aplicar or not notas:
+        return 0, None
+    marca_tiempo = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    logs = Path(carpeta_logs) if carpeta_logs else HERE / "logs"
+    copia = logs / f"recuperar_imagenes_{marca_tiempo}{etiqueta}"
+    copia.mkdir(parents=True, exist_ok=True)
+    log(f"Copia de seguridad de las {len(notas)} notas en {copia}")
+    for ruta in notas:
+        _hacer_copia(ruta, base, copia)
+    (copia / "diario.json").write_text(json.dumps({
+        "export": str(export), "base": str(base), "fecha": marca_tiempo,
+        "notas": [str(r.relative_to(base)) for r in notas],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    cambiadas = 0
+    for ruta in notas:
+        datos = ruta.read_bytes()
+        nuevo = transformar(ruta, datos)
+        if nuevo != datos:
+            _escribir_conservando_fecha(ruta, nuevo)
+            cambiadas += 1
+    return cambiadas, str(copia)
+
+
+CONV_ID_RE = re.compile(rb'^conv_id:\s*"?([^"\r\n]+?)"?\s*$', re.MULTILINE)
+
+
+def notas_por_conv_id(base: Path) -> Dict[str, List[Path]]:
+    """{conversation_id: [notas de RAW, MERGED y PRJ]} segun el `conv_id` de la cabecera."""
+    por_hilo: Dict[str, List[Path]] = {}
+    for rel in CARPETAS_NOTAS:
+        raiz = base / rel
+        if not raiz.is_dir():
+            continue
+        for dirpath, dirnames, filenames in os.walk(raiz, onerror=lambda e: None):
+            dirnames[:] = [d for d in dirnames if not (Path(dirpath) / d).is_symlink()]
+            for fn in filenames:
+                if not fn.endswith(".md"):
+                    continue
+                ruta = Path(dirpath) / fn
+                if ruta.is_symlink():
+                    continue
+                with open(ruta, "rb") as f:
+                    m = CONV_ID_RE.search(f.read(2000))
+                if m:
+                    por_hilo.setdefault(m.group(1).decode("utf-8", errors="replace"), []).append(ruta)
+    return por_hilo
+
+
 def recuperar(export: Path, base: Path, aplicar: bool = False, biblioteca: bool = False,
               carpeta_logs: Optional[Path] = None, log=print) -> dict:
     export, base = Path(export), Path(base)
@@ -236,74 +292,96 @@ def recuperar(export: Path, base: Path, aplicar: bool = False, biblioteca: bool 
     notas_a_tocar = sorted(cambios)
     resultado["notas_a_cambiar"] = len(notas_a_tocar)
 
-    if aplicar and notas_a_tocar:
-        marca_tiempo = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        logs = Path(carpeta_logs) if carpeta_logs else HERE / "logs"
-        copia = logs / f"recuperar_imagenes_{marca_tiempo}"
-        copia.mkdir(parents=True, exist_ok=True)
-        resultado["copia"] = str(copia)
-        log(f"Copia de seguridad de las {len(notas_a_tocar)} notas en {copia}")
-        for ruta in notas_a_tocar:
-            _hacer_copia(ruta, base, copia)
-        (copia / "diario.json").write_text(json.dumps({
-            "export": str(export), "base": str(base), "fecha": marca_tiempo,
-            "notas": [str(r.relative_to(base)) for r in notas_a_tocar],
-        }, ensure_ascii=False, indent=2), encoding="utf-8")
-
+    def sustituir_avisos(ruta, datos):
         def sustituir(m):
             p = m.group(1).decode("utf-8", errors="replace")
             if p in enlace_de:
                 return b"![](" + enlace_de[p].encode("utf-8") + b")"
             return m.group(0)
+        return MARCA_RE.sub(sustituir, datos)
 
-        for ruta in notas_a_tocar:
-            datos = ruta.read_bytes()
-            nuevo = MARCA_RE.sub(sustituir, datos)
-            if nuevo != datos:
-                _escribir_conservando_fecha(ruta, nuevo)
-                resultado["notas_cambiadas"] += 1
+    resultado["notas_cambiadas"], resultado["copia"] = _cambiar_notas(
+        base, notas_a_tocar, sustituir_avisos, export, aplicar, carpeta_logs, "", log)
+    if aplicar:
         for e in escritores.values():
             e.cerrar()
         log(f"  {resultado['notas_cambiadas']} notas cambiadas.")
 
     # ---- la biblioteca: generadas que ninguna conversacion enlaza
     if biblioteca:
-        resultado["biblioteca"] = _recuperar_biblioteca(zf, indice, image_meta, base, aplicar, escritores, log)
+        resultado["biblioteca"] = _colgar_biblioteca(zf, indice, image_meta, base, aplicar, escritores,
+                                                     export, carpeta_logs, log)
     zf.close()
     return resultado
 
 
-def _recuperar_biblioteca(zf, indice, image_meta, base: Path, aplicar: bool, escritores, log) -> dict:
-    """Imagenes generadas del export que ninguna conversacion enlaza (library_files.json)."""
-    biblioteca = list(_leer_biblioteca(zf).values())
-    if not biblioteca:
-        log("  El export no trae library_files.json: nada que recuperar de la biblioteca.")
-        return {"generadas": 0, "sin_fichero": 0, "ya_enlazadas": 0, "copiadas": 0}
+def _colgar_biblioteca(zf, indice, image_meta, base: Path, aplicar: bool, escritores, export: Path,
+                       carpeta_logs: Optional[Path], log) -> dict:
+    """Imagenes generadas de library_files.json que ninguna conversacion enlaza: las copia a GENERADAS
+    y las cuelga de su conversacion (mensaje `tool` al final de cada nota del hilo)."""
+    cero = {"generadas": 0, "sin_fichero": 0, "ya_enlazadas": 0, "copiadas": 0, "con_hilo": 0,
+            "sin_nota": 0, "bloques": 0, "notas_a_cambiar": 0, "notas_cambiadas": 0, "copia": None}
+    entradas = sce.entradas_biblioteca_generadas(zf)
+    if not entradas:
+        log("  El export no trae imagenes generadas en library_files.json: nada que colgar.")
+        return cero
     referenciadas = {sce.AssetIndex.resolve_pointer_id(p) for p in image_meta}
-    generadas = [x for x in biblioteca
-                 if (x.get("mime_type") or "").startswith("image/") and x.get("image_gen_generation_id")]
-    ya = sin_fichero = 0
-    nuevas = 0
+    r = dict(cero, generadas=len(entradas))
     escritor = escritores["generada"]
-    for x in generadas:
-        fid = x.get("file_id") or ""
-        if fid in referenciadas:
-            ya += 1
+    enlace_de: Dict[str, str] = {}
+    candidatas: List[dict] = []
+    for x in entradas:
+        if x["file_id"] in referenciadas:
+            r["ya_enlazadas"] += 1
+        elif x["file_id"] not in indice.by_id:
+            r["sin_fichero"] += 1
+        else:
+            candidatas.append(x)
+    for x in candidatas:
+        data, ext = indice.get_bytes(x["file_id"])
+        meta = {"origen": "generada", "titulo_biblioteca": sce.titulo_biblioteca(x),
+                "creada": (x.get("created_at") or "")[:19]}
+        enlace_de[x["file_id"]] = f"{BANCOS['generada']}/{escritor.write(data, ext, meta=meta)}"
+    r["copiadas"] = len(candidatas)
+
+    # Cada imagen en las notas de su hilo.
+    por_nota = notas_por_conv_id(base)
+    por_hilo: Dict[str, List[dict]] = {}
+    for x in candidatas:
+        if x.get("origination_thread_id"):
+            por_hilo.setdefault(x["origination_thread_id"], []).append(x)
+    cambios: Dict[Path, List[dict]] = {}
+    for hilo, imagenes in por_hilo.items():
+        rutas = por_nota.get(hilo)
+        if not rutas:
+            r["sin_nota"] += len(imagenes)
             continue
-        hallado = indice.get_bytes(fid)
-        if not hallado:
-            sin_fichero += 1
-            continue
-        data, ext = hallado
-        meta = {"origen": "generada", "titulo_biblioteca": x.get("file_name") or "",
-                "creada": (x.get("created_at") or "")[:19], "sin_conversacion": True}
-        escritor.write(data, ext, meta=meta)
-        nuevas += 1
+        r["con_hilo"] += len(imagenes)
+        for ruta in rutas:
+            cambios[ruta] = imagenes
+
+    def anadir(ruta, datos):
+        for x in cambios[ruta]:
+            enlace = f"![]({enlace_de[x['file_id']]})"
+            if enlace.encode("utf-8") in datos:
+                continue                                   # ya esta: repetir no duplica
+            bloque = sce.texto_biblioteca(x, enlace)
+            datos = datos.rstrip(b"\n") + b"\n\n### Tool\n\n" + bloque.encode("utf-8") + b"\n"
+        return datos
+
+    pendientes = [ruta for ruta in sorted(cambios) if anadir(ruta, ruta.read_bytes()) != ruta.read_bytes()]
+    r["notas_a_cambiar"] = len(pendientes)
+    r["bloques"] = sum(1 for ruta in pendientes for x in cambios[ruta]
+                       if f"![]({enlace_de[x['file_id']]})".encode("utf-8") not in ruta.read_bytes())
+    r["notas_cambiadas"], r["copia"] = _cambiar_notas(base, pendientes, anadir, export, aplicar, carpeta_logs,
+                                                       "_biblioteca", log)
     if aplicar:
         escritor.cerrar()
-    log(f"  Biblioteca: {len(generadas)} imagenes generadas; {ya} ya enlazadas a una conversacion; "
-        f"{sin_fichero} sin fichero en el zip; {nuevas} {'copiadas' if aplicar else 'por copiar'} a GENERADAS.")
-    return {"generadas": len(generadas), "sin_fichero": sin_fichero, "ya_enlazadas": ya, "copiadas": nuevas}
+    log(f"  Biblioteca: {r['generadas']} imagenes generadas; {r['ya_enlazadas']} ya enlazadas a una conversacion; "
+        f"{r['sin_fichero']} sin fichero en el zip; {r['copiadas']} {'copiadas' if aplicar else 'por copiar'} a "
+        f"GENERADAS; {r['con_hilo']} con conversacion en el vault ({r['bloques']} bloques "
+        f"{'anadidos' if aplicar else 'por anadir'} en {r['notas_a_cambiar']} notas); {r['sin_nota']} sin nota.")
+    return r
 
 
 def deshacer(copia: Path, log=print) -> int:
@@ -374,6 +452,16 @@ def main(argv=None) -> int:
     print(f"  que el export no trae:      {r['sin_recuperar']} imagenes (se quedan como aviso)")
     print(f"  notas {'cambiadas' if r['aplicado'] else 'que se cambiarian'}: "
           f"{r['notas_cambiadas'] if r['aplicado'] else r['notas_a_cambiar']}")
+    if r["biblioteca"] and r["biblioteca"]["generadas"]:
+        b = r["biblioteca"]
+        print(f"  biblioteca: {b['generadas']} generadas; {b['copiadas']} {'copiadas' if r['aplicado'] else 'por copiar'} "
+              f"a GENERADAS; {b['bloques']} {'anadidas' if r['aplicado'] else 'por anadir'} a sus conversaciones "
+              f"({b['notas_a_cambiar']} notas); {b['sin_nota']} sin nota en el vault; "
+              f"{b['sin_fichero']} sin fichero en el zip; {b['ya_enlazadas']} ya enlazadas")
+    if r["biblioteca"] and r["biblioteca"]["copia"]:
+        print(f"  copia (biblioteca):         {r['biblioteca']['copia']}")
+        print(f"  para deshacer:              python recuperar_imagenes.py --deshacer \"{r['biblioteca']['copia']}\""
+              + (" y despues la de abajo" if r["copia"] else ""))
     if r["copia"]:
         print(f"  copia de seguridad:         {r['copia']}")
         print(f"  para deshacer:              python recuperar_imagenes.py --deshacer \"{r['copia']}\"")
