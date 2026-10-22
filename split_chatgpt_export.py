@@ -45,6 +45,18 @@ UUID_SUFFIX_RE = re.compile(
 )
 IMAGE_TOKEN_RE = re.compile(r"\x00IMG:(?P<pointer>[^\x00]+)\x00")
 
+# El export de ChatGPT de 2026-10 guarda las imagenes como `file_XXXX.dat` (punteros
+# `sediment://file_XXXX`) y `file-XXXX.dat` (`file-service://file-XXXX`): SIN el sufijo
+# -<uuid> del formato anterior y con una extension que no dice el tipo (por dentro son
+# png, jpg...). Con solo UUID_SUFFIX_RE el indice salia vacio, ninguna imagen se
+# resolvia y las notas se llenaban de "imagen no disponible" sin ningun error.
+DAT_ASSET_RE = re.compile(r"^(?P<id>file[-_][A-Za-z0-9_-]+)\.(?P<ext>\w+)$")
+
+
+# Cuenta, por ejecucion, lo que paso con cada referencia de imagen: un fallo de formato
+# del export se nota en la primera linea del resumen, no al abrir las notas.
+IMAGE_STATS = {"resueltas": 0, "no_disponibles": 0, "omitidas": 0}
+
 # Claves de nivel superior de cada conversacion que parse_json_conversations
 # conoce y consume (clasico + fragmentado 2026+), MAS las que se han
 # revisado y confirmado inofensivas (metadatos de sesion/UI que el parser
@@ -151,6 +163,9 @@ class AssetIndex:
     def __init__(self, zf: Optional[zipfile.ZipFile]):
         self.zf = zf
         self.by_id: Dict[str, str] = {}
+        # Ficheros con pinta de asset (file-/file_) que no se supo indexar: si el export
+        # cambia otra vez de formato, esto lo delata en vez de dejarlo en silencio.
+        self.sin_indexar = 0
         if zf is None:
             return
         for name in zf.namelist():
@@ -158,6 +173,12 @@ class AssetIndex:
             m = UUID_SUFFIX_RE.match(base)
             if m:
                 self.by_id[m.group("id")] = name
+                continue
+            m = DAT_ASSET_RE.match(base)
+            if m:
+                self.by_id.setdefault(m.group("id"), name)
+            elif base.startswith(("file-", "file_")):
+                self.sin_indexar += 1
 
     @staticmethod
     def resolve_pointer_id(asset_pointer: str) -> str:
@@ -177,6 +198,9 @@ class AssetIndex:
         with self.zf.open(name) as f:
             data = f.read()
         ext = os.path.splitext(name)[1] or ".png"
+        if ext.lower() == ".dat":
+            tipo = sniff_ext(data)
+            ext = tipo if tipo != ".bin" else ext      # un .dat que no es de un tipo conocido se queda como esta
         return data, ext
 
 
@@ -239,6 +263,89 @@ class BankTarget:
         self.rel_prefix = rel_prefix
 
 
+# ---------- Biblioteca del export: imagenes generadas que no vienen en los mensajes ----------
+#
+# Desde el export de 2026-07 los mensajes del asistente/herramienta ya no traen las imagenes
+# generadas (ni el JSON con su prompt, que los exports antiguos guardaban como un mensaje del
+# asistente). Solo quedan como ficheros sueltos en `library_files.json`, y cada entrada dice de
+# que hilo salio en `origination_thread_id` (= conversation_id). Aqui se cuelgan de su
+# conversacion como un mensaje `tool` al final, igual que dejaban las notas antiguas, con el
+# titulo que ChatGPT le puso y la hora de creacion. recuperar_imagenes.py usa las MISMAS
+# funciones para las notas que ya existen, de modo que el texto sea identico y el merge no
+# duplique nada cuando llegue el siguiente export.
+IMG_EXTS_BIBLIOTECA = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+def entradas_biblioteca_generadas(zf: Optional[zipfile.ZipFile]) -> List[dict]:
+    """Entradas de imagen generada de library_files.json, por hora de creacion. [] si el export
+    no trae la biblioteca."""
+    if zf is None:
+        return []
+    try:
+        datos = json.loads(zf.read("library_files.json").decode("utf-8-sig"))
+    except (KeyError, ValueError):
+        return []
+    entradas = [x for x in datos if isinstance(x, dict) and (x.get("mime_type") or "").startswith("image/")
+                and x.get("image_gen_generation_id") and x.get("file_id")]
+    entradas.sort(key=lambda x: (x.get("created_at") or "", x["file_id"]))
+    return entradas
+
+
+def puntero_de_biblioteca(entrada: dict) -> str:
+    """`file_XXXX` es el esquema sediment://; `file-XXXX`, file-service://."""
+    fid = entrada["file_id"]
+    return ("file-service://" if fid.startswith("file-") else "sediment://") + fid
+
+
+def titulo_biblioteca(entrada: dict) -> str:
+    nombre = (entrada.get("file_name") or "").strip()
+    raiz, ext = os.path.splitext(nombre)
+    if ext.lower() in IMG_EXTS_BIBLIOTECA:
+        nombre = raiz
+    return nombre.replace("*", "").replace("\n", " ").replace("\r", " ").strip()
+
+
+def fecha_biblioteca(entrada: dict) -> str:
+    """Hora de creacion en hora local, 'AAAA-MM-DD HH:MM' (la que ves en ChatGPT)."""
+    try:
+        return datetime.datetime.fromisoformat(entrada["created_at"]).astimezone().strftime("%Y-%m-%d %H:%M")
+    except (KeyError, ValueError, TypeError):
+        return ""
+
+
+def texto_biblioteca(entrada: dict, cuerpo_imagen: str) -> str:
+    """Contenido del mensaje `tool`: titulo y hora en cursiva, y debajo la imagen."""
+    cabecera = f"*{titulo_biblioteca(entrada) or 'Generated image'}*"
+    fecha = fecha_biblioteca(entrada)
+    if fecha:
+        cabecera += f" · {fecha}"
+    return f"{cabecera}\n\n{cuerpo_imagen}"
+
+
+def anadir_imagenes_de_biblioteca(conversaciones: List[Dict[str, Any]], zf: Optional[zipfile.ZipFile],
+                                  asset_index: "AssetIndex", image_meta: Dict[str, dict]) -> int:
+    """Cuelga cada imagen generada de la biblioteca de su conversacion. Se salta las que alguna
+    conversacion ya enlaza por su puntero y las que no tienen fichero en el zip (estado
+    `created`). Devuelve cuantas ha colgado."""
+    referenciadas = {AssetIndex.resolve_pointer_id(p) for p in image_meta}
+    por_hilo: Dict[str, List[dict]] = {}
+    for x in entradas_biblioteca_generadas(zf):
+        if x["file_id"] in referenciadas or x["file_id"] not in asset_index.by_id:
+            continue
+        if x.get("origination_thread_id"):
+            por_hilo.setdefault(x["origination_thread_id"], []).append(x)
+    n = 0
+    for conv in conversaciones:
+        for x in por_hilo.get(conv.get("conv_id"), []):
+            puntero = puntero_de_biblioteca(x)
+            image_meta[puntero] = {"origen": "generada", "generador": "chatgpt-biblioteca",
+                                   "titulo_biblioteca": titulo_biblioteca(x),
+                                   "creada": (x.get("created_at") or "")[:19]}
+            conv["messages"].append({"role": "tool", "content": texto_biblioteca(x, f"\x00IMG:{puntero}\x00")})
+            n += 1
+    return n
+
+
 def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
                          asset_writers: Optional[Dict[str, BankTarget]],
                          image_meta: Optional[Dict[str, dict]] = None,
@@ -259,10 +366,13 @@ def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
         origen = meta_base.get("origen") or "subida"
         target = (asset_writers or {}).get(origen)
         if asset_index is None or target is None:
+            IMAGE_STATS["omitidas"] += 1
             return f"*[imagen omitida: {pointer}]*"
         found = asset_index.get_bytes(pointer)
         if not found:
+            IMAGE_STATS["no_disponibles"] += 1
             return f"*[imagen no disponible en el export: {pointer}]*"
+        IMAGE_STATS["resueltas"] += 1
         data, ext = found
         meta = dict(meta_base) if meta_base else None
         if meta and conv_title:
@@ -620,7 +730,8 @@ class MarkerContext:
 def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                    att_ids: Optional[Dict[str, str]] = None,
                    refs: Optional[List[dict]] = None,
-                   markers_ctx: Optional["MarkerContext"] = None) -> str:
+                   markers_ctx: Optional["MarkerContext"] = None,
+                   modelo: Optional[str] = None) -> str:
     """Convierte el campo 'content' de un mensaje en texto.
     - Imágenes -> marcador \\x00IMG:<pointer>\\x00 (resuelto luego con --assets-dir)
     - tether_quote -> texto legible "📄 Uploaded file: ..."
@@ -665,6 +776,16 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                             meta["origen"] = "generada"
                         else:
                             meta["origen"] = "subida"
+                        if meta["origen"] == "generada":
+                            # Con que se genero, exacto del export (para filtrar en la
+                            # galeria): la herramienta (DALL-E con su prompt, o la
+                            # generacion nativa), el modelo del chat en ese turno y si
+                            # es una edicion de otra imagen (parent_gen_id).
+                            meta["generador"] = "chatgpt-dalle" if dalle.get("prompt") else "chatgpt-imagen"
+                            if modelo:
+                                meta["modelo"] = modelo
+                            if generation.get("parent_gen_id") or dalle.get("parent_gen_id"):
+                                meta["edicion"] = True
                         if p.get("width"):
                             meta["width"] = p.get("width")
                         if p.get("height"):
@@ -776,6 +897,12 @@ def _resolver_marcadores(texto: str, refs: Optional[List[dict]],
     )
 
 
+def _modelo_de(msg: Dict[str, Any]) -> Optional[str]:
+    """Modelo del chat en ese mensaje (gpt-4o, gpt-5...), si el export lo dice."""
+    md = msg.get("metadata") or {}
+    return md.get("model_slug") or md.get("default_model_slug") or None
+
+
 def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]] = None,
                               markers_ctx: Optional["MarkerContext"] = None) -> List[Dict[str, Any]]:
     conversations: List[Dict[str, Any]] = []
@@ -843,7 +970,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
                 content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids,
                                         refs=(msg.get("metadata") or {}).get("content_references"),
-                                        markers_ctx=markers_ctx)
+                                        markers_ctx=markers_ctx, modelo=_modelo_de(msg))
                 attachments_txt = render_attachments(msg)
                 if attachments_txt:
                     content = f"{attachments_txt}\n\n{content}".strip() if content.strip() else attachments_txt
@@ -857,7 +984,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 content = _render_parts(m.get("content") or "", image_meta_out=image_meta_out,
                                         att_ids=att_ids,
                                         refs=(m.get("metadata") or {}).get("content_references"),
-                                        markers_ctx=markers_ctx)
+                                        markers_ctx=markers_ctx, modelo=_modelo_de(m))
                 attachments_txt = render_attachments(m)
                 if attachments_txt:
                     content = f"{attachments_txt}\n\n{content}".strip() if content.strip() else attachments_txt
@@ -1235,6 +1362,12 @@ def main():
         asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ATTACHMENTS")
     if tiene_bancos:
         print(f"Assets indexed in the ZIP: {len(asset_index.by_id)}")
+        if asset_index.sin_indexar:
+            print(f"[warning] the ZIP has {asset_index.sin_indexar} image-like files (file-/file_) "
+                  "that could not be indexed: the export format may have changed.")
+        n_biblioteca = anadir_imagenes_de_biblioteca(conversations, zf, asset_index, image_meta)
+        if n_biblioteca:
+            print(f"Library: {n_biblioteca} generated images attached to their conversation")
 
     # Assets de Grok: file_attachments (por mensaje, via token GROKFILE) y
     # media_posts/Imagine (raiz del export, se procesan aparte una sola vez).
@@ -1483,6 +1616,8 @@ def main():
     print(f"Done. Exported {len(records)} conversations to: {args.output}")
     if tiene_bancos:
         print(f"Image references processed: {total_images}")
+        print(f"  resolved: {IMAGE_STATS['resueltas']} | not available in the export: "
+              f"{IMAGE_STATS['no_disponibles']} | skipped: {IMAGE_STATS['omitidas']}")
         for origen, target in asset_writers.items():
             writer = target.writer
             print(f"  [{origen}] unique binaries copied to {writer.assets_dir}: {len(writer.hash_to_filename)}")
