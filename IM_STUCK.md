@@ -10,6 +10,7 @@ You don't need to read it all. Go to yours:
 - [I've never used a terminal in my life](#ive-never-used-a-terminal-in-my-life) — install Python and start the app.
 - [They're asking for a music token and I don't know what that is](#theyre-asking-for-a-music-token-and-i-dont-know-what-that-is) — get it from your browser, step by step. Works the same for Suno and for Flow Music.
 - [They're asking for a token or a cookie for the images](#theyre-asking-for-a-token-or-a-cookie-for-the-images) — Copilot asks for a token like the music ones; Grok asks for a **cookie**, which is something else and weighs more.
+- [My notes say "imagen no disponible", or I want to see all my images](#my-notes-say-imagen-no-disponible-or-i-want-to-see-all-my-images) — it's all one button away, in Tools. No console needed.
 
 ---
 
@@ -161,6 +162,25 @@ Grok doesn't use a `Bearer`. Its web identifies itself with the **session cookie
 - **It says the cookie or token has expired right at the start.** Either it really expired, or it's badly copied: the `^` above, or a value cut off with «…». Copy it again.
 - **The download stops halfway.** Run it again with a fresh credential: it only downloads what's missing, and what was already downloaded is kept.
 - **I can't find `Artifact.ashx` or `rest/assets`.** Refresh the page with the Network panel open and check you're on the image library, not in the chat.
+
+---
+
+## My notes say "imagen no disponible", or I want to see all my images
+
+Both live in **Tools**, at the bottom of the sidebar, and neither needs a console.
+
+**If your ChatGPT notes say *imagen no disponible en el export* (image not available in the export):** in 2026 ChatGPT changed its export and M3M0R·IA wasn't seeing its images, but they're usually in your zips. Go to **Tools → Workshop → Recover ChatGPT images**:
+
+1. Choose an export in the dropdown.
+2. Press **Dry run**: it tells you how many images it would recover, without changing anything.
+3. If the numbers look right, **close Obsidian** and press **Apply**. Before touching anything it saves a copy of each note, and **Undo the latest** puts everything back as it was.
+4. Repeat with every export you've kept: each one brings its own. **Don't reprocess everything for this**: it would duplicate your conversations.
+
+What's in no export can't be recovered: that's why it's worth never deleting the zips.
+
+**If you want to see all your images, or all your posts:** **Tools → Galleries**. "Build and open" makes a page with your images and videos from ChatGPT, Grok and Copilot (or with your Substack posts) and opens it in your browser. The first time takes a few minutes; after that, seconds. It changes nothing in your vault.
+
+How they work inside, and what surprises people about each one: [RECOVER_IMAGES.md](RECOVER_IMAGES.md), [GALLERY.md](GALLERY.md) and [INKWELL_GALLERY.md](INKWELL_GALLERY.md).
 
 ---
 
