@@ -29,8 +29,9 @@ Construye `PRJ_VAULT` como una vista de proyecto/año/mes de MERGED. Se refresca
 - **Solo actualizar (paso 2→4)** — no hay datos nuevos, pero cambió cómo se consolida u organiza: tras nombrar gizmos, o tras una actualización de M3M0R·IA que toque la fusión, la vista de proyectos o los índices.
 - **Reprocesar todo** — tras una versión de M3M0R·IA que añade o cambia campos del frontmatter (`provider`, `conv_id`, `model`...) o modifica los parsers: las notas existentes solo ganan campos nuevos si se re-importan desde los exports. Seguro (los exports son la fuente de verdad, nada se destruye) pero tarda proporcionalmente a tu historial — café recomendado.
 - **Generar índice de temas** (pestaña Cartografía) — cada vez que edites temas; no hace falta reiniciar. El paso 4 también lo regenera automáticamente en cada corrida del pipeline. Qué hace Cartografía, qué no, y cómo decide qué nota va en qué tema: [CARTOGRAFIA.md](CARTOGRAFIA.md).
-- **Galería** (`python galeria.py`) — cuando quieras ver tus imágenes: no es un paso del pipeline y no toca el vault, así que tras importar hay que regenerarla. [GALERIA.md](GALERIA.md).
-- **Recuperar imágenes** (`python recuperar_imagenes.py`) — una vez por cada export de ChatGPT que guardes, si tus notas tienen avisos de *imagen no disponible*. **No reprocesar todo para esto**: duplicaría conversaciones. [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md).
+- **Galerías** (Herramientas → Galerías, o `python galeria.py` / `python galeria_tintero.py`) — cuando quieras ver tus imágenes o tus posts: no es un paso del pipeline y no toca el vault, así que tras importar hay que regenerarla. [GALERIA.md](GALERIA.md).
+- **Regenerar índices** (Herramientas → Taller) — tras recuperar imágenes, registrar pendientes o mover assets a mano: rehace el paso 4 sin reprocesar. Su título plegado avisa si una recuperación cambió notas después de los últimos índices.
+- **Recuperar imágenes** (Herramientas → Taller, o `python recuperar_imagenes.py`) — una vez por cada export de ChatGPT que guardes, si tus notas tienen avisos de *imagen no disponible*. **No reprocesar todo para esto**: duplicaría conversaciones. [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md).
 
 ---
 

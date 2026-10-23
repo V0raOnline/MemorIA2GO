@@ -43,7 +43,20 @@ Por eso esta herramienta **sustituye el aviso por el enlace dentro de cada nota*
 
 ## Cómo se usa
 
-Desde una consola, en la carpeta del programa (en el paquete de Windows, la carpeta `app`, con `python\python.exe` en vez de `python`). Primero, **siempre**, la simulación:
+### Desde la app
+
+Herramientas → Taller → **Recuperar imágenes de ChatGPT**. El título plegado dice cuántos avisos quedan en tus notas (la primera vez tarda casi un minuto en contarlos: lee todas las notas; después lo recuerda hasta que aplicas o deshaces algo).
+
+1. Elige el export en el desplegable: salen los de ChatGPT de tu carpeta de exports, el más reciente primero.
+2. «Simular»: enseña el registro en directo y no escribe nada.
+3. Si te cuadran los números, «Aplicar» (solo aparece después de simular). Pide confirmación: cierra Obsidian antes.
+4. «Deshacer la última» dice cuál desharía (su fecha y si fue de avisos, de la biblioteca o de metadatos). Pulsarla otra vez deshace la anterior, en el orden correcto. La copia deshecha no se borra: se marca con un `deshecho.json` para no volver a usarla.
+
+La casilla «Colgar también las generadas de la biblioteca» es la opción `--biblioteca`. Lo de `--metadatos` sigue siendo solo de consola: se hace una vez.
+
+### Desde una consola
+
+En la carpeta del programa (en el paquete de Windows, la carpeta `app`, con `python\python.exe` en vez de `python`). Primero, **siempre**, la simulación:
 
 ```bash
 python recuperar_imagenes.py --export "D:\Exports\chatgpt-2026-10-18.zip"
@@ -63,6 +76,7 @@ python recuperar_imagenes.py --export "D:\Exports\chatgpt-2026-10-18.zip" --apli
 | `--biblioteca` | además, copiar las generadas de la biblioteca a `GENERADAS` y colgarlas de su conversación |
 | `--metadatos` | en vez de reparar notas: completar en el manifiesto de `GENERADAS` con qué se generó cada imagen |
 | `--deshacer <carpeta>` | restaurar desde la copia de una pasada con `--aplicar` |
+| `--logs <carpeta>` | dónde guardar las copias de seguridad (si no, `logs/` junto al programa) |
 
 **Con varios exports**, pásalos uno detrás de otro: cada uno recupera lo que trae, y lo ya recuperado no se vuelve a tocar. El orden da igual.
 
@@ -109,7 +123,7 @@ Casa cada imagen por su **huella** (el nombre del fichero), así que da igual en
 
 ## La letra pequeña: lo que sorprende
 
-Cada fila es un comportamiento de `recuperar_imagenes.py`, fijado por un test (`tests/test_recuperar_documentado.py`).
+Cada fila es un comportamiento de `recuperar_imagenes.py`, fijado por un test (`tests/test_recuperar_documentado.py`; lo que hace la app, en `tests/test_launcher_taller.py`).
 
 | Situación | Qué pasa | Qué hacer |
 | --------- | -------- | --------- |
@@ -124,7 +138,7 @@ Cada fila es un comportamiento de `recuperar_imagenes.py`, fijado por un test (`
 | **El título del bloque** | el que ChatGPT le puso, sin la extensión y sin asteriscos. Si no tiene, «Imagen generada» | Nada |
 | **Una generada cuya conversación no está en tu vault** | se copia a `GENERADAS`, pero no se cuelga de ninguna nota: en la galería sale «sin conversación» | Importa ese export y repite `--biblioteca` |
 | **Generadas sin fichero en el zip** | se saltan: la biblioteca las apunta, pero el fichero no viaja | Nada que hacer |
-| **Deshacer las dos cosas** | si pasaste avisos y `--biblioteca` a la vez hay **dos** copias: deshaz **primero la de la biblioteca** y luego la otra. Al revés, las notas se quedan con los enlaces | La consola te lo dice al terminar |
+| **Deshacer las dos cosas** | si pasaste avisos y `--biblioteca` a la vez hay **dos** copias: deshaz **primero la de la biblioteca** y luego la otra. Al revés, las notas se quedan con los enlaces | En la app, «Deshacer la última» ya va en ese orden. En la consola, te lo dice al terminar |
 | **Deshacer no borra imágenes** | las notas vuelven a como estaban; las imágenes copiadas a los bancos se quedan | Nada: no estorban, y no hay borrados sin pedirlos |
 | **Los enlaces simbólicos** | se saltan: no se sigue ningún enlace simbólico | Nada |
 | **`--metadatos` no toca lo que ya está** | una entrada que ya tiene `generador` se queda como está, aunque el export diga otra cosa | Nada |
@@ -137,7 +151,7 @@ Cada fila es un comportamiento de `recuperar_imagenes.py`, fijado por un test (`
 | --- | ----- |
 | Las notas reparadas | en su sitio: `RAW_VAULT/Conversaciones`, `MERGED_VAULT/Conversaciones`, `PRJ_VAULT` |
 | Las imágenes | `CHATGPT/GENERADAS` y `CHATGPT/ADJUNTOS`, con su `_image_manifest.json` |
-| **La copia de seguridad** | `logs/recuperar_imagenes_<fecha>/` (avisos), `…_biblioteca/` y `…_metadatos/`, dentro de la carpeta del programa. Cada una con un `diario.json` que dice qué export, qué base y qué ficheros |
+| **La copia de seguridad** | `logs/recuperar_imagenes_<fecha>/` (avisos), `…_biblioteca/` y `…_metadatos/`, dentro de la carpeta del programa (o la de `--logs`). Cada una con un `diario.json` que dice qué export, qué base y qué ficheros, y un `deshecho.json` si ya la deshiciste desde la app |
 
 Cada nota se escribe de forma atómica (a un fichero temporal y luego se sustituye): un corte a mitad no deja una nota a medias. Las copias de seguridad **no se borran solas**: cuando ya no las quieras, bórralas tú.
 

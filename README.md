@@ -333,7 +333,6 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 - **Notas con prompt para Grok Imagine**, como las de Copilot en image.ia: la API de la biblioteca de Grok da el fichero, las fechas y el linaje, pero no el prompt, que solo está en el export (`media_posts`). Falta unir los dos por identificador de activo; antes de escribir código, mirar cómo se enlazan en un export real.
 - **Observatorio con las imágenes**: tarjetas de image.ia junto a las de música, con el mismo criterio de no pintar cero cuando no hay backup configurado.
 - Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
-- **Las galerías, desde la app**: un botón en image.ia y otro en Tintero para generarlas y abrirlas, sin consola.
 - **Las imágenes generadas de ChatGPT de marzo a mayo de 2026**: ni el export ni su biblioteca las traen. Mirar si la galería web de ChatGPT las da por su API, como Copilot y Grok.
 - **Un documento por herramienta**, como [CARTOGRAFIA.md](CARTOGRAFIA.md), con su test: Observatorio, Verificación, Construcción, Sesiones locales, music.ia, image.ia, Tintero y el Taller.
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`

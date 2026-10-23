@@ -32,7 +32,9 @@ La galería de Tintero junta en **una sola página HTML** todos los posts que Ti
 
 ## Cómo se genera
 
-Desde una consola, en la carpeta del programa (en el paquete de Windows, la carpeta `app`, con `python\python.exe` en vez de `python`):
+**Desde la app**: Herramientas → Galerías → **Posts de Substack** → «Generar y abrir». La casilla «Sin salir a Internet» es la opción `--sin-red`. Enseña el registro en directo y, al terminar, la abre en tu navegador; «Abrir la última» abre la que ya tienes. El título plegado dice cuándo la generaste y cuántos posts lleva.
+
+**Desde una consola**, en la carpeta del programa (en el paquete de Windows, la carpeta `app`, con `python\python.exe` en vez de `python`):
 
 ```bash
 python galeria_tintero.py

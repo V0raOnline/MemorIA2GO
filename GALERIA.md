@@ -34,7 +34,9 @@ Tampoco decide nada por heurística. Todo lo que enseña de cada imagen **sale d
 
 ## Cómo se genera
 
-Desde una consola, en la carpeta del programa:
+**Desde la app**: Herramientas → Galerías → **Imágenes y vídeos** → «Generar y abrir». Enseña el registro en directo y, al terminar, la abre en tu navegador. «Abrir la última» abre la que ya tienes, sin regenerarla. El título plegado dice cuándo la generaste y cuánto lleva (lo lee de su `estado.json`, sin abrir la página).
+
+**Desde una consola**, en la carpeta del programa:
 
 ```bash
 python galeria.py
@@ -56,7 +58,7 @@ Sin opciones usa la carpeta base de tu configuración y escribe la galería en `
 | `--tema warm\|cool\|light` | el tema con el que abre (si no, el de tu configuración) |
 | `--copilot-vault <carpeta>` | el vault de imágenes de Copilot (si no, `copilot_images_vault` de tu configuración) |
 
-Todavía no hay botón en la app: está en el [roadmap](README.md#roadmap).
+La app usa los valores por defecto: tu carpeta base, la salida en `.galeria` y el tema de tu configuración.
 
 ---
 
