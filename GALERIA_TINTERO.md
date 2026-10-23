@@ -109,6 +109,7 @@ Solo escribe dentro de su carpeta (`<vault de Tintero>/.galeria`, o la de `--sal
 | `portadas/<publicación>/<id del post>.jpg` | una portada por post, JPEG de 640 px de lado |
 | `portadas/_origen.json` | de qué dirección salió cada portada, para saber si Substack la cambió |
 | `tintero.png` | la mascota de Tintero, para la cabecera y la pestaña |
+| `estado.json` | cuándo se generó y cuántos posts lleva: es lo que lee la app para decirte el estado de la galería |
 
 Fuera de esa carpeta **no toca nada**. El punto delante de `.galeria` hace que Obsidian no la indexe. Es **derivada y regenerable**: si la borras, la siguiente generación vuelve a bajar las portadas.
 

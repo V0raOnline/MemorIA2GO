@@ -120,6 +120,7 @@ Solo escribe dentro de su carpeta (`<base>/.galeria`, o la de `--salida`):
 | `miniaturas/` | una miniatura JPEG por imagen (480 px de lado), con la misma estructura de carpetas que los bancos |
 | `miniaturas/.version` | la versión de las miniaturas: si cambia cómo se hacen, se rehacen todas |
 | `imageIA.png` | el cerebrito de image.ia, para la cabecera y la pestaña del navegador |
+| `estado.json` | cuándo se generó y cuánto lleva: es lo que lee la app para decirte el estado de la galería sin abrir la página |
 
 Fuera de esa carpeta **no toca nada**. El punto delante de `.galeria` hace que Obsidian no la indexe: miles de miniaturas en el árbol del vault serían solo ruido.
 

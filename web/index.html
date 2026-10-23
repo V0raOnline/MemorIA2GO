@@ -895,6 +895,55 @@
       </div>
       <img src="assets/galerias.png" alt="" class="panel-header-icon" onerror="this.style.visibility='hidden'">
     </div>
+
+    <!-- Plegadas, con su estado en el titulo (lo da GET /api/galerias, que lee el estado.json de cada
+         una). Al generar, el lanzador las abre en el navegador: desde aqui no se puede abrir un fichero. -->
+    <details class="source-fold herramienta" id="fold-galeria-imagenes">
+      <summary>
+        <img src="assets/imageIA.png" alt="" class="fold-icono">
+        <span class="source-name">Imágenes y vídeos</span>
+        <span class="source-sub estado" id="galeria-imagenes-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Todas tus imágenes y vídeos de ChatGPT, Grok y Copilot en una página: una tira por conversación,
+          con lo que pediste y el prompt cuando existe. Se genera aquí y se abre en tu navegador. No toca
+          tu vault: escribe solo en su carpeta <code>.galeria</code>. La primera vez tarda unos minutos,
+          por las miniaturas; después, segundos.
+        </p>
+        <div class="fila-botones">
+          <button class="btn" id="btn-galeria-imagenes">Generar y abrir</button>
+          <button class="btn secondary" id="btn-galeria-imagenes-abrir">Abrir la última</button>
+        </div>
+        <div id="galeria-imagenes-msg" class="msg"></div>
+        <pre id="galeria-imagenes-log" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-galeria-tintero">
+      <summary>
+        <img src="assets/tintero.png" alt="" class="fold-icono">
+        <span class="source-name">Posts de Substack</span>
+        <span class="source-sub estado" id="galeria-tintero-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Una tarjeta por post de todas tus publicaciones, con su portada, el subtítulo y las primeras
+          palabras. Las portadas se piden a Substack (son públicas, sin credencial) y se bajan una sola vez.
+          Escribe solo en la carpeta <code>.galeria</code> de tu vault de Tintero.
+        </p>
+        <label class="sb-check">
+          <input type="checkbox" id="galeria-tintero-sin-red">
+          <span>Sin salir a Internet: solo las portadas que ya se bajaron</span>
+        </label>
+        <div class="fila-botones">
+          <button class="btn" id="btn-galeria-tintero">Generar y abrir</button>
+          <button class="btn secondary" id="btn-galeria-tintero-abrir">Abrir la última</button>
+        </div>
+        <div id="galeria-tintero-msg" class="msg"></div>
+        <pre id="galeria-tintero-log" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
   </section>
 
   <!-- HERRAMIENTAS: TALLER. Reparaciones y puestas al dia que no piden reprocesar. Ilustracion de V0ra

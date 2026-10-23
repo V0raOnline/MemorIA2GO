@@ -26,6 +26,9 @@ Endpoints:
   POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
   POST /api/substack/verify    -> qué trae el export de Substack y qué NO (Tintero)
   POST /api/substack/build     -> construye el vault de Tintero desde el export
+  GET  /api/galerias           -> estado de las dos galerias (Herramientas → Galerias)
+  POST /api/galerias/<cual>/generar -> genera la galeria con log en vivo y la abre en el navegador
+  POST /api/galerias/<cual>/abrir   -> abre la ultima galeria generada
 """
 import argparse
 import json
@@ -36,6 +39,7 @@ import subprocess
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, jsonify, request, Response, send_from_directory
@@ -765,6 +769,116 @@ def substack_migrar():
         if code != 0:
             return jsonify({"error": salida[-800:] or "fallo al migrar"}), 400
         return jsonify({"ok": True, "aplicado": aplicar, "salida": salida[-4000:]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────
+# API: Herramientas → Galerias
+# ─────────────────────────────────────────
+# Las dos galerias son complementos (galeria.py, galeria_tintero.py): la app solo las lanza, ensena su
+# log en vivo y, al terminar, las abre en el navegador predeterminado -- una pagina servida por la app
+# no puede abrir un fichero local, y el lanzador corre en el mismo equipo (decision de V0ra 2026-10-23).
+GALERIAS = {
+    # cual: (script, ruta de la configuracion de la que cuelga, opcion del script para esa ruta)
+    "imagenes": ("galeria.py", "base_vault", "--base-vault"),
+    "tintero": ("galeria_tintero.py", "substack_vault", "--vault"),
+}
+CARPETA_GALERIA = ".galeria"
+
+
+def _carpeta_galeria(cual: str):
+    """(carpeta de la galeria, None) o (None, mensaje de error) si falta su ruta en la configuracion."""
+    from config_loader import load_config, get_path
+    ruta = get_path(load_config(str(CONFIG_PATH)), GALERIAS[cual][1])
+    if not ruta:
+        return None, f"Configura primero {GALERIAS[cual][1]}"
+    return Path(ruta) / CARPETA_GALERIA, None
+
+
+def _abrir_en_navegador(pagina: Path) -> None:
+    webbrowser.open(Path(pagina).resolve().as_uri())
+
+
+@app.route("/api/galerias")
+def galerias_estado():
+    """El estado de cada galeria para su titulo plegado: si se puede generar, si existe y lo que dice su
+    estado.json (cuando se genero y cuanto lleva). Nunca abre la pagina, que pesa cientos de MB."""
+    out = {}
+    for cual in GALERIAS:
+        try:
+            carpeta, falta = _carpeta_galeria(cual)
+        except Exception as e:
+            out[cual] = {"error": str(e)}
+            continue
+        if falta:
+            out[cual] = {"falta": falta}
+            continue
+        pagina = carpeta / "index.html"
+        info = {"existe": pagina.is_file()}
+        try:
+            info.update(json.loads((carpeta / "estado.json").read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            # Una galeria de antes de que existiera estado.json: la fecha de la pagina, y sin
+            # recuentos -- mejor no decir cuantas lleva que decir cero.
+            if info["existe"]:
+                info["generada"] = datetime.fromtimestamp(pagina.stat().st_mtime).isoformat(timespec="seconds")
+        out[cual] = info
+    return jsonify(out)
+
+
+@app.route("/api/galerias/<cual>/generar", methods=["POST"])
+def galerias_generar(cual):
+    if cual not in GALERIAS:
+        return jsonify({"error": "galeria desconocida"}), 404
+    try:
+        carpeta, falta = _carpeta_galeria(cual)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    if falta:
+        return jsonify({"error": falta}), 400
+    script, clave, opcion = GALERIAS[cual]
+    args = [sys.executable, str(HERE / script), opcion, str(carpeta.parent)]
+    if cual == "tintero" and (request.get_json(silent=True) or {}).get("sin_red"):
+        args.append("--sin-red")
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+
+    def generate():
+        try:
+            # MEMORIA_CONFIG: la misma configuracion que usa la app (el vault de Copilot sale de ahi).
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "MEMORIA_CONFIG": str(CONFIG_PATH)}
+            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                    encoding="utf-8", errors="replace", bufsize=1, env=env)
+            for line in proc.stdout:
+                yield line.rstrip() + "\n"
+            proc.wait()
+            if proc.returncode == 0 and (carpeta / "index.html").is_file():
+                _abrir_en_navegador(carpeta / "index.html")
+                yield "Abierta en tu navegador.\n"
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/galerias/<cual>/abrir", methods=["POST"])
+def galerias_abrir(cual):
+    if cual not in GALERIAS:
+        return jsonify({"error": "galeria desconocida"}), 404
+    try:
+        carpeta, falta = _carpeta_galeria(cual)
+        if falta:
+            return jsonify({"error": falta}), 400
+        pagina = carpeta / "index.html"
+        if not pagina.is_file():
+            return jsonify({"error": "Todavia no la has generado"}), 404
+        _abrir_en_navegador(pagina)
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -279,7 +279,9 @@ def test_escribe_solo_en_su_carpeta_lo_que_dice_la_tabla(base):
     nuevos = {p.relative_to(base).as_posix() for p in despues if p not in antes}
     assert {p: despues[p] for p in antes} == antes, "no toca nada que ya existia"
     assert nuevos == {".galeria/index.html", ".galeria/miniaturas/.version", ".galeria/imageIA.png",
-                      ".galeria/miniaturas/CHATGPT/GENERADAS/aaaa.jpg"}
+                      ".galeria/miniaturas/CHATGPT/GENERADAS/aaaa.jpg", ".galeria/estado.json"}
+    estado = json.loads((base / ".galeria" / "estado.json").read_text(encoding="utf-8"))
+    assert (estado["items"], estado["grupos"]) == (1, 1) and estado["generada"][:4].isdigit()
     with Image.open(base / ".galeria" / "miniaturas" / "CHATGPT" / "GENERADAS" / "aaaa.jpg") as im:
         assert max(im.size) == 480
 

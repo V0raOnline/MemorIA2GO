@@ -80,6 +80,7 @@ function showTab(name) {
   if (targetPanel === "gizmos") loadGizmos();
   if (targetPanel === "verificar") loadVerificarBadge();
   if (targetPanel === "reconexion") loadReconexion();
+  if (targetPanel === "galerias") loadGalerias();
 }
 
 // Sidebar: cualquier .tab-btn dispara showTab con su data-tab.
@@ -1864,3 +1865,108 @@ document.getElementById("btn-suno-build").addEventListener("click", () =>
     ok: "Vault construido. Ábrelo en Obsidian.",
     problemas: "Terminó con avisos — mira el detalle.",
   }));
+
+// ─────────────────────────────────────────
+// Herramientas → Galerías
+// ─────────────────────────────────────────
+// Cada galería es un plegable con su estado en el título (GET /api/galerias, que lee el estado.json
+// que deja cada una). "Generar y abrir" ensena el log en vivo y, al terminar, el lanzador la abre en
+// el navegador: una pagina servida por la app no puede abrir un fichero local.
+const GALERIAS = {
+  // Sin recuento (una galeria de antes de estado.json) no se pone ninguno: mejor nada que un cero.
+  imagenes: { cuenta: (e) => "items" in e ? `${e.items.toLocaleString("es-ES")} imágenes y vídeos` : "" },
+  tintero:  { cuenta: (e) => "posts" in e ? `${e.posts.toLocaleString("es-ES")} posts` : "" },
+};
+
+function fechaCorta(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+async function loadGalerias() {
+  let datos = {};
+  try {
+    datos = await (await fetch("/api/galerias")).json();
+  } catch (_) { return; }
+  for (const [cual, g] of Object.entries(GALERIAS)) {
+    const el = document.getElementById(`galeria-${cual}-estado`);
+    const abrir = document.getElementById(`btn-galeria-${cual}-abrir`);
+    const e = datos[cual] || {};
+    if (e.falta || e.error) {
+      el.textContent = e.falta ? e.falta.replace("Configura primero", "configura") : "no se puede leer";
+      el.className = "source-sub estado aviso";
+    } else if (!e.existe) {
+      el.textContent = "sin generar";
+      el.className = "source-sub estado aviso";
+    } else {
+      el.textContent = [`última: ${fechaCorta(e.generada) || "?"}`, g.cuenta(e)].filter(Boolean).join(" · ");
+      el.className = "source-sub estado";
+    }
+    abrir.disabled = !e.existe;
+  }
+}
+
+async function generarGaleria(cual, cuerpo) {
+  const btn = document.getElementById(`btn-galeria-${cual}`);
+  const msg = document.getElementById(`galeria-${cual}-msg`);
+  const log = document.getElementById(`galeria-${cual}-log`);
+  btn.disabled = true;
+  msg.textContent = "Generando la galería (la primera vez tarda unos minutos)...";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+  try {
+    const res = await fetch(`/api/galerias/${cual}/generar`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo || {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let resto = "", codigo = null;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resto += decoder.decode(value, { stream: true });
+      const lineas = resto.split("\n");
+      resto = lineas.pop();
+      for (const linea of lineas) {
+        if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
+        if (linea.startsWith("__ERROR__")) throw new Error(linea.slice(9).trim());
+        log.textContent += linea + "\n";
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+    msg.textContent = codigo === 0 ? "Hecho: la tienes abierta en tu navegador." : "No se ha podido generar — mira el detalle.";
+    msg.className = codigo === 0 ? "msg ok" : "msg error";
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btn.disabled = false;
+    loadGalerias();
+  }
+}
+
+async function abrirGaleria(cual) {
+  const msg = document.getElementById(`galeria-${cual}-msg`);
+  try {
+    const res = await fetch(`/api/galerias/${cual}/abrir`, { method: "POST" });
+    const datos = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(datos.error || `HTTP ${res.status}`);
+    msg.textContent = "Abierta en tu navegador.";
+    msg.className = "msg ok";
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  }
+}
+
+document.getElementById("btn-galeria-imagenes").addEventListener("click", () => generarGaleria("imagenes"));
+document.getElementById("btn-galeria-tintero").addEventListener("click", () =>
+  generarGaleria("tintero", { sin_red: document.getElementById("galeria-tintero-sin-red").checked }));
+document.getElementById("btn-galeria-imagenes-abrir").addEventListener("click", () => abrirGaleria("imagenes"));
+document.getElementById("btn-galeria-tintero-abrir").addEventListener("click", () => abrirGaleria("tintero"));

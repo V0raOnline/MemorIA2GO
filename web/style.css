@@ -899,6 +899,23 @@ button.btn.secondary:hover {
   color: var(--text-dim);
 }
 
+/* Plegable de UNA herramienta (Herramientas → Galerias y Taller): el contenido cuelga del titulo, sin
+   hueco y con el borde compartido, para que se lea como una sola pieza. Los de music.ia e image.ia
+   agrupan varias tarjetas por fuente y ahi el hueco si tiene sentido. Lo pidio V0ra al ver la maqueta:
+   desplegado, el contenido parecia una caja aparte. */
+.source-fold.herramienta[open] > summary {
+  margin-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  border-bottom-color: transparent;
+}
+.source-fold.herramienta > .card { margin: 0; border-top: 0; border-radius: 0 0 9px 9px; }
+.source-fold.herramienta[open] > summary:hover + .card { border-color: var(--cyan); }
+.source-fold.herramienta > summary .fold-icono { width: 22px; height: 22px; align-self: center; }
+.source-sub.estado { font-family: var(--mono); }
+.source-sub.estado.aviso { color: var(--accent); }
+.source-sub.estado.ok { color: var(--green); }
+.fila-botones { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
 .card-help {
   color: var(--text-dim);
   font-size: 13px;

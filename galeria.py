@@ -433,7 +433,17 @@ def generar(base: Path, salida: Optional[Path] = None, miniaturas: bool = True, 
     r.update({"grupos": len(grupos), "pagina": str(pagina),
               "con_conversacion": sum(1 for it in items if it.get("conv") and it["prov"] != "copilot"),
               "por_proveedor": {p: sum(1 for it in items if it["prov"] == p) for p in sorted({i["prov"] for i in items})}})
+    escribir_estado(salida, {"items": r["items"], "grupos": r["grupos"], "por_proveedor": r["por_proveedor"]})
     return r
+
+
+def escribir_estado(salida: Path, datos: dict) -> None:
+    """`estado.json` junto a la pagina: cuando se genero y cuanto lleva. Lo lee la app para decir el
+    estado de la galeria sin abrir la pagina, que con miles de imagenes pesa cientos de MB."""
+    datos = {"generada": datetime.datetime.now().isoformat(timespec="seconds"), **datos}
+    tmp = salida / "estado.json.part"
+    tmp.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, salida / "estado.json")
 
 
 def _ruta_config() -> str:
