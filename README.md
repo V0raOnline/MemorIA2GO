@@ -175,7 +175,7 @@ Developed and battle-tested on Windows; the pipeline itself is cross-platform.
 
 ## Quick start (web UI)
 
-M3M0R·IA ships with a local web interface: the Observatory and Configuration, and four apps in the sidebar, each with its own flow — **chat.ia** (conversations: Verification, Construction, Cartography and Reconnection), **music.ia** (MUSIC·0LOGY), **image.ia** and **Substack** (Inkwell).
+M3M0R·IA ships with a local web interface: the Observatory and Configuration, and four apps in the sidebar, each with its own flow — **chat.ia** (conversations: Verification, Construction, Cartography and Local sessions), **music.ia** (MUSIC·0LOGY), **image.ia** and **Substack** (Inkwell) — and **Tools**, with what doesn't belong to a single app: the **Galleries** and the repair **Workshop**.
 
 ### Step 0: get your material
 
@@ -191,7 +191,7 @@ This starts **outside** the tool, and it's the one thing it can't do for you. Yo
 | **Substack** | Dashboard → Settings → Import/Export |
 | **Substack**, stats *(optional)* | Dashboard → Stats → Posts → Show, **ticking every column**, then download the CSV |
 | **Suno · Flow Music** | There's no export: the library is downloaded from inside the tool through their API, with a token you copy from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
-| **Claude Code · Codex** *(sessions)* | Nothing to bring: your agent sessions already live on your disk (`~/.claude/projects`, `~/.codex/sessions`) and no account export includes them. They're ingested straight from the Reconnection tab |
+| **Claude Code · Codex** *(sessions)* | Nothing to bring: your agent sessions already live on your disk (`~/.claude/projects`, `~/.codex/sessions`) and no account export includes them. They're ingested straight from the Local sessions tab |
 
 The ZIPs go in **exactly as they are, without unzipping**, into whatever folder you set as `exports_dir`. The Substack one goes into that same folder: the conversation pipeline recognizes it and turns it away, and Inkwell picks it up from there. One folder, two doors.
 
@@ -338,7 +338,7 @@ Each document answers **one** question. If you're looking for something that isn
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - **The galleries, from the app**: a button in image.ia and another in Inkwell to build them and open them, no console.
 - **ChatGPT's generated images from March to May 2026**: neither the export nor its library carries them. Check whether ChatGPT's web gallery gives them through its API, like Copilot and Grok.
-- **One document per tool**, like [CARTOGRAPHY.md](CARTOGRAPHY.md), with its test: Observatory, Verification, Build, Reconnection, music.ia, image.ia and Inkwell.
+- **One document per tool**, like [CARTOGRAPHY.md](CARTOGRAPHY.md), with its test: Observatory, Verification, Build, Local sessions, music.ia, image.ia, Inkwell and the Workshop.
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
 
 ---
