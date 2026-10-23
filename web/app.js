@@ -970,7 +970,13 @@ async function loadPendientes() {
   listEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
 
   const res = await fetch("/api/pendientes");
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  // Un error no es una lista vacia: antes salia "Nada pendiente" (y en verde) sin poder leerlos.
+  if (!res.ok || data.error) {
+    listEl.innerHTML = `<div class="empty-note">No se han podido leer: ${escapeHtml(data.error || `HTTP ${res.status}`)}</div>`;
+    ponerEstado("pendientes-estado", "no se pueden leer", "aviso");
+    return;
+  }
   pendientesCache = {
     grok: Array.isArray(data.grok) ? data.grok : [],
     chatgpt: Array.isArray(data.chatgpt) ? data.chatgpt : [],
@@ -2003,11 +2009,15 @@ function ponerEstado(id, texto, tipo) {
 }
 
 async function loadTaller() {
+  // Si el estado no se puede leer (p. ej. sin configuracion), se dice en cada titulo: callarse dejaba
+  // "contando avisos…" para siempre, que es justo un fallo que no da error.
+  const sinEstado = () => ["recuperar-estado", "reindex-estado", "migrar-estado"].forEach((id) =>
+    ponerEstado(id, "no se puede leer: mira la Configuración", "aviso"));
   let d = {};
   try {
     d = await (await fetch("/api/taller")).json();
-  } catch (_) { return; }
-  if (d.error) return;
+  } catch (_) { sinEstado(); return; }
+  if (d.error) { sinEstado(); return; }
 
   // Recuperar: la lista de exports de ChatGPT y si hay algo que deshacer
   const sel = document.getElementById("recuperar-export");
