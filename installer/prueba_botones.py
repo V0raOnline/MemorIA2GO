@@ -84,6 +84,10 @@ CASOS = [
     ("/api/galerias/tintero/generar", {}, 15, "galeria de Tintero sin configurar"),
     ("/api/galerias/imagenes/abrir", {}, 15, "abrir una galeria que no existe"),
     ("/api/galerias/otra/generar", {}, 15, "una galeria que no existe"),
+    # Taller: recuperar sin elegir export, y deshacer sin nada que deshacer (logs/ de la copia, vacio)
+    ("/api/taller/recuperar", {}, 15, "recuperar imagenes sin export"),
+    ("/api/taller/recuperar", {"export": "C:/no/existe.zip", "aplicar": True}, 15, "un export que no es de la lista"),
+    ("/api/taller/recuperar/deshacer", {}, 15, "deshacer sin nada que deshacer"),
     # Cuerpos rotos: lo que manda un cliente con un bug, o un curl mal escrito
     ("/api/config", b"", 15, "CUERPO VACIO"),
     ("/api/topics", b"", 15, "CUERPO VACIO"),
@@ -94,6 +98,7 @@ CASOS = [
     ("/api/grok_imagine/backup", b"{no es json", 10, "JSON ROTO"),
     ("/api/pendientes/descartar", b"[]", 15, "JSON de otro tipo"),
     ("/api/galerias/tintero/generar", b"{no es json", 15, "JSON ROTO"),
+    ("/api/taller/recuperar", b"{no es json", 15, "JSON ROTO"),
 ]
 
 print(f"{'ruta':<32}{'codigo':<8}{'seg':<7}que pasa")

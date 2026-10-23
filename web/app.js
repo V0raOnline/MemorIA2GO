@@ -79,7 +79,7 @@ function showTab(name) {
   if (targetPanel === "dashboard") loadDashboard();
   if (targetPanel === "gizmos") loadGizmos();
   if (targetPanel === "verificar") loadVerificarBadge();
-  if (targetPanel === "reconexion") loadReconexion();
+  if (targetPanel === "taller") { loadTaller(); loadPendientes(); }
   if (targetPanel === "galerias") loadGalerias();
 }
 
@@ -775,8 +775,16 @@ async function substackBuild() {
 // Migrar lo antiguo a la carpeta de su publicacion. Dos pasos a proposito: el primero solo ensena
 // el plan (el servidor no mueve nada sin `aplicar`), y el boton de mover aparece despues de verlo.
 function mostrarMigracion(visible) {
-  document.getElementById("substack-migrar").style.display = visible ? "" : "none";
+  document.getElementById("substack-migrar-aviso").style.display = visible ? "" : "none";
 }
+
+document.getElementById("link-substack-migrar").addEventListener("click", (e) => {
+  e.preventDefault();
+  showTab("taller");
+  const fold = document.getElementById("fold-migrar");
+  fold.open = true;
+  fold.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 async function substackMigrar(aplicar) {
   const msg = document.getElementById("substack-migrar-msg");
@@ -946,7 +954,7 @@ async function saveGizmos() {
 document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos);
 
 // ─────────────────────────────────────────
-// Reconexión: pendientes de descarga por proveedor + regenerar índices
+// Taller: pendientes de descarga por proveedor + regenerar índices (antes en Reconexión)
 //
 // Dos secciones colapsables (.check-fold, el mismo componente que usa
 // Verificación) porque los dos proveedores traen cosas distintas:
@@ -957,7 +965,7 @@ document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos)
 // ─────────────────────────────────────────
 let pendientesCache = { grok: [], chatgpt: [] };
 
-async function loadReconexion() {
+async function loadPendientes() {
   const listEl = document.getElementById("pendientes-list");
   listEl.innerHTML = `<div class="empty-note">Cargando...</div>`;
 
@@ -988,6 +996,9 @@ async function loadReconexion() {
 
 function actualizarBadgePendientes(n) {
   document.getElementById("pendientes-count-badge").textContent = n > 0 ? `(${n})` : "";
+  const estado = document.getElementById("pendientes-estado");
+  estado.textContent = n > 0 ? `${n.toLocaleString("es-ES")} pendientes` : "nada pendiente";
+  estado.className = `source-sub estado ${n > 0 ? "aviso" : "ok"}`;
 }
 
 function seccionPendientes(proveedor, titulo, descripcion, items) {
@@ -1158,6 +1169,7 @@ document.getElementById("btn-reindex").addEventListener("click", async () => {
     if (data.error) throw new Error(data.error);
     msg.textContent = "Índices regenerados.";
     msg.className = "msg ok";
+    loadTaller();
   } catch (e) {
     msg.textContent = `Error: ${e.message}`;
     msg.className = "msg error";
@@ -1907,6 +1919,28 @@ async function loadGalerias() {
   }
 }
 
+// Lee una respuesta de log en vivo (lineas de texto y al final "__DONE__ <codigo>") y la va pintando
+// en `log`. Devuelve el codigo de salida del proceso. Lo usan las galerias y el Taller.
+async function leerLogEnVivo(res, log) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let resto = "", codigo = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    resto += decoder.decode(value, { stream: true });
+    const lineas = resto.split("\n");
+    resto = lineas.pop();
+    for (const linea of lineas) {
+      if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
+      if (linea.startsWith("__ERROR__")) throw new Error(linea.slice(9).trim());
+      log.textContent += linea + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+  return codigo;
+}
+
 async function generarGaleria(cual, cuerpo) {
   const btn = document.getElementById(`btn-galeria-${cual}`);
   const msg = document.getElementById(`galeria-${cual}-msg`);
@@ -1924,22 +1958,7 @@ async function generarGaleria(cual, cuerpo) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status}`);
     }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let resto = "", codigo = null;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      resto += decoder.decode(value, { stream: true });
-      const lineas = resto.split("\n");
-      resto = lineas.pop();
-      for (const linea of lineas) {
-        if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
-        if (linea.startsWith("__ERROR__")) throw new Error(linea.slice(9).trim());
-        log.textContent += linea + "\n";
-        log.scrollTop = log.scrollHeight;
-      }
-    }
+    const codigo = await leerLogEnVivo(res, log);
     msg.textContent = codigo === 0 ? "Hecho: la tienes abierta en tu navegador." : "No se ha podido generar — mira el detalle.";
     msg.className = codigo === 0 ? "msg ok" : "msg error";
   } catch (e) {
@@ -1970,3 +1989,137 @@ document.getElementById("btn-galeria-tintero").addEventListener("click", () =>
   generarGaleria("tintero", { sin_red: document.getElementById("galeria-tintero-sin-red").checked }));
 document.getElementById("btn-galeria-imagenes-abrir").addEventListener("click", () => abrirGaleria("imagenes"));
 document.getElementById("btn-galeria-tintero-abrir").addEventListener("click", () => abrirGaleria("tintero"));
+
+// ─────────────────────────────────────────
+// Herramientas → Taller
+// ─────────────────────────────────────────
+// Cada herramienta es un plegable con su estado en el titulo (GET /api/taller). Los avisos de
+// "imagen no disponible" van aparte (GET /api/taller/avisos): contarlos es leer todas las notas, asi
+// que el servidor lo hace una vez y lo recuerda hasta que una recuperacion los cambia.
+function ponerEstado(id, texto, tipo) {
+  const el = document.getElementById(id);
+  el.textContent = texto;
+  el.className = `source-sub estado ${tipo || ""}`.trim();
+}
+
+async function loadTaller() {
+  let d = {};
+  try {
+    d = await (await fetch("/api/taller")).json();
+  } catch (_) { return; }
+  if (d.error) return;
+
+  // Recuperar: la lista de exports de ChatGPT y si hay algo que deshacer
+  const sel = document.getElementById("recuperar-export");
+  const elegido = sel.value;
+  const exports = (d.recuperar && d.recuperar.exports) || [];
+  sel.innerHTML = exports.length
+    ? exports.map((e) => `<option value="${escapeHtml(e.ruta)}">${e.fecha} · ${escapeHtml(e.nombre.length > 34 ? e.nombre.slice(0, 18) + "…" + e.nombre.slice(-12) : e.nombre)} (${e.mb.toLocaleString("es-ES")} MB)</option>`).join("")
+    : `<option value="">No hay exports de ChatGPT en tu carpeta de exports</option>`;
+  if (elegido && exports.some((e) => e.ruta === elegido)) sel.value = elegido;
+  document.getElementById("btn-recuperar-simular").disabled = !exports.length;
+  // "Deshacer la ultima" dice cual: la fecha y de que pasada es (avisos, biblioteca o metadatos).
+  const ultima = d.recuperar && d.recuperar.deshacer;
+  const btnDes = document.getElementById("btn-recuperar-deshacer");
+  btnDes.disabled = !ultima;
+  btnDes.textContent = ultima ? `Deshacer la última (${fechaCorta(ultima.fecha) || "?"} · ${ultima.tipo})` : "Deshacer la última";
+  btnDes.dataset.copia = ultima ? `${fechaCorta(ultima.fecha) || ultima.nombre}, ${ultima.tipo}` : "";
+  cargarAvisos();
+
+  // Indices: la fecha de los ultimos, y si una recuperacion cambio notas despues
+  const ix = d.indices || {};
+  if (!ix.fecha) ponerEstado("reindex-estado", "sin generar", "aviso");
+  else if (ix.viejos) ponerEstado("reindex-estado", `últimos: ${fechaCorta(ix.fecha)} · anteriores a la última recuperación`, "aviso");
+  else ponerEstado("reindex-estado", `últimos: ${fechaCorta(ix.fecha)}`);
+
+  // Tintero: si hace falta mover lo antiguo
+  const ti = d.tintero || {};
+  if (ti.falta) ponerEstado("migrar-estado", ti.falta.replace("Configura primero", "configura"), "");
+  else if (ti.hace_falta) ponerEstado("migrar-estado", "hace falta: construir se niega hasta moverlo", "aviso");
+  else ponerEstado("migrar-estado", "no hace falta", "ok");
+}
+
+async function cargarAvisos() {
+  ponerEstado("recuperar-estado", "contando avisos…");
+  try {
+    const a = await (await fetch("/api/taller/avisos")).json();
+    if (a.falta) ponerEstado("recuperar-estado", a.falta.replace("Configura primero", "configura"), "aviso");
+    else if (a.error) ponerEstado("recuperar-estado", "no se han podido contar", "aviso");
+    else if (!a.avisos) ponerEstado("recuperar-estado", "ningún aviso en tus notas", "ok");
+    else ponerEstado("recuperar-estado",
+      `${a.avisos.toLocaleString("es-ES")} avisos · ${a.imagenes.toLocaleString("es-ES")} imágenes`, "aviso");
+  } catch (_) {
+    ponerEstado("recuperar-estado", "no se han podido contar", "aviso");
+  }
+}
+
+// Simular primero; "Aplicar" aparece solo despues de una simulacion que termina bien, y pide
+// confirmacion: cambia notas del vault (con copia de seguridad y vuelta atras).
+async function recuperar(aplicar) {
+  const btnSim = document.getElementById("btn-recuperar-simular");
+  const btnApl = document.getElementById("btn-recuperar-aplicar");
+  const msg = document.getElementById("recuperar-msg");
+  const log = document.getElementById("recuperar-log");
+  const exportElegido = document.getElementById("recuperar-export").value;
+  if (aplicar && !confirm("Vas a cambiar notas de tu vault: los avisos que este export pueda resolver pasan a ser la imagen.\n\n"
+                          + "Se guarda antes una copia exacta de cada nota y se puede deshacer. Cierra Obsidian antes de seguir.\n\n¿Aplicar?")) return;
+  btnSim.disabled = btnApl.disabled = true;
+  msg.textContent = aplicar ? "Aplicando (puede tardar unos minutos)..." : "Simulando: leyendo tus notas y el export (puede tardar unos minutos)...";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+  try {
+    const res = await fetch("/api/taller/recuperar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ export: exportElegido, aplicar,
+                             biblioteca: document.getElementById("recuperar-biblioteca").checked }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const codigo = await leerLogEnVivo(res, log);
+    if (codigo !== 0) throw new Error("no ha terminado bien — mira el detalle");
+    if (aplicar) {
+      btnApl.style.display = "none";
+      msg.textContent = "Hecho. Si quieres, regenera los índices para que los recojan.";
+      loadTaller();
+    } else {
+      btnApl.style.display = "";
+      msg.textContent = "Simulación terminada: no se ha escrito nada. Si los números te cuadran, pulsa «Aplicar».";
+    }
+    msg.className = "msg ok";
+  } catch (e) {
+    btnApl.style.display = "none";
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btnSim.disabled = btnApl.disabled = false;
+  }
+}
+
+async function deshacerRecuperacion() {
+  const msg = document.getElementById("recuperar-msg");
+  const cual = document.getElementById("btn-recuperar-deshacer").dataset.copia;
+  if (!confirm(`Se deshace la última recuperación aplicada (${cual}): se restaura desde su copia lo que cambió. `
+               + "Las imágenes copiadas a los bancos se quedan.\n\n¿Deshacer?")) return;
+  try {
+    const res = await fetch("/api/taller/recuperar/deshacer", { method: "POST" });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    msg.textContent = `Deshecho: ${d.notas.toLocaleString("es-ES")} notas restauradas (${d.copia}).`;
+    msg.className = "msg ok";
+    loadTaller();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  }
+}
+
+document.getElementById("btn-recuperar-simular").addEventListener("click", () => recuperar(false));
+document.getElementById("btn-recuperar-aplicar").addEventListener("click", () => recuperar(true));
+document.getElementById("btn-recuperar-deshacer").addEventListener("click", deshacerRecuperacion);
+// Cambiar de export o de opcion invalida la simulacion anterior: hay que volver a simular.
+["recuperar-export", "recuperar-biblioteca"].forEach((id) => document.getElementById(id).addEventListener("change", () => {
+  document.getElementById("btn-recuperar-aplicar").style.display = "none";
+}));

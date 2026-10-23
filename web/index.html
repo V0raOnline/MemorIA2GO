@@ -96,13 +96,13 @@
       Cartografía <span id="gizmo-count-badge"></span>
     </button>
     <button class="top-tab" data-tab="reconexion">
-      Sesiones locales <span id="pendientes-count-badge"></span>
+      Sesiones locales
     </button>
   </div>
 
   <div class="top-tabs" id="tools-tabs" data-app="tools" style="display:none;">
     <button class="top-tab active" data-tab="galerias">Galerías</button>
-    <button class="top-tab" data-tab="taller">Taller <span id="taller-badge"></span></button>
+    <button class="top-tab" data-tab="taller">Taller <span id="pendientes-count-badge"></span></button>
   </div>
 
   <!-- DASHBOARD -->
@@ -866,20 +866,11 @@
       <div id="substack-build-msg" class="msg"></div>
       <pre id="substack-build-out" class="log-box" style="display:none;"></pre>
 
-      <!-- Solo aparece si el vault tiene el layout de cuando habia un solo export (Posts/, Borradores/...
-           en la raiz) y hay varias publicaciones. Dos pasos: primero se ve el plan, luego se aplica. -->
-      <div id="substack-migrar" style="display:none; margin-top:22px;">
-        <div class="sb-ausencias-label">Lo antiguo en la raíz del vault</div>
-        <p class="card-help">
-          Tu vault de Tintero tiene el layout de cuando había un solo export. Para construir varias
-          publicaciones hay que moverlo a la carpeta de la suya: la herramienta lo identifica por los
-          <code>post_id</code> de las notas, <strong>no borra nada</strong> y comprueba cada fichero al
-          terminar. Cierra Obsidian antes de moverlo.
-        </p>
-        <button class="btn secondary" id="btn-substack-migrar-plan">Ver qué se movería</button>
-        <button class="btn" id="btn-substack-migrar-aplicar" style="display:none;">Mover lo antiguo ahora</button>
-        <div id="substack-migrar-msg" class="msg"></div>
-        <pre id="substack-migrar-out" class="log-box" style="display:none;"></pre>
+      <!-- Si el vault tiene el layout de un solo export y hay varias publicaciones, construir se niega:
+           moverlo vive ahora en Herramientas → Taller. Aqui solo se avisa y se lleva alli. -->
+      <div id="substack-migrar-aviso" class="msg error" style="display:none; margin-top:14px;">
+        Tu vault de Tintero tiene el layout de cuando había un solo export: muévelo antes de construir, en
+        <a href="#" id="link-substack-migrar">Herramientas → Taller → Mover lo antiguo de Tintero</a>.
       </div>
     </div>
   </section>
@@ -957,6 +948,91 @@
       </div>
       <img src="assets/taller.png" alt="" class="panel-header-icon" onerror="this.style.visibility='hidden'">
     </div>
+
+    <!-- Cada herramienta, plegada con su estado en el titulo (GET /api/taller; los avisos aparte, en
+         GET /api/taller/avisos, porque contarlos es leer todas las notas). -->
+    <details class="source-fold herramienta" id="fold-recuperar">
+      <summary>
+        <span class="source-name">Recuperar imágenes de ChatGPT</span>
+        <span class="source-sub estado" id="recuperar-estado">contando avisos…</span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Si tus notas dicen <em>imagen no disponible en el export</em>, la imagen puede estar en tus exports:
+          el formato de ChatGPT cambió en 2026 y M3M0R·IA no la veía. Esto la devuelve a su sitio
+          <strong>sin reprocesar</strong> (reprocesar duplicaría tus conversaciones), con copia de seguridad
+          y vuelta atrás. Pásalo con cada export que conserves. Cómo funciona: RECUPERAR_IMAGENES.md.
+        </p>
+        <div class="fila-campo">
+          <label for="recuperar-export">Export de ChatGPT</label>
+          <select id="recuperar-export" class="input"></select>
+        </div>
+        <label class="sb-check">
+          <input type="checkbox" id="recuperar-biblioteca" checked>
+          <span>Colgar también las generadas de la biblioteca de su conversación</span>
+        </label>
+        <div class="fila-botones">
+          <button class="btn" id="btn-recuperar-simular">Simular</button>
+          <button class="btn" id="btn-recuperar-aplicar" style="display:none;">Aplicar</button>
+          <button class="btn secondary" id="btn-recuperar-deshacer">Deshacer la última</button>
+        </div>
+        <div id="recuperar-msg" class="msg"></div>
+        <pre id="recuperar-log" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-pendientes">
+      <summary>
+        <span class="source-name">Pendientes de descarga</span>
+        <span class="source-sub estado" id="pendientes-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Contenido que aparece en tus conversaciones pero que el export no trae: solo queda
+          un enlace, y puede caducar. Descárgalo desde ahí y súbelo aquí, y se archiva en el
+          banco que le corresponde con el mismo esquema que usa la extracción automática.
+          Esta app nunca descarga nada por su cuenta.
+        </p>
+        <div id="pendientes-list"><div class="empty-note">Cargando...</div></div>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-reindex">
+      <summary>
+        <span class="source-name">Regenerar índices</span>
+        <span class="source-sub estado" id="reindex-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Refresca los índices de contenido por proveedor sobre MERGED_VAULT y PRJ_VAULT sin
+          reprocesar los exports — úsalo tras registrar pendientes, mover assets a mano, o
+          cualquier cambio que no necesite pasar por importar/fusionar/organizar.
+        </p>
+        <button class="btn" id="btn-reindex">Regenerar índices</button>
+        <div id="reindex-msg" class="msg"></div>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-migrar">
+      <summary>
+        <span class="source-name">Mover lo antiguo de Tintero</span>
+        <span class="source-sub estado" id="migrar-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Si tu vault de Tintero tiene el layout de cuando había un solo export y ahora tienes varias
+          publicaciones, hay que mover lo antiguo a la carpeta de la suya antes de construir: la herramienta
+          la identifica por los <code>post_id</code> de las notas, <strong>no borra nada</strong> y comprueba
+          cada fichero al terminar. Primero enseña el plan; cierra Obsidian antes de mover.
+        </p>
+        <div class="fila-botones">
+          <button class="btn secondary" id="btn-substack-migrar-plan">Ver qué se movería</button>
+          <button class="btn" id="btn-substack-migrar-aplicar" style="display:none;">Mover lo antiguo ahora</button>
+        </div>
+        <div id="substack-migrar-msg" class="msg"></div>
+        <pre id="substack-migrar-out" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
   </section>
 
   <section id="panel-reconexion" class="panel">
@@ -967,17 +1043,6 @@
         <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
       </div>
       <img src="assets/reconexion.png" alt="" class="panel-header-icon">
-    </div>
-
-    <div class="card">
-      <h2>Pendientes de descarga</h2>
-      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
-        Contenido que aparece en tus conversaciones pero que el export no trae: solo queda
-        un enlace, y puede caducar. Descárgalo desde ahí y súbelo aquí, y se archiva en el
-        banco que le corresponde con el mismo esquema que usa la extracción automática.
-        Esta app nunca descarga nada por su cuenta.
-      </p>
-      <div id="pendientes-list"><div class="empty-note">Cargando...</div></div>
     </div>
 
     <div class="card">
@@ -1007,16 +1072,6 @@
       <div id="sessions-msg" class="msg"></div>
     </div>
 
-    <div class="card">
-      <h2>Regenerar índices</h2>
-      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
-        Refresca los índices de contenido por proveedor sobre MERGED_VAULT y PRJ_VAULT sin
-        reprocesar los exports — úsalo tras registrar pendientes, mover assets a mano, o
-        cualquier cambio que no necesite pasar por importar/fusionar/organizar.
-      </p>
-      <button class="btn" id="btn-reindex">Regenerar índices</button>
-      <div id="reindex-msg" class="msg"></div>
-    </div>
   </section>
 
   <!-- EJECUTAR / CONSTRUCCION -->

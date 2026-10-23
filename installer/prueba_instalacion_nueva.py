@@ -38,7 +38,7 @@ GET = [
     "/", "/api/config", "/api/stats", "/api/verificar", "/api/topics",
     "/api/gizmos-pendientes", "/api/layout", "/api/browse?path=C:/",
     "/api/pendientes?provider=grok", "/api/suno/stats", "/api/flowmusic/stats",
-    "/api/substack/stats", "/api/galerias",
+    "/api/substack/stats", "/api/galerias", "/api/taller", "/api/taller/avisos",
 ]
 
 

@@ -498,7 +498,10 @@ def main(argv=None) -> int:
                     help="En vez de reparar notas: completar en el manifiesto de GENERADAS con que se genero cada "
                          "imagen (herramienta, modelo del chat, si es una edicion), sacado exacto del export")
     ap.add_argument("--deshacer", metavar="CARPETA", help="Restaurar las notas desde la copia de un --aplicar")
+    ap.add_argument("--logs", metavar="CARPETA",
+                    help="Donde guardar las copias de seguridad (por defecto, logs/ junto al programa)")
     args = ap.parse_args(argv)
+    logs = Path(args.logs) if args.logs else None
 
     try:
         if args.deshacer:
@@ -510,7 +513,7 @@ def main(argv=None) -> int:
         if not base:
             ap.error("hace falta --base-vault (no hay base_vault en memoria_config.yaml)")
         if args.metadatos:
-            m = completar_metadatos(Path(args.export), Path(base), aplicar=args.aplicar)
+            m = completar_metadatos(Path(args.export), Path(base), aplicar=args.aplicar, carpeta_logs=logs)
             print()
             print("SIMULACION (no se ha escrito nada)" if not m["aplicado"] else "HECHO")
             print(f"  generadas en el manifiesto: {m['en_manifiesto']} | sin generador: {m['sin_generador']} | "
@@ -518,7 +521,8 @@ def main(argv=None) -> int:
             if m["copia"]:
                 print(f"  para deshacer:              python recuperar_imagenes.py --deshacer \"{m['copia']}\"")
             return 0
-        r = recuperar(Path(args.export), Path(base), aplicar=args.aplicar, biblioteca=args.biblioteca)
+        r = recuperar(Path(args.export), Path(base), aplicar=args.aplicar, biblioteca=args.biblioteca,
+                      carpeta_logs=logs)
     except ErrorRecuperar as e:
         print(f"[error] {e}")
         return 2

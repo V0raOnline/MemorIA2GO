@@ -610,7 +610,7 @@ def main():
                     help="Salta los pasos 1-3 por completo y solo relanza paso4_indices sobre "
                          "MERGED_VAULT/PRJ_VAULT ya existentes. Pensado para refrescar indices "
                          "tras mover assets a mano o registrar una descarga manual de Grok, sin "
-                         "pagar el coste de un reproceso completo (pestaña Reconexion).")
+                         "pagar el coste de un reproceso completo (Herramientas -> Taller).")
     ap.add_argument("--yes", action="store_true",
                     help="No pide confirmacion de la config cargada -- la acepta directamente. "
                          "Necesario para lanzar el pipeline sin terminal interactiva (p.ej. desde launcher.py).")

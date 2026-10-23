@@ -1201,3 +1201,8 @@ footer {
   border-radius: 4px;
   padding: 3px 8px;
 }
+
+/* Etiqueta + desplegable en una fila (Taller → Recuperar imagenes: el export a usar). */
+.fila-campo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.fila-campo label { font-size: 13px; color: var(--text-dim); }
+.fila-campo select { width: auto; max-width: 100%; }
