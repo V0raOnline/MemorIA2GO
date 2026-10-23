@@ -43,7 +43,20 @@ That's why this tool **replaces the notice with the link inside each note**, wit
 
 ## How to use it
 
-From a console, in the program folder (in the Windows package, the `app` folder, with `python\python.exe` instead of `python`). First, **always**, the dry run:
+### From the app
+
+Tools → Workshop → **Recover ChatGPT images**. The folded title says how many notices are left in your notes (the first time it takes almost a minute to count them: it reads every note; after that it remembers until you apply or undo something).
+
+1. Choose the export in the dropdown: it lists the ChatGPT ones in your exports folder, newest first.
+2. "Dry run": shows the log live and writes nothing.
+3. If the numbers look right, "Apply" (it only appears after a dry run). It asks for confirmation: close Obsidian first.
+4. "Undo the latest" says which one it would undo (its date and whether it was notices, library or metadata). Pressing it again undoes the previous one, in the right order. An undone backup isn't deleted: it's marked with a `deshecho.json` so it isn't used again.
+
+The "Also attach the library's generated images" checkbox is the `--biblioteca` option. `--metadatos` is still console-only: it's done once.
+
+### From a console
+
+In the program folder (in the Windows package, the `app` folder, with `python\python.exe` instead of `python`). First, **always**, the dry run:
 
 ```bash
 python recuperar_imagenes.py --export "D:\Exports\chatgpt-2026-10-18.zip"
@@ -63,6 +76,7 @@ python recuperar_imagenes.py --export "D:\Exports\chatgpt-2026-10-18.zip" --apli
 | `--biblioteca` | also copy the library's generated images to `GENERATED` and attach them to their conversation |
 | `--metadatos` | instead of repairing notes: complete in the `GENERATED` manifest what each image was generated with |
 | `--deshacer <folder>` | restore from the backup of an `--aplicar` run |
+| `--logs <folder>` | where to save the backups (otherwise, `logs/` next to the program) |
 
 **With several exports**, run them one after another: each recovers what it carries, and what's already recovered isn't touched again. Order doesn't matter.
 
@@ -109,7 +123,7 @@ It matches each image by its **hash** (the file name), so it doesn't matter whic
 
 ## The fine print: what surprises people
 
-Each row is a behaviour of `recuperar_imagenes.py`, pinned by a test (`tests/test_recuperar_documentado.py`).
+Each row is a behaviour of `recuperar_imagenes.py`, pinned by a test (`tests/test_recuperar_documentado.py`; what the app does, in `tests/test_launcher_taller.py`).
 
 | Situation | What happens | What to do |
 | --------- | ------------ | ---------- |
@@ -124,7 +138,7 @@ Each row is a behaviour of `recuperar_imagenes.py`, pinned by a test (`tests/tes
 | **The block's title** | the one ChatGPT gave it, without the extension and without asterisks. If it has none, "Generated image" | Nothing |
 | **A generated image whose conversation isn't in your vault** | it's copied to `GENERATED`, but not attached to any note: in the gallery it shows as "no conversation" | Import that export and repeat `--biblioteca` |
 | **Generated images with no file in the zip** | they're skipped: the library lists them, but the file doesn't travel | Nothing to do |
-| **Undoing both** | if you ran notices and `--biblioteca` together there are **two** backups: undo **the library one first**, then the other. The other way round, the notes are left with the links | The console tells you when it finishes |
+| **Undoing both** | if you ran notices and `--biblioteca` together there are **two** backups: undo **the library one first**, then the other. The other way round, the notes are left with the links | In the app, "Undo the latest" already goes in that order. In the console, it tells you when it finishes |
 | **Undoing doesn't delete images** | the notes go back to how they were; images copied to the banks stay | Nothing: they're not in the way, and there are no deletions without asking |
 | **Symbolic links** | they're skipped: no symbolic link is followed | Nothing |
 | **`--metadatos` doesn't touch what's there** | an entry that already has `generador` stays as it is, even if the export says otherwise | Nothing |
@@ -137,7 +151,7 @@ Each row is a behaviour of `recuperar_imagenes.py`, pinned by a test (`tests/tes
 | ---- | ----- |
 | The repaired notes | in place: `RAW_VAULT/Conversations`, `MERGED_VAULT/Conversations`, `PRJ_VAULT` |
 | The images | `CHATGPT/GENERATED` and `CHATGPT/ATTACHMENTS`, with their `_image_manifest.json` |
-| **The backup** | `logs/recuperar_imagenes_<date>/` (notices), `…_biblioteca/` and `…_metadatos/`, inside the program folder. Each one with a `diario.json` that says which export, which base and which files |
+| **The backup** | `logs/recuperar_imagenes_<date>/` (notices), `…_biblioteca/` and `…_metadatos/`, inside the program folder. Each one with a `diario.json` that says which export, which base and which files, and a `deshecho.json` if you already undid it from the app |
 
 Each note is written atomically (to a temporary file that then replaces it): a cut halfway doesn't leave a half-written note. Backups **aren't deleted automatically**: when you no longer want them, delete them yourself.
 

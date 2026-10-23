@@ -29,8 +29,9 @@ Navigation indexes (project/year/month), attachment usage index, per-provider co
 - **Update only (step 2→4)** — no new data, but how things consolidate or organize changed: after naming gizmos, or after an M3M0R·IA update touching the merge, the project view or the indexes.
 - **Reprocess all** — after an M3M0R·IA version that adds or changes frontmatter fields (`provider`, `conv_id`, `model`...) or modifies the parsers: existing notes only gain new fields by re-importing from the exports. Safe (exports are the source of truth, nothing is destroyed) but takes time proportional to your history — coffee recommended.
 - **Generate themes index** (Cartography tab) — whenever you edit themes; no restart needed. Step 4 also regenerates it automatically on every pipeline run. What Cartography does, what it doesn't, and how it decides which note goes in which theme: [CARTOGRAPHY.md](CARTOGRAPHY.md).
-- **Gallery** (`python galeria.py`) — whenever you want to see your images: it isn't a pipeline step and doesn't touch the vault, so after importing you need to rebuild it. [GALLERY.md](GALLERY.md).
-- **Recover images** (`python recuperar_imagenes.py`) — once for each ChatGPT export you keep, if your notes carry *imagen no disponible* notices. **Don't reprocess everything for this**: it would duplicate conversations. [RECOVER_IMAGES.md](RECOVER_IMAGES.md).
+- **Galleries** (Tools → Galleries, or `python galeria.py` / `python galeria_tintero.py`) — whenever you want to see your images or your posts: it isn't a pipeline step and doesn't touch the vault, so after importing you need to rebuild it. [GALLERY.md](GALLERY.md).
+- **Rebuild indexes** (Tools → Workshop) — after recovering images, registering pending downloads or moving assets by hand: it redoes step 4 without reprocessing. Its folded title warns you if a recovery changed notes after the latest indexes.
+- **Recover images** (Tools → Workshop, or `python recuperar_imagenes.py`) — once for each ChatGPT export you keep, if your notes carry *imagen no disponible* notices. **Don't reprocess everything for this**: it would duplicate conversations. [RECOVER_IMAGES.md](RECOVER_IMAGES.md).
 
 ---
 

@@ -32,7 +32,9 @@ The Inkwell gallery gathers **in a single HTML page** all the posts Inkwell buil
 
 ## How to build it
 
-From a console, in the program folder (in the Windows package, the `app` folder, with `python\python.exe` instead of `python`):
+**From the app**: Tools → Galleries → **Substack posts** → "Build and open". The "Don't go online" checkbox is the `--sin-red` option. It shows the log live and, when it finishes, opens it in your browser; "Open the latest" opens the one you already have. The folded title says when you built it and how many posts it holds.
+
+**From a console**, in the program folder (in the Windows package, the `app` folder, with `python\python.exe` instead of `python`):
 
 ```bash
 python galeria_tintero.py

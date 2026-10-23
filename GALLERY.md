@@ -34,7 +34,9 @@ Nor does it decide anything by heuristics. Everything it shows about an image **
 
 ## How to build it
 
-From a console, in the program folder:
+**From the app**: Tools → Galleries → **Images and videos** → "Build and open". It shows the log live and, when it finishes, opens it in your browser. "Open the latest" opens the one you already have, without rebuilding it. The folded title says when you built it and what it holds (it reads that from its `estado.json`, without opening the page).
+
+**From a console**, in the program folder:
 
 ```bash
 python galeria.py
@@ -56,7 +58,7 @@ With no options it uses the base folder from your configuration and writes the g
 | `--tema warm\|cool\|light` | the theme it opens with (otherwise, the one in your configuration) |
 | `--copilot-vault <folder>` | the Copilot images vault (otherwise, `copilot_images_vault` in your configuration) |
 
-There's no button in the app yet: it's on the [roadmap](README.md#roadmap).
+The app uses the defaults: your base folder, the output in `.gallery` and the theme from your configuration.
 
 ---
 
