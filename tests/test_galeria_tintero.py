@@ -333,7 +333,9 @@ def test_por_defecto_escribe_solo_en_su_carpeta_y_no_toca_ninguna_nota(vault):
     assert {p: p.read_bytes() for p in antes} == antes
     nuevos = sorted(p.relative_to(vault).as_posix() for p in despues - set(antes))
     assert nuevos == [".gallery/covers/MiPub/1.jpg", ".gallery/covers/MiPub/2.jpg", ".gallery/covers/_origen.json",
-                      ".gallery/index.html", ".gallery/tintero.png"]
+                      ".gallery/estado.json", ".gallery/index.html", ".gallery/tintero.png"]
+    estado = json.loads((vault / ".gallery" / "estado.json").read_text(encoding="utf-8"))
+    assert (estado["posts"], estado["borradores"]) == (5, 1)
 
 
 def test_un_vault_sin_posts_se_niega(tmp_path):

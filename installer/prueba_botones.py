@@ -79,6 +79,11 @@ CASOS = [
     ("/api/copilot_images/backup", {}, 10, "SIN TOKEN: debe cortar sin salir a la red"),
     ("/api/grok_imagine/backup", {}, 10, "SIN COOKIE: debe cortar sin salir a la red"),
     ("/api/reindex", {}, 120, "regenerar indices con el vault vacio"),
+    # Galerias: con el vault vacio fallan con mensaje y NO abren nada (solo se abren si se generaron)
+    ("/api/galerias/imagenes/generar", {}, 60, "galeria de imagenes con el vault vacio"),
+    ("/api/galerias/tintero/generar", {}, 15, "galeria de Tintero sin configurar"),
+    ("/api/galerias/imagenes/abrir", {}, 15, "abrir una galeria que no existe"),
+    ("/api/galerias/otra/generar", {}, 15, "una galeria que no existe"),
     # Cuerpos rotos: lo que manda un cliente con un bug, o un curl mal escrito
     ("/api/config", b"", 15, "CUERPO VACIO"),
     ("/api/topics", b"", 15, "CUERPO VACIO"),
@@ -88,6 +93,7 @@ CASOS = [
     ("/api/copilot_images/backup", b"", 10, "CUERPO VACIO"),
     ("/api/grok_imagine/backup", b"{no es json", 10, "JSON ROTO"),
     ("/api/pendientes/descartar", b"[]", 15, "JSON de otro tipo"),
+    ("/api/galerias/tintero/generar", b"{no es json", 15, "JSON ROTO"),
 ]
 
 print(f"{'ruta':<32}{'codigo':<8}{'seg':<7}que pasa")

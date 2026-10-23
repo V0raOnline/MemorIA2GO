@@ -898,6 +898,55 @@
       </div>
       <img src="assets/galerias.png" alt="" class="panel-header-icon" onerror="this.style.visibility='hidden'">
     </div>
+
+    <!-- Plegadas, con su estado en el titulo (lo da GET /api/galerias, que lee el estado.json de cada
+         una). Al generar, el lanzador las abre en el navegador: desde aqui no se puede abrir un fichero. -->
+    <details class="source-fold herramienta" id="fold-galeria-imagenes">
+      <summary>
+        <img src="assets/imageIA.png" alt="" class="fold-icono">
+        <span class="source-name">Images and videos</span>
+        <span class="source-sub estado" id="galeria-imagenes-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          All your images and videos from ChatGPT, Grok and Copilot on one page: one strip per conversation,
+          with what you asked for and the prompt when there is one. It's built here and opens in your browser.
+          It doesn't touch your vault: it only writes to its <code>.gallery</code> folder. The first time takes
+          a few minutes, because of the thumbnails; after that, seconds.
+        </p>
+        <div class="fila-botones">
+          <button class="btn" id="btn-galeria-imagenes">Build and open</button>
+          <button class="btn secondary" id="btn-galeria-imagenes-abrir">Open the latest</button>
+        </div>
+        <div id="galeria-imagenes-msg" class="msg"></div>
+        <pre id="galeria-imagenes-log" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-galeria-tintero">
+      <summary>
+        <img src="assets/tintero.png" alt="" class="fold-icono">
+        <span class="source-name">Substack posts</span>
+        <span class="source-sub estado" id="galeria-tintero-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          One card per post from all your publications, with its cover, the subtitle and the first words.
+          The covers are requested from Substack (they're public, no credential) and downloaded only once.
+          It only writes to the <code>.gallery</code> folder of your Inkwell vault.
+        </p>
+        <label class="sb-check">
+          <input type="checkbox" id="galeria-tintero-sin-red">
+          <span>Don't go online: only the covers already downloaded</span>
+        </label>
+        <div class="fila-botones">
+          <button class="btn" id="btn-galeria-tintero">Build and open</button>
+          <button class="btn secondary" id="btn-galeria-tintero-abrir">Open the latest</button>
+        </div>
+        <div id="galeria-tintero-msg" class="msg"></div>
+        <pre id="galeria-tintero-log" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
   </section>
 
   <!-- HERRAMIENTAS: TALLER. Reparaciones y puestas al dia que no piden reprocesar. Ilustracion de V0ra

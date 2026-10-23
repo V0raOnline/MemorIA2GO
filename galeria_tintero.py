@@ -346,9 +346,12 @@ def generar(vault: Path, salida: Optional[Path] = None, con_red: bool = True, te
     tmp = pagina.with_name("index.html.part")
     tmp.write_text(construir_pagina(posts, salida, tema), encoding="utf-8")
     os.replace(tmp, pagina)
-    return {"posts": len(posts), "pagina": str(pagina), "portadas": portadas,
-            "borradores": sum(1 for p in posts if p["estado"] == "draft"),
-            "por_publicacion": {pub: sum(1 for p in posts if p["pub"] == pub) for pub in sorted({p["pub"] for p in posts})}}
+    r = {"posts": len(posts), "pagina": str(pagina), "portadas": portadas,
+         "borradores": sum(1 for p in posts if p["estado"] == "draft"),
+         "por_publicacion": {pub: sum(1 for p in posts if p["pub"] == pub) for pub in sorted({p["pub"] for p in posts})}}
+    from galeria import escribir_estado
+    escribir_estado(salida, {"posts": r["posts"], "borradores": r["borradores"], "por_publicacion": r["por_publicacion"]})
+    return r
 
 
 def _config_vault() -> Optional[str]:

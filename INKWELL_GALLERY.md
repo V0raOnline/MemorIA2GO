@@ -109,6 +109,7 @@ It only writes inside its own folder (`<Inkwell vault>/.gallery`, or the `--sali
 | `covers/<publication>/<post id>.jpg` | one cover per post, a 640 px JPEG |
 | `covers/_origen.json` | which address each cover came from, to know whether Substack changed it |
 | `tintero.png` | Inkwell's mascot, for the header and the tab |
+| `estado.json` | when it was built and how many posts it holds: it's what the app reads to tell you the gallery's state |
 
 Outside that folder **it touches nothing**. The dot in front of `.gallery` keeps Obsidian from indexing it. It's **derived and rebuildable**: if you delete it, the next build downloads the covers again.
 

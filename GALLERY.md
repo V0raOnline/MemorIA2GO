@@ -120,6 +120,7 @@ It only writes inside its own folder (`<base>/.gallery`, or the `--salida` one):
 | `thumbnails/` | one JPEG thumbnail per image (480 px on the long side), with the same folder structure as the banks |
 | `thumbnails/.version` | the thumbnail version: if the way they're made changes, they're all remade |
 | `imageIA.png` | the image.ia little brain, for the header and the browser tab |
+| `estado.json` | when it was built and what it holds: it's what the app reads to tell you the gallery's state without opening the page |
 
 Outside that folder **it touches nothing**. The dot in front of `.gallery` keeps Obsidian from indexing it: thousands of thumbnails in the vault tree would just be noise.
 
