@@ -178,9 +178,9 @@
       <div>
         <h1>M3M0R·IA</h1>
         <p class="claim">mucho más que un extractor de conversaciones</p>
-        <a class="badge-version" href="https://github.com/V0raOnline/MemorIA2GO/releases/tag/v3.1.0-es">
+        <a class="badge-version" href="https://github.com/V0raOnline/MemorIA2GO/releases/tag/v3.2.0-es">
           <span class="punto" aria-hidden="true"></span>
-          <span><b>v3.1.0</b> · nueva versión</span>
+          <span><b>v3.2.0</b> · nueva versión</span>
           <span class="flechita" aria-hidden="true">→</span>
         </a>
       </div>
@@ -201,7 +201,7 @@
 
     <div class="acciones">
       <a class="btn principal" href="https://github.com/V0raOnline/MemorIA2GO/releases/latest">
-        ⬇ Descargar para Windows <span class="peso">~21 MB</span>
+        ⬇ Descargar para Windows <span class="peso">~28 MB</span>
       </a>
       <a class="btn" href="https://github.com/V0raOnline/MemorIA2GO">Código</a>
     </div>
@@ -228,10 +228,11 @@
     <h2>Un paseo por M3M0R·IA</h2>
     <ul class="modulos">
       <li class="modulo"><b>Observatorio</b><span>Un vistazo rápido al estado de tu memoria digital: cuándo fue el último export, cuánto ha crecido, qué proveedores viven ahí.</span></li>
-      <li class="modulo"><b><span class="name">chat</span><span class="ia">.ia</span></b><span>Tus conversaciones. Verifica el export, construye el vault, cartografía los temas y reconecta lo que quedó suelto.</span></li>
+      <li class="modulo"><b><span class="name">chat</span><span class="ia">.ia</span></b><span>Tus conversaciones. Verifica el export, construye el vault, cartografía los temas y trae las sesiones de Claude Code y Codex que viven solo en tu disco.</span></li>
       <li class="modulo"><b><span class="name">music</span><span class="ia">.ia</span></b><span>Tu música con historia. Suno y Flow Music, cada una con su propia captura, verificación y construcción.</span></li>
       <li class="modulo"><b><span class="name">image</span><span class="ia">.ia</span></b><span>Lo que generaste, con su prompt. Copilot y Grok Imagine, que ningún export trae completo.</span></li>
       <li class="modulo"><b>Substack</b><span>Tu archivo editorial. Tintero distingue publicado, retirado y borrador.</span></li>
+      <li class="modulo"><b>Herramientas</b><span>Lo que no es de una sola app: las Galerías, para ver tus imágenes y tus posts de un vistazo, y el Taller, para reparar sin reprocesar.</span></li>
       <li class="modulo"><b>Configuración</b><span>Donde se define dónde vivirá tu M3M0R·IA — con tres temas de color a elegir.</span></li>
     </ul>
 
@@ -297,6 +298,33 @@
       <li><b>El historial de versiones y comentarios</b> de tus artifacts — el export viejo solo daba la última versión y perdía la conversación en el margen.</li>
       <li><b>El project knowledge</b> que subiste inline a tus proyectos, con su system prompt y sus docs, sale a la vista.</li>
     </ul>
+
+    <h2>Y cuando cambia sin decir nada: las imágenes de ChatGPT</h2>
+    <p style="margin:0">
+      En 2026 OpenAI cambió el export de ChatGPT: las imágenes pasaron a otro
+      formato y las generadas dejaron de ir dentro de las conversaciones.
+      <strong>Se importaba sin un solo error, y cada imagen se quedaba en un
+      aviso de «imagen no disponible».</strong> M3M0R·IA lee ahora el formato
+      nuevo, cuelga cada imagen generada de su conversación, y repara lo que ya
+      tenías desde el Taller:
+    </p>
+    <ul class="claves" style="margin-top:16px">
+      <li><b>Sin reprocesar</b>, que duplicaría tus conversaciones: cambia el aviso por la imagen dentro de cada nota, con el mismo texto que escribiría la importación.</li>
+      <li><b>Primero una simulación</b> que no escribe nada; después aplicar, con copia de cada nota y un «deshacer» que dice qué va a deshacer.</li>
+      <li><b>Lo que ningún export trae no se inventa:</b> se queda como aviso. Por eso conviene no borrar nunca tus zip.</li>
+    </ul>
+
+    <h2>Tus imágenes, de un vistazo</h2>
+    <p style="margin:0 0 16px">
+      Una página con todas tus imágenes y vídeos de ChatGPT, Grok y Copilot: una
+      tira por conversación, con lo que pediste y el prompt cuando existe,
+      búsqueda y filtros por origen, tipo, proveedor, generador, proyecto y mes.
+      Y otra igual para tus posts de Substack, con su portada. Se generan desde
+      Herramientas y se abren en tu navegador; no cambian nada de tu vault.
+    </p>
+    <figure>
+      <img src="assets/galeria-imagenes.webp" alt="La galería de imágenes de M3M0R·IA: búsqueda «dibujo» con los filtros de generadas, imágenes y ChatGPT, una tira por conversación con su miniatura, fecha y número de imágenes" loading="lazy">
+    </figure>
 
     <h2>Lo que el export no trae: tus imágenes</h2>
     <p style="margin:0">
