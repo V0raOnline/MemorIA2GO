@@ -172,7 +172,7 @@ Desarrollado y probado a fondo en Windows; el pipeline en sí es multiplataforma
 
 ## Arranque rápido (interfaz web)
 
-M3M0R·IA viene con una interfaz web local: el Observatorio y la Configuración, y cuatro apps en la barra lateral, cada una con su propio flujo — **chat.ia** (conversaciones: Verificación, Construcción, Cartografía y Reconexión), **music.ia** (MUSIC·0LOGY), **image.ia** y **Substack** (Tintero).
+M3M0R·IA viene con una interfaz web local: el Observatorio y la Configuración, cuatro apps en la barra lateral, cada una con su propio flujo — **chat.ia** (conversaciones: Verificación, Construcción, Cartografía y Sesiones locales), **music.ia** (MUSIC·0LOGY), **image.ia** y **Substack** (Tintero) — y **Herramientas**, con lo que no es de una sola app: las **Galerías** y el **Taller** de reparaciones.
 
 ### Paso 0: consigue tu material
 
@@ -188,7 +188,7 @@ Esto empieza **fuera** de la herramienta, y es lo único que no puede hacer por 
 | **Substack**                            | Panel de control → Configuración → Importar/exportar                                                                                                                    |
 | **Substack**, estadísticas *(opcional)* | Panel de control → Estadísticas → Publicaciones → Mostrar, **marcando todas las columnas**, y descargar el CSV                                                          |
 | **Suno · Flow Music**                   | No hay export: la biblioteca se descarga desde la herramienta a través de su API con un token que copias del navegador — ver **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** |
-| **Claude Code · Codex** *(sesiones)*    | No hay que traer nada: las sesiones de agente ya viven en tu disco (`~/.claude/projects`, `~/.codex/sessions`) y ningún export de cuenta las incluye. Se ingieren directamente desde la pestaña Reconexión |
+| **Claude Code · Codex** *(sesiones)*    | No hay que traer nada: las sesiones de agente ya viven en tu disco (`~/.claude/projects`, `~/.codex/sessions`) y ningún export de cuenta las incluye. Se ingieren directamente desde la pestaña Sesiones locales |
 
 Los ZIP se sueltan **tal cual, sin descomprimir**, en la carpeta que configures como `exports_dir`. El de Substack va a esa misma carpeta: el pipeline de conversaciones lo reconoce y lo rechaza, y Tintero lo recoge de ahí. Una carpeta, dos puertas.
 
@@ -335,7 +335,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 - Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
 - **Las galerías, desde la app**: un botón en image.ia y otro en Tintero para generarlas y abrirlas, sin consola.
 - **Las imágenes generadas de ChatGPT de marzo a mayo de 2026**: ni el export ni su biblioteca las traen. Mirar si la galería web de ChatGPT las da por su API, como Copilot y Grok.
-- **Un documento por herramienta**, como [CARTOGRAFIA.md](CARTOGRAFIA.md), con su test: Observatorio, Verificación, Construcción, Reconexión, music.ia, image.ia y Tintero.
+- **Un documento por herramienta**, como [CARTOGRAFIA.md](CARTOGRAFIA.md), con su test: Observatorio, Verificación, Construcción, Sesiones locales, music.ia, image.ia, Tintero y el Taller.
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
 
 ---

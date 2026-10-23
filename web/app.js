@@ -2,9 +2,10 @@
 // Navegación de dos niveles: sidebar (globales + apps) + top-tabs por app
 // ─────────────────────────────────────────
 // Sidebar: Observatorio (global) + apps (chat.ia, music.ia, image.ia, Substack) +
-// Configuracion (global, al pie). Cada app puede tener sub-pasos en una
-// tira de top-tabs encima del panel. Hoy solo chat.ia los tiene:
-// Verificacion / Construccion / Cartografia / Reconexion.
+// Herramientas + Configuracion (global, al pie). Cada entrada puede tener sub-pasos
+// en una tira de top-tabs encima del panel (un .top-tabs con su data-app). Hoy:
+// chat.ia (Verificacion / Construccion / Cartografia / Sesiones locales) y
+// Herramientas (Galerias / Taller).
 //
 // Estado: no hay variables globales; la fuente de verdad es la clase
 // .active en los botones y paneles. showTab() sigue siendo el punto de
@@ -22,6 +23,7 @@ const APP_DEFAULT_TAB = {
   "music-app":    "musicology",
   "image-app":    "image",
   "substack-app": "substack",
+  "tools-app":    "galerias",
 };
 
 // Mapeo inverso: dado un sub-panel de una app, a que app pertenece.
@@ -36,6 +38,8 @@ const TAB_TO_APP = {
   "musicology": "music",
   "image":      "image",
   "substack":   "substack",
+  "galerias":   "tools",
+  "taller":     "tools",
 };
 
 const tabButtons = document.querySelectorAll(".tab-btn");
@@ -59,14 +63,13 @@ function showTab(name) {
     b.classList.toggle("active", active);
   });
 
-  // 2) Top-tabs de chat.ia: solo visibles cuando la app activa es chat.
-  const chatTabs = document.getElementById("chat-tabs");
-  if (chatTabs) {
-    chatTabs.style.display = (appOwning === "chat") ? "flex" : "none";
-    chatTabs.querySelectorAll(".top-tab").forEach(t => {
+  // 2) Top-tabs: cada tira se ve solo cuando su app (data-app) es la activa.
+  document.querySelectorAll(".top-tabs").forEach(tira => {
+    tira.style.display = (tira.dataset.app === appOwning) ? "flex" : "none";
+    tira.querySelectorAll(".top-tab").forEach(t => {
       t.classList.toggle("active", t.dataset.tab === targetPanel);
     });
-  }
+  });
 
   // 3) Panel: mostrar el que toca.
   panels.forEach(p => p.classList.toggle("active", p.id === `panel-${targetPanel}`));
@@ -82,9 +85,9 @@ function showTab(name) {
 // Sidebar: cualquier .tab-btn dispara showTab con su data-tab.
 tabButtons.forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
-// Top-tabs de chat.ia: cada sub-tab dispara showTab con su data-tab
-// canonico (verificar/run/gizmos/reconexion), y showTab se encarga
-// del resto -- incluido mantener activo el boton chat.ia en el sidebar.
+// Top-tabs: cada sub-tab dispara showTab con su data-tab canonico
+// (verificar/run/gizmos/reconexion, galerias/taller), y showTab se encarga
+// del resto -- incluido mantener activo el boton de su app en el sidebar.
 topTabs.forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
 // ─────────────────────────────────────────
@@ -1201,7 +1204,7 @@ async function loadSessionsStat() {
     const data = await (await fetch("/api/sessions/status")).json();
     if (data.error) throw new Error(data.error);
     if (!data.total) {
-      el.innerHTML = `<div class="empty-note">Ninguna todavía. Ingiérelas desde Reconexión.</div>`;
+      el.innerHTML = `<div class="empty-note">Ninguna todavía. Ingiérelas desde Sesiones locales.</div>`;
       return;
     }
     el.innerHTML =

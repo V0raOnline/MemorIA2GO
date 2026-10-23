@@ -52,6 +52,16 @@
       <span class="app-label">Substack</span>
     </button>
 
+    <div class="nav-sep" aria-hidden="true"></div>
+
+    <!-- Herramientas: lo que no es de una sola app. Galerias (mirar) y Taller (reparar), con sus
+         pestanas arriba como chat.ia. Decidido con V0ra el 2026-10-23. -->
+    <button class="tab-btn" data-tab="tools-app" data-app="tools">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+      <span>Herramientas</span>
+      <span id="tools-app-badge" class="app-badge"></span>
+    </button>
+
     <div class="nav-spacer" aria-hidden="true"></div>
     <div class="nav-sep" aria-hidden="true"></div>
 
@@ -86,8 +96,13 @@
       Cartografía <span id="gizmo-count-badge"></span>
     </button>
     <button class="top-tab" data-tab="reconexion">
-      Reconexión <span id="pendientes-count-badge"></span>
+      Sesiones locales <span id="pendientes-count-badge"></span>
     </button>
+  </div>
+
+  <div class="top-tabs" id="tools-tabs" data-app="tools" style="display:none;">
+    <button class="top-tab active" data-tab="galerias">Galerías</button>
+    <button class="top-tab" data-tab="taller">Taller <span id="taller-badge"></span></button>
   </div>
 
   <!-- DASHBOARD -->
@@ -144,7 +159,7 @@
     <div class="card">
       <h2><svg class="h2-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /><path d="m9 9 3 3 3-3" /></svg>Sesiones de agente</h2>
       <div id="dashboard-sessions" class="stat-grid"><div class="empty-note">Cargando...</div></div>
-      <div class="chart-note">Sesiones de Claude Code y Codex traídas a tu vault. Se ingieren desde la pestaña Reconexión.</div>
+      <div class="chart-note">Sesiones de Claude Code y Codex traídas a tu vault. Se ingieren desde la pestaña Sesiones locales.</div>
     </div>
 
     <!-- MUSIC·0LOGY: herramienta hermana, pipeline propio, misma casa.
@@ -869,11 +884,37 @@
     </div>
   </section>
 
+  <!-- HERRAMIENTAS: GALERIAS. La ilustracion de la cabecera la dibuja V0ra (assets/galerias.png):
+       mientras no exista, el hueco se queda vacio. -->
+  <section id="panel-galerias" class="panel">
+    <div class="panel-header">
+      <div class="panel-header-text">
+        <h1>Galerías</h1>
+        <p class="panel-header-desc">Mira lo que guarda tu M3M0R<span class="brand-ia">·IA</span>, de un vistazo.</p>
+        <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
+      </div>
+      <img src="assets/galerias.png" alt="" class="panel-header-icon" onerror="this.style.visibility='hidden'">
+    </div>
+  </section>
+
+  <!-- HERRAMIENTAS: TALLER. Reparaciones y puestas al dia que no piden reprocesar. Ilustracion de V0ra
+       (assets/taller.png), con el mismo hueco. -->
+  <section id="panel-taller" class="panel">
+    <div class="panel-header">
+      <div class="panel-header-text">
+        <h1>Taller</h1>
+        <p class="panel-header-desc">Repara y pon al día tu M3M0R<span class="brand-ia">·IA</span>, sin reprocesar.</p>
+        <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
+      </div>
+      <img src="assets/taller.png" alt="" class="panel-header-icon" onerror="this.style.visibility='hidden'">
+    </div>
+  </section>
+
   <section id="panel-reconexion" class="panel">
     <div class="panel-header">
       <div class="panel-header-text">
-        <h1>Reconexión</h1>
-        <p class="panel-header-desc">Recupera y conecta lo olvidado con tu M3M0R<span class="brand-ia">·IA</span>.</p>
+        <h1>Sesiones locales</h1>
+        <p class="panel-header-desc">Trae a tu M3M0R<span class="brand-ia">·IA</span> lo que vive solo en tu disco.</p>
         <p class="panel-header-brand">Tu memoria. Tu contexto. Listo para pensar contigo.</p>
       </div>
       <img src="assets/reconexion.png" alt="" class="panel-header-icon">
