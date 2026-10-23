@@ -20,10 +20,10 @@ Endpoints:
   POST /api/gizmos            -> guarda nombres, parchea RAW_VAULT in-place
   GET  /api/run                -> SSE, lanza el pipeline completo con log en vivo
   GET  /api/run?from_merge=1  -> SSE, salta el paso 1 (usado tras /api/gizmos)
-  GET  /api/pendientes         -> pendientes de descarga por proveedor (Reconexión)
+  GET  /api/pendientes         -> pendientes de descarga por proveedor (Herramientas → Taller)
   POST /api/pendientes/registrar -> da de alta un pendiente descargado a mano (upload)
   POST /api/pendientes/descartar -> marca un pendiente (web o generación) como descartado
-  POST /api/reindex            -> relanza paso4_indices sin reprocesar (Reconexión)
+  POST /api/reindex            -> relanza paso4_indices sin reprocesar (Herramientas → Taller)
   GET  /api/layout             -> ¿el vault usa el layout español? (pinta la card o no)
   POST /api/layout/migrate     -> renombra el layout al inglés y reengancha enlaces
   POST /api/substack/verify    -> qué trae el export de Substack y qué NO (Inkwell)
@@ -31,6 +31,10 @@ Endpoints:
   GET  /api/galerias           -> estado de las dos galerias (Herramientas → Galerias)
   POST /api/galerias/<cual>/generar -> genera la galeria con log en vivo y la abre en el navegador
   POST /api/galerias/<cual>/abrir   -> abre la ultima galeria generada
+  GET  /api/taller             -> estado de las herramientas del Taller (Herramientas → Taller)
+  GET  /api/taller/avisos      -> avisos de "imagen no disponible" que quedan (lento la 1a vez)
+  POST /api/taller/recuperar   -> recuperar_imagenes.py con log en vivo (simular o aplicar)
+  POST /api/taller/recuperar/deshacer -> deshace la ultima pasada aplicada
 """
 import argparse
 import json
@@ -887,6 +891,188 @@ def galerias_abrir(cual):
         return jsonify({"error": str(e)}), 500
 
 
+# ─────────────────────────────────────────
+# API: Herramientas → Taller
+# ─────────────────────────────────────────
+# Reparaciones y puestas al dia que no piden reprocesar. Cada herramienta es un plegable con su estado
+# en el titulo; aqui se calcula ese estado. El de "Recuperar imagenes" va aparte (/api/taller/avisos):
+# contar los avisos es leer todas las notas (55 s en el vault real), asi que se calcula una vez, se
+# recuerda, y solo se vuelve a contar tras aplicar o deshacer, que es cuando cambia.
+_avisos_cache: dict = {}
+_avisos_lock = threading.Lock()
+# Donde recuperar_imagenes.py deja sus copias de seguridad, y donde "deshacer" las busca. Variable de
+# modulo a proposito: los tests la apuntan a una carpeta temporal y nunca ven las copias reales.
+LOGS_DIR = HERE / "logs"
+PREFIJO_COPIA_RECUPERAR = "recuperar_imagenes_"
+MARCA_DESHECHA = "deshecho.json"          # dentro de una copia ya deshecha: "deshacer la ultima" la salta
+
+
+def _cfg_rutas():
+    from config_loader import load_config, get_path
+    cfg = load_config(str(CONFIG_PATH))
+    return {k: get_path(cfg, k) for k in ("base_vault", "exports_dir", "substack_vault")}
+
+
+def _exports_chatgpt(exports_dir) -> list:
+    """Los zips de ChatGPT de la carpeta de exports, el mas reciente primero. Se reconocen con la misma
+    deteccion que la Verificacion (solo lee el indice del zip, no lo descomprime)."""
+    from preflight import validate_export_file
+    if not exports_dir or not Path(exports_dir).is_dir():
+        return []
+    salida = []
+    for z in Path(exports_dir).glob("*.zip"):
+        # Solo los dos formatos de ChatGPT que traen imagenes. "chatgpt_zip_html" (el degradado, solo
+        # HTML) no las trae, y ademas es como se clasifica hoy el frames-000.zip del export nuevo de Claude.
+        if validate_export_file(z).get("tipo") not in ("chatgpt_zip", "chatgpt_zip_fragmentado"):
+            continue
+        m = re.search(r"(\d{4}-\d{2}-\d{2})", z.name)
+        fecha = m.group(1) if m else datetime.fromtimestamp(z.stat().st_mtime).strftime("%Y-%m-%d")
+        salida.append({"ruta": str(z), "nombre": z.name, "fecha": fecha, "mb": round(z.stat().st_size / 1048576)})
+    return sorted(salida, key=lambda e: (e["fecha"], e["nombre"]), reverse=True)
+
+
+def _copias_recuperar() -> list:
+    """Las copias de seguridad de recuperar_imagenes.py que aun se pueden deshacer, la mas reciente primero."""
+    if not LOGS_DIR.is_dir():
+        return []
+    copias = [c for c in LOGS_DIR.iterdir() if c.is_dir() and c.name.startswith(PREFIJO_COPIA_RECUPERAR)
+              and (c / "diario.json").is_file() and not (c / MARCA_DESHECHA).exists()]
+    return sorted(copias, key=lambda c: c.name, reverse=True)
+
+
+def _describir_copia(copia: Path) -> dict:
+    """Que desharia "Deshacer la ultima": su fecha (del nombre) y de que pasada es."""
+    m = re.match(PREFIJO_COPIA_RECUPERAR + r"(\d{8})_(\d{6})(_\w+)?$", copia.name)
+    fecha = (datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").isoformat(timespec="seconds")
+             if m else None)
+    tipo = {"_biblioteca": "biblioteca", "_metadatos": "metadatos"}.get(m.group(3) if m else None, "avisos")
+    return {"nombre": copia.name, "fecha": fecha, "tipo": tipo}
+
+
+@app.route("/api/taller")
+def taller_estado():
+    """El estado de cada herramienta del Taller para su titulo plegado (menos los avisos, que van aparte)."""
+    try:
+        rutas = _cfg_rutas()
+        base, exports, sv = rutas["base_vault"], rutas["exports_dir"], rutas["substack_vault"]
+        copias = _copias_recuperar()
+        out = {"recuperar": {"exports": _exports_chatgpt(exports),
+                             "deshacer": _describir_copia(copias[0]) if copias else None}}
+        if not base:
+            out["recuperar"]["falta"] = "Configure base_vault first"
+        # Indices: la fecha de _tree_index.md, que el paso 4 reescribe siempre. Si una recuperacion de
+        # imagenes cambio notas despues, los indices se han quedado viejos.
+        arbol = Path(base) / "MERGED_VAULT" / "_tree_index.md" if base else None
+        if arbol and arbol.is_file():
+            fecha = arbol.stat().st_mtime
+            ultima_rep = max((c.stat().st_mtime for c in copias), default=0)
+            out["indices"] = {"fecha": datetime.fromtimestamp(fecha).isoformat(timespec="seconds"),
+                              "viejos": ultima_rep > fecha}
+        else:
+            out["indices"] = {"fecha": None}
+        # Tintero: la misma regla que el aviso de la verificacion (layout de un solo export en la raiz
+        # y varias publicaciones, o el vault ya organizado por publicaciones).
+        if sv and exports:
+            from substack_stats import bsv
+            legado = bsv.layout_antiguo(sv)
+            pubs, _ = bsv.exports_por_publicacion(Path(exports))
+            out["tintero"] = {"hace_falta": bool(legado) and (len(pubs) > 1 or bsv.ya_por_publicaciones(sv)),
+                              "legado": legado}
+        else:
+            out["tintero"] = {"falta": "Configure substack_vault first"}
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/taller/avisos")
+def taller_avisos():
+    """{avisos, imagenes}: los avisos de 'imagen no disponible en el export' que quedan en las notas.
+    Lento la primera vez (lee todas las notas); despues, de memoria hasta que algo los cambie."""
+    try:
+        base = _cfg_rutas()["base_vault"]
+        if not base:
+            return jsonify({"falta": "Configure base_vault first"})
+        with _avisos_lock:
+            if _avisos_cache.get("base") != str(base):
+                import recuperar_imagenes as rec
+                por_puntero, _, _ = rec.buscar_avisos(Path(base))
+                _avisos_cache.update(base=str(base), avisos=sum(len(v) for v in por_puntero.values()),
+                                     imagenes=len(por_puntero))
+            return jsonify({"avisos": _avisos_cache["avisos"], "imagenes": _avisos_cache["imagenes"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/taller/recuperar", methods=["POST"])
+def taller_recuperar():
+    """recuperar_imagenes.py con su log en vivo. Sin `aplicar`, simulacion (no escribe nada)."""
+    cuerpo = request.get_json(silent=True) or {}
+    rutas = _cfg_rutas()
+    base = rutas["base_vault"]
+    if not base:
+        return jsonify({"error": "Configure base_vault first"}), 400
+    # Solo un export de la lista: la ruta no se acepta tal cual del cliente.
+    validos = {e["ruta"]: e for e in _exports_chatgpt(rutas["exports_dir"])}
+    export = str(cuerpo.get("export") or "")
+    if export not in validos:
+        return jsonify({"error": "Choose a ChatGPT export from your exports folder"}), 400
+    aplicar = bool(cuerpo.get("aplicar"))
+    args = [sys.executable, str(HERE / "recuperar_imagenes.py"), "--export", export, "--base-vault", str(base),
+            "--logs", str(LOGS_DIR)]
+    if cuerpo.get("biblioteca"):
+        args.append("--biblioteca")
+    if aplicar:
+        args.append("--aplicar")
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "A run is already in progress"}), 409
+
+    def generate():
+        try:
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "MEMORIA_CONFIG": str(CONFIG_PATH)}
+            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                    encoding="utf-8", errors="replace", bufsize=1, env=env)
+            for line in proc.stdout:
+                # La ultima linea habla de --aplicar y de --deshacer (linea de ordenes): aqui estan los botones.
+                if "--aplicar." in line or "python recuperar_imagenes.py --deshacer" in line:
+                    continue
+                yield line.rstrip() + "\n"
+            proc.wait()
+            if aplicar:
+                _avisos_cache.clear()          # las notas han cambiado: se vuelven a contar
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/taller/recuperar/deshacer", methods=["POST"])
+def taller_recuperar_deshacer():
+    """Deshace la ultima pasada con --aplicar: restaura sus notas desde su copia y la marca como deshecha
+    (no la borra). Pulsar otra vez deshace la anterior, en orden inverso, que es el orden correcto."""
+    copias = _copias_recuperar()
+    if not copias:
+        return jsonify({"error": "There is nothing to undo"}), 404
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "A run is already in progress"}), 409
+    try:
+        import recuperar_imagenes as rec
+        copia = copias[0]
+        n = rec.deshacer(copia, log=lambda *_: None)
+        (copia / MARCA_DESHECHA).write_text(json.dumps({"deshecho": datetime.now().isoformat(timespec="seconds"),
+                                                        "notas": n}), encoding="utf-8")
+        _avisos_cache.clear()
+        return jsonify({"ok": True, "copia": copia.name, "notas": n})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        run_lock.release()
+
+
 def _con_substack(stats: dict, cfg: dict) -> dict:
     """Añade la tarjeta de Inkwell al payload del dashboard.
 
@@ -1174,7 +1360,7 @@ def post_gizmos():
 
 
 # ─────────────────────────────────────────
-# API: Reconexión — pendientes de descarga de Grok + regenerar índices
+# API: Taller — pendientes de descarga de Grok + regenerar índices
 # ─────────────────────────────────────────
 
 def _ruta_pendientes(base_vault, proveedor: str):

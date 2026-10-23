@@ -498,7 +498,10 @@ def main(argv=None) -> int:
                     help="Instead of repairing notes: complete in the GENERATED manifest what each image was "
                          "generated with (tool, chat model, whether it is an edit), taken exactly from the export")
     ap.add_argument("--deshacer", metavar="FOLDER", help="Restore the notes from the backup of an --aplicar run")
+    ap.add_argument("--logs", metavar="FOLDER",
+                    help="Where to save the backups (default: logs/ next to the program)")
     args = ap.parse_args(argv)
+    logs = Path(args.logs) if args.logs else None
 
     try:
         if args.deshacer:
@@ -510,7 +513,7 @@ def main(argv=None) -> int:
         if not base:
             ap.error("--base-vault is required (there is no base_vault in memoria_config.yaml)")
         if args.metadatos:
-            m = completar_metadatos(Path(args.export), Path(base), aplicar=args.aplicar)
+            m = completar_metadatos(Path(args.export), Path(base), aplicar=args.aplicar, carpeta_logs=logs)
             print()
             print("DRY RUN (nothing written)" if not m["aplicado"] else "DONE")
             print(f"  generated images in the manifest: {m['en_manifiesto']} | without a generator: {m['sin_generador']} | "
@@ -518,7 +521,8 @@ def main(argv=None) -> int:
             if m["copia"]:
                 print(f"  to undo:                    python recuperar_imagenes.py --deshacer \"{m['copia']}\"")
             return 0
-        r = recuperar(Path(args.export), Path(base), aplicar=args.aplicar, biblioteca=args.biblioteca)
+        r = recuperar(Path(args.export), Path(base), aplicar=args.aplicar, biblioteca=args.biblioteca,
+                      carpeta_logs=logs)
     except ErrorRecuperar as e:
         print(f"[error] {e}")
         return 2

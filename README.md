@@ -185,7 +185,7 @@ This starts **outside** the tool, and it's the one thing it can't do for you. Yo
 |---|---|
 | **ChatGPT** | Settings → Data controls → Export data. A ZIP arrives by email |
 | **Claude** | Settings → Privacy → Export data. Arrives by email. Since 2026-09 the new export is **five single-use ZIPs** (`conversations`, `projects`, `memories`, `frames`, `light_metadata`) described by a JSON manifest — download all of them to the exports folder; the old format (a single ZIP) still works. See the *New* section above |
-| **Grok** | Settings → Data → Download your data. The export includes conversations and part of your Imagine generations; some arrive only as a link and M3M0R·IA downloads them separately with the pending-downloads tool (Reconnection tab). To bring in your **whole** Imagine library, see the row *Copilot · Grok Imagine (images)* |
+| **Grok** | Settings → Data → Download your data. The export includes conversations and part of your Imagine generations; some arrive only as a link and M3M0R·IA downloads them separately with the pending-downloads tool (Tools → Workshop). To bring in your **whole** Imagine library, see the row *Copilot · Grok Imagine (images)* |
 | **Copilot** | Export your activity history: you get **CSV** files (`copilot-activity-history.csv` and company; some may arrive empty). Drop them as they are into the exports folder. They don't include the images |
 | **Copilot · Grok Imagine** *(images)* | There's no export: the library is downloaded from **image.ia** through its API. Copilot asks for a **token** (the `Authorization` header) and Grok for the grok.com session **cookie**, both copied from your browser — see **[IM_STUCK.md](IM_STUCK.md)** |
 | **Substack** | Dashboard → Settings → Import/Export |

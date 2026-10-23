@@ -78,7 +78,7 @@ function showTab(name) {
   if (targetPanel === "dashboard") loadDashboard();
   if (targetPanel === "gizmos") loadGizmos();
   if (targetPanel === "verificar") loadVerificarBadge();
-  if (targetPanel === "reconexion") loadReconexion();
+  if (targetPanel === "taller") { loadTaller(); loadPendientes(); }
   if (targetPanel === "galerias") loadGalerias();
 }
 
@@ -772,8 +772,16 @@ async function substackBuild() {
 // Migrar lo antiguo a la carpeta de su publicacion. Dos pasos a proposito: el primero solo ensena
 // el plan (el servidor no mueve nada sin `aplicar`), y el boton de mover aparece despues de verlo.
 function mostrarMigracion(visible) {
-  document.getElementById("substack-migrar").style.display = visible ? "" : "none";
+  document.getElementById("substack-migrar-aviso").style.display = visible ? "" : "none";
 }
+
+document.getElementById("link-substack-migrar").addEventListener("click", (e) => {
+  e.preventDefault();
+  showTab("taller");
+  const fold = document.getElementById("fold-migrar");
+  fold.open = true;
+  fold.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 async function substackMigrar(aplicar) {
   const msg = document.getElementById("substack-migrar-msg");
@@ -943,7 +951,7 @@ async function saveGizmos() {
 document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos);
 
 // ─────────────────────────────────────────
-// Reconexión: pendientes de descarga por proveedor + regenerar índices
+// Taller: pendientes de descarga por proveedor + regenerar índices (antes en Reconexión)
 //
 // Dos secciones colapsables (.check-fold, el mismo componente que usa
 // Verificación) porque los dos proveedores traen cosas distintas:
@@ -954,14 +962,20 @@ document.getElementById("btn-save-gizmos").addEventListener("click", saveGizmos)
 // ─────────────────────────────────────────
 let pendientesCache = { grok: [], chatgpt: [] };
 
-async function loadReconexion() {
+async function loadPendientes() {
   const listEl = document.getElementById("pendientes-list");
   listEl.innerHTML = `<div class="empty-note">Loading...</div>`;
 
   comprobarLayout();  // sin await: no debe retrasar la lista de pendientes
 
   const res = await fetch("/api/pendientes");
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  // Un error no es una lista vacia: antes salia "Nada pendiente" (y en verde) sin poder leerlos.
+  if (!res.ok || data.error) {
+    listEl.innerHTML = `<div class="empty-note">They couldn't be read: ${escapeHtml(data.error || `HTTP ${res.status}`)}</div>`;
+    ponerEstado("pendientes-estado", "can't be read", "aviso");
+    return;
+  }
   pendientesCache = {
     grok: Array.isArray(data.grok) ? data.grok : [],
     chatgpt: Array.isArray(data.chatgpt) ? data.chatgpt : [],
@@ -987,6 +1001,9 @@ async function loadReconexion() {
 
 function actualizarBadgePendientes(n) {
   document.getElementById("pendientes-count-badge").textContent = n > 0 ? `(${n})` : "";
+  const estado = document.getElementById("pendientes-estado");
+  estado.textContent = n > 0 ? `${n.toLocaleString("en-GB")} pending` : "nothing pending";
+  estado.className = `source-sub estado ${n > 0 ? "aviso" : "ok"}`;
 }
 
 function seccionPendientes(proveedor, titulo, descripcion, items) {
@@ -1227,6 +1244,7 @@ document.getElementById("btn-reindex").addEventListener("click", async () => {
     if (data.error) throw new Error(data.error);
     msg.textContent = "Indexes rebuilt.";
     msg.className = "msg ok";
+    loadTaller();
   } catch (e) {
     msg.textContent = `Error: ${e.message}`;
     msg.className = "msg error";
@@ -2047,3 +2065,143 @@ document.getElementById("btn-galeria-tintero").addEventListener("click", () =>
   generarGaleria("tintero", { sin_red: document.getElementById("galeria-tintero-sin-red").checked }));
 document.getElementById("btn-galeria-imagenes-abrir").addEventListener("click", () => abrirGaleria("imagenes"));
 document.getElementById("btn-galeria-tintero-abrir").addEventListener("click", () => abrirGaleria("tintero"));
+
+// ─────────────────────────────────────────
+// Herramientas → Taller
+// ─────────────────────────────────────────
+// Cada herramienta es un plegable con su estado en el titulo (GET /api/taller). Los avisos de
+// "imagen no disponible" van aparte (GET /api/taller/avisos): contarlos es leer todas las notas, asi
+// que el servidor lo hace una vez y lo recuerda hasta que una recuperacion los cambia.
+function ponerEstado(id, texto, tipo) {
+  const el = document.getElementById(id);
+  el.textContent = texto;
+  el.className = `source-sub estado ${tipo || ""}`.trim();
+}
+
+async function loadTaller() {
+  // Si el estado no se puede leer (p. ej. sin configuracion), se dice en cada titulo: callarse dejaba
+  // "contando avisos…" para siempre, que es justo un fallo que no da error.
+  const sinEstado = () => ["recuperar-estado", "reindex-estado", "migrar-estado"].forEach((id) =>
+    ponerEstado(id, "can't be read: check Configuration", "aviso"));
+  let d = {};
+  try {
+    d = await (await fetch("/api/taller")).json();
+  } catch (_) { sinEstado(); return; }
+  if (d.error) { sinEstado(); return; }
+
+  // Recuperar: la lista de exports de ChatGPT y si hay algo que deshacer
+  const sel = document.getElementById("recuperar-export");
+  const elegido = sel.value;
+  const exports = (d.recuperar && d.recuperar.exports) || [];
+  sel.innerHTML = exports.length
+    ? exports.map((e) => `<option value="${escapeHtml(e.ruta)}">${e.fecha} · ${escapeHtml(e.nombre.length > 34 ? e.nombre.slice(0, 18) + "…" + e.nombre.slice(-12) : e.nombre)} (${e.mb.toLocaleString("en-GB")} MB)</option>`).join("")
+    : `<option value="">There are no ChatGPT exports in your exports folder</option>`;
+  if (elegido && exports.some((e) => e.ruta === elegido)) sel.value = elegido;
+  document.getElementById("btn-recuperar-simular").disabled = !exports.length;
+  // "Deshacer la ultima" dice cual: la fecha y de que pasada es (avisos, biblioteca o metadatos).
+  const TIPOS = { avisos: "notices", biblioteca: "library", metadatos: "metadata" };
+  const ultima = d.recuperar && d.recuperar.deshacer;
+  const btnDes = document.getElementById("btn-recuperar-deshacer");
+  btnDes.disabled = !ultima;
+  const tipo = ultima ? (TIPOS[ultima.tipo] || ultima.tipo) : "";
+  btnDes.textContent = ultima ? `Undo the latest (${fechaCorta(ultima.fecha) || "?"} · ${tipo})` : "Undo the latest";
+  btnDes.dataset.copia = ultima ? `${fechaCorta(ultima.fecha) || ultima.nombre}, ${tipo}` : "";
+  cargarAvisos();
+
+  // Indices: la fecha de los ultimos, y si una recuperacion cambio notas despues
+  const ix = d.indices || {};
+  if (!ix.fecha) ponerEstado("reindex-estado", "not built yet", "aviso");
+  else if (ix.viejos) ponerEstado("reindex-estado", `last: ${fechaCorta(ix.fecha)} · older than the latest recovery`, "aviso");
+  else ponerEstado("reindex-estado", `last: ${fechaCorta(ix.fecha)}`);
+
+  // Tintero: si hace falta mover lo antiguo
+  const ti = d.tintero || {};
+  if (ti.falta) ponerEstado("migrar-estado", ti.falta.replace("Configure", "configure").replace(" first", ""), "");
+  else if (ti.hace_falta) ponerEstado("migrar-estado", "needed: building refuses until it's moved", "aviso");
+  else ponerEstado("migrar-estado", "not needed", "ok");
+}
+
+async function cargarAvisos() {
+  ponerEstado("recuperar-estado", "counting notices…");
+  try {
+    const a = await (await fetch("/api/taller/avisos")).json();
+    if (a.falta) ponerEstado("recuperar-estado", a.falta.replace("Configure", "configure").replace(" first", ""), "aviso");
+    else if (a.error) ponerEstado("recuperar-estado", "couldn't be counted", "aviso");
+    else if (!a.avisos) ponerEstado("recuperar-estado", "no notices in your notes", "ok");
+    else ponerEstado("recuperar-estado",
+      `${a.avisos.toLocaleString("en-GB")} notices · ${a.imagenes.toLocaleString("en-GB")} images`, "aviso");
+  } catch (_) {
+    ponerEstado("recuperar-estado", "couldn't be counted", "aviso");
+  }
+}
+
+// Simular primero; "Aplicar" aparece solo despues de una simulacion que termina bien, y pide
+// confirmacion: cambia notas del vault (con copia de seguridad y vuelta atras).
+async function recuperar(aplicar) {
+  const btnSim = document.getElementById("btn-recuperar-simular");
+  const btnApl = document.getElementById("btn-recuperar-aplicar");
+  const msg = document.getElementById("recuperar-msg");
+  const log = document.getElementById("recuperar-log");
+  const exportElegido = document.getElementById("recuperar-export").value;
+  if (aplicar && !confirm("You're about to change notes in your vault: the notices this export can resolve become the image.\n\n"
+                          + "An exact copy of each note is saved first and it can be undone. Close Obsidian before going on.\n\nApply?")) return;
+  btnSim.disabled = btnApl.disabled = true;
+  msg.textContent = aplicar ? "Applying (this can take a few minutes)..." : "Dry run: reading your notes and the export (this can take a few minutes)...";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+  try {
+    const res = await fetch("/api/taller/recuperar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ export: exportElegido, aplicar,
+                             biblioteca: document.getElementById("recuperar-biblioteca").checked }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const codigo = await leerLogEnVivo(res, log);
+    if (codigo !== 0) throw new Error("it didn't finish cleanly — see the details");
+    if (aplicar) {
+      btnApl.style.display = "none";
+      msg.textContent = "Done. If you like, rebuild the indexes so they pick it up.";
+      loadTaller();
+    } else {
+      btnApl.style.display = "";
+      msg.textContent = "Dry run finished: nothing was written. If the numbers look right, press “Apply”.";
+    }
+    msg.className = "msg ok";
+  } catch (e) {
+    btnApl.style.display = "none";
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btnSim.disabled = btnApl.disabled = false;
+  }
+}
+
+async function deshacerRecuperacion() {
+  const msg = document.getElementById("recuperar-msg");
+  const cual = document.getElementById("btn-recuperar-deshacer").dataset.copia;
+  if (!confirm(`This undoes the latest applied recovery (${cual}): what it changed is restored from its backup. `
+               + "Images copied to the banks stay.\n\nUndo?")) return;
+  try {
+    const res = await fetch("/api/taller/recuperar/deshacer", { method: "POST" });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    msg.textContent = `Undone: ${d.notas.toLocaleString("en-GB")} notes restored (${d.copia}).`;
+    msg.className = "msg ok";
+    loadTaller();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  }
+}
+
+document.getElementById("btn-recuperar-simular").addEventListener("click", () => recuperar(false));
+document.getElementById("btn-recuperar-aplicar").addEventListener("click", () => recuperar(true));
+document.getElementById("btn-recuperar-deshacer").addEventListener("click", deshacerRecuperacion);
+// Cambiar de export o de opcion invalida la simulacion anterior: hay que volver a simular.
+["recuperar-export", "recuperar-biblioteca"].forEach((id) => document.getElementById(id).addEventListener("change", () => {
+  document.getElementById("btn-recuperar-aplicar").style.display = "none";
+}));

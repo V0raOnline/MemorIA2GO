@@ -220,6 +220,6 @@ def verificar_export(exports_dir, stats_csv=None, vault=None) -> dict:
             avisos.append({"tipo": "layout_antiguo",
                            "texto": f"The Inkwell vault has the single-export layout ({', '.join(legado)}) "
                                     f"and there are {len(pubs)} publications. Building will refuse until you move it "
-                                    "to its own folder (use the migration block under \u201cBuild the vault\u201d): "
+                                    "to its own folder (Tools \u2192 Workshop \u2192 \u201cMove Inkwell's old layout\u201d): "
                                     "it would leave that publication duplicated."})
     return {"encontrado": True, "publicaciones": bloques, "avisos": avisos}

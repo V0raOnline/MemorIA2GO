@@ -96,13 +96,13 @@
       Cartography <span id="gizmo-count-badge"></span>
     </button>
     <button class="top-tab" data-tab="reconexion">
-      Local sessions <span id="pendientes-count-badge"></span>
+      Local sessions
     </button>
   </div>
 
   <div class="top-tabs" id="tools-tabs" data-app="tools" style="display:none;">
     <button class="top-tab active" data-tab="galerias">Galleries</button>
-    <button class="top-tab" data-tab="taller">Workshop <span id="taller-badge"></span></button>
+    <button class="top-tab" data-tab="taller">Workshop <span id="pendientes-count-badge"></span></button>
   </div>
 
   <!-- DASHBOARD -->
@@ -868,20 +868,11 @@
       <div id="substack-build-msg" class="msg"></div>
       <pre id="substack-build-out" class="log-box" style="display:none;"></pre>
 
-      <!-- Solo aparece si el vault tiene el layout de cuando habia un solo export (Posts/, Borradores/...
-           en la raiz) y hay varias publicaciones. Dos pasos: primero se ve el plan, luego se aplica. -->
-      <div id="substack-migrar" style="display:none; margin-top:22px;">
-        <div class="sb-ausencias-label">The old layout at the vault root</div>
-        <p class="card-help">
-          Your Inkwell vault has the layout from when there was a single export. To build several
-          publications it has to be moved to its own publication's folder: the tool identifies it by
-          the notes' <code>post_id</code> values, <strong>deletes nothing</strong> and checks every file
-          when it finishes. Close Obsidian before moving it.
-        </p>
-        <button class="btn secondary" id="btn-substack-migrar-plan">See what would be moved</button>
-        <button class="btn" id="btn-substack-migrar-aplicar" style="display:none;">Move the old layout now</button>
-        <div id="substack-migrar-msg" class="msg"></div>
-        <pre id="substack-migrar-out" class="log-box" style="display:none;"></pre>
+      <!-- Si el vault tiene el layout de un solo export y hay varias publicaciones, construir se niega:
+           moverlo vive ahora en Herramientas → Taller. Aqui solo se avisa y se lleva alli. -->
+      <div id="substack-migrar-aviso" class="msg error" style="display:none; margin-top:14px;">
+        Your Inkwell vault has the layout from when there was a single export: move it before building, in
+        <a href="#" id="link-substack-migrar">Tools → Workshop → Move Inkwell's old layout</a>.
       </div>
     </div>
   </section>
@@ -960,6 +951,91 @@
       </div>
       <img src="assets/taller.png" alt="" class="panel-header-icon" onerror="this.style.visibility='hidden'">
     </div>
+
+    <!-- Cada herramienta, plegada con su estado en el titulo (GET /api/taller; los avisos aparte, en
+         GET /api/taller/avisos, porque contarlos es leer todas las notas). -->
+    <details class="source-fold herramienta" id="fold-recuperar">
+      <summary>
+        <span class="source-name">Recover ChatGPT images</span>
+        <span class="source-sub estado" id="recuperar-estado">counting notices…</span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          If your notes say <em>imagen no disponible en el export</em>, the image may be in your exports:
+          ChatGPT's format changed in 2026 and M3M0R·IA wasn't seeing it. This puts it back in place
+          <strong>without reprocessing</strong> (reprocessing would duplicate your conversations), with a backup
+          and a way back. Run it with every export you keep. How it works: RECOVER_IMAGES.md.
+        </p>
+        <div class="fila-campo">
+          <label for="recuperar-export">ChatGPT export</label>
+          <select id="recuperar-export" class="input"></select>
+        </div>
+        <label class="sb-check">
+          <input type="checkbox" id="recuperar-biblioteca" checked>
+          <span>Also attach the library's generated images to their conversation</span>
+        </label>
+        <div class="fila-botones">
+          <button class="btn" id="btn-recuperar-simular">Dry run</button>
+          <button class="btn" id="btn-recuperar-aplicar" style="display:none;">Apply</button>
+          <button class="btn secondary" id="btn-recuperar-deshacer">Undo the latest</button>
+        </div>
+        <div id="recuperar-msg" class="msg"></div>
+        <pre id="recuperar-log" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-pendientes">
+      <summary>
+        <span class="source-name">Pending downloads</span>
+        <span class="source-sub estado" id="pendientes-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Content that shows up in your conversations but doesn't ship in the export: all
+          that's left is a link, and it may expire. Download it from there and upload it
+          here, and it gets archived into the bank it belongs to, using the same scheme as
+          the automatic extraction. This app never downloads anything on its own.
+        </p>
+        <div id="pendientes-list"><div class="empty-note">Loading...</div></div>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-reindex">
+      <summary>
+        <span class="source-name">Rebuild indexes</span>
+        <span class="source-sub estado" id="reindex-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Refreshes the per-provider content indexes on MERGED_VAULT and PRJ_VAULT without
+          reprocessing your exports — use it after registering pending downloads, moving
+          assets by hand, or any change that doesn't need the import/merge/organize steps.
+        </p>
+        <button class="btn" id="btn-reindex">Rebuild indexes</button>
+        <div id="reindex-msg" class="msg"></div>
+      </div>
+    </details>
+
+    <details class="source-fold herramienta" id="fold-migrar">
+      <summary>
+        <span class="source-name">Move Inkwell's old layout</span>
+        <span class="source-sub estado" id="migrar-estado"></span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          If your Inkwell vault has the layout from when there was a single export and you now have several
+          publications, the old layout has to be moved to its publication's folder before building: the tool
+          identifies it by the notes' <code>post_id</code> values, <strong>deletes nothing</strong> and checks
+          every file when it finishes. It shows the plan first; close Obsidian before moving.
+        </p>
+        <div class="fila-botones">
+          <button class="btn secondary" id="btn-substack-migrar-plan">See what would be moved</button>
+          <button class="btn" id="btn-substack-migrar-aplicar" style="display:none;">Move the old layout now</button>
+        </div>
+        <div id="substack-migrar-msg" class="msg"></div>
+        <pre id="substack-migrar-out" class="log-box" style="display:none;"></pre>
+      </div>
+    </details>
   </section>
 
   <section id="panel-reconexion" class="panel">
@@ -972,16 +1048,6 @@
       <img src="assets/reconexion.png" alt="" class="panel-header-icon">
     </div>
 
-    <div class="card">
-      <h2>Pending downloads</h2>
-      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
-        Content that shows up in your conversations but doesn't ship in the export: all
-        that's left is a link, and it may expire. Download it from there and upload it
-        here, and it gets archived into the bank it belongs to, using the same scheme as
-        the automatic extraction. This app never downloads anything on its own.
-      </p>
-      <div id="pendientes-list"><div class="empty-note">Loading...</div></div>
-    </div>
 
     <!-- Solo se muestra si /api/layout detecta el layout espanol -->
     <div class="card" id="card-layout" style="display:none;">
@@ -1023,16 +1089,6 @@
       <div id="sessions-msg" class="msg"></div>
     </div>
 
-    <div class="card">
-      <h2>Rebuild indexes</h2>
-      <p style="color:var(--text-dim); font-size:13px; margin-top:-6px;">
-        Refreshes the per-provider content indexes on MERGED_VAULT and PRJ_VAULT without
-        reprocessing your exports — use it after registering pending downloads, moving
-        assets by hand, or any change that doesn't need the import/merge/organize steps.
-      </p>
-      <button class="btn" id="btn-reindex">Rebuild indexes</button>
-      <div id="reindex-msg" class="msg"></div>
-    </div>
   </section>
 
   <!-- RUN / CONSTRUCTION -->

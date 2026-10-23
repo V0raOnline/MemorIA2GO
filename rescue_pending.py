@@ -62,9 +62,9 @@ QUÉ GARANTIZA
 - **Indistinguible del rescate manual.** Mismo banco, mismo nombre
   `sha1(bytes)[:16]+extensión`, mismo manifest y mismo modelo de estados que
   `registrar_pendiente()` de `launcher.py`. Un fichero rescatado aquí y otro
-  subido por la pestaña Reconexión no se diferencian en nada.
+  subido desde el Taller (Herramientas) no se diferencian en nada.
 - **No inventa rescates.** Si la descarga falla, la entrada se queda TAL CUAL
-  (sin `estado`), así que sigue apareciendo en Reconexión para hacerla a mano.
+  (sin `estado`), así que sigue apareciendo en el Taller para hacerla a mano.
   Nunca se marca `error`: eso la escondería de la pestaña, que es justo lo
   contrario de lo que hace falta.
 - **No archiva basura.** Una URL sin autenticación puede responder 200 con una
@@ -456,7 +456,7 @@ def rescatar(base_vault: Path,
                 fname = archivar(base_vault, proveedor, entrada, data)
             except ErrorDeRescate as e:
                 # La entrada se queda intacta y sin `estado`: sigue saliendo en
-                # Reconexión para rescatarla a mano.
+                # el Taller para rescatarla a mano.
                 stats["fallidos"] += 1
                 stats["fallos"].append((etiqueta, str(e)))
                 log("  [%d/%d] %-50s FALLA: %s" % (i, len(cola), etiqueta, e))
@@ -495,7 +495,7 @@ def _resumen(stats: dict, log=print) -> None:
             % stats["desconocidos"])
     if stats["fallos"]:
         log("")
-        log("Los fallidos siguen sin triar y salen en Reconexión para hacerlos")
+        log("Los fallidos siguen sin triar y salen en Herramientas → Taller para hacerlos")
         log("a mano. Motivos:")
         for ident, motivo in stats["fallos"][:20]:
             log("  · %-50s %s" % (ident, motivo))

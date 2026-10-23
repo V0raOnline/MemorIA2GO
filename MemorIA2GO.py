@@ -613,7 +613,7 @@ def main():
                     help="Skip steps 1-3 entirely and only relaunch paso4_indices over the "
                          "existing MERGED_VAULT/PRJ_VAULT. Meant for refreshing indexes after "
                          "moving assets by hand or registering a manual download, without "
-                         "paying for a full reprocess (Reconnection tab).")
+                         "paying for a full reprocess (Tools -> Workshop).")
     ap.add_argument("--yes", action="store_true",
                     help="Do not ask for confirmation of the loaded config -- accept it directly. "
                          "Needed to run the pipeline without an interactive terminal (e.g. from launcher.py).")
