@@ -10,6 +10,7 @@ No hace falta leerlo entero. Ve a lo tuyo:
 - [No he usado una terminal en mi vida](#no-he-usado-una-terminal-en-mi-vida) — instalar Python y arrancar la aplicación.
 - [Me piden un token de música y no sé qué es eso](#me-piden-un-token-de-música-y-no-sé-qué-es-eso) — sacarlo del navegador, paso a paso. Vale igual para Suno y para Flow Music.
 - [Me piden un token o una cookie para las imágenes](#me-piden-un-token-o-una-cookie-para-las-imágenes) — Copilot pide un token como los de música; Grok pide una **cookie**, que es otra cosa y pesa más.
+- [Mis notas dicen «imagen no disponible», o quiero ver todas mis imágenes](#mis-notas-dicen-imagen-no-disponible-o-quiero-ver-todas-mis-imágenes) — todo está a un botón, en Herramientas. No hace falta consola.
 
 ---
 
@@ -163,6 +164,25 @@ Grok no usa un `Bearer`. Su web se identifica con la **cookie de sesión**, y es
 - **Dice que la cookie o el token ha caducado nada más empezar.** O de verdad caducó, o está mal copiado: los `^` de arriba, o un valor cortado con «…». Cópialo de nuevo.
 - **La descarga se corta a mitad.** Relánzala con una credencial nueva: baja solo lo que falta, y lo ya descargado se conserva.
 - **No encuentro `Artifact.ashx` o `rest/assets`.** Refresca la página con el panel de Network abierto y comprueba que estás en la biblioteca de imágenes, no en el chat.
+
+---
+
+## Mis notas dicen «imagen no disponible», o quiero ver todas mis imágenes
+
+Las dos cosas viven en **Herramientas**, abajo en la barra lateral, y ninguna pide consola.
+
+**Si tus notas de ChatGPT dicen *imagen no disponible en el export*:** en 2026 ChatGPT cambió su export y M3M0R·IA no veía sus imágenes, pero suelen estar en tus zip. Ve a **Herramientas → Taller → Recuperar imágenes de ChatGPT**:
+
+1. Elige un export en el desplegable.
+2. Pulsa **Simular**: te dice cuántas imágenes recuperaría, sin cambiar nada.
+3. Si te cuadra, **cierra Obsidian** y pulsa **Aplicar**. Antes de tocar nada guarda una copia de cada nota, y **Deshacer la última** lo devuelve todo como estaba.
+4. Repite con cada export que conserves: cada uno trae lo suyo. **No reproceses todo para esto**: duplicaría tus conversaciones.
+
+Lo que no está en ningún export no se puede recuperar: por eso conviene no borrar nunca los zip.
+
+**Si quieres ver todas tus imágenes, o todos tus posts:** **Herramientas → Galerías**. «Generar y abrir» hace una página con tus imágenes y vídeos de ChatGPT, Grok y Copilot (o con tus posts de Substack) y la abre en tu navegador. La primera vez tarda unos minutos; después, segundos. No cambia nada de tu vault.
+
+Cómo funcionan por dentro, y lo que sorprende de cada una: [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md), [GALERIA.md](GALERIA.md) y [GALERIA_TINTERO.md](GALERIA_TINTERO.md).
 
 ---
 
