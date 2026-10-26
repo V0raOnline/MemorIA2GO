@@ -166,7 +166,7 @@ _REF = re.compile(r"\{([a-z_.]+)\}")
 CLAVES_DE_INTERRUPTOR = _cierre_de_interruptor()
 
 # Nombres que Windows reserva para dispositivos, con o sin extension ("NUL.txt"
-# tambien lo es). Crear una carpeta asi falla, o peor, no hace lo que parece.
+# tambien lo es). Crear una carpeta asi falla, o peor, no hace lo que parece. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
 _RESERVADOS_WINDOWS = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {f"COM{i}" for i in range(1, 10)}
@@ -552,7 +552,7 @@ def _conflicto_proyectos(base: Path, actual: Layout, pedido_: Layout) -> List[st
     viejo = actual.ruta(base, "claude.proyectos")
     # PRJ_VAULT mezcla dos cosas: las vistas de conversaciones por proyecto (se
     # regeneran) y los proyectos de Claude (`<nombre>/00_proyecto.md`, la unica copia).
-    # Solo importan los segundos.
+    # Solo importan los segundos. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
     if not viejo.is_dir() or not any(viejo.glob("*/00_proyecto.md")):
         return []
     return [f"los proyectos de Claude ya estan en {viejo} y cambiar el vault de proyectos los escribiria "

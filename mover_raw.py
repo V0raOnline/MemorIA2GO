@@ -42,7 +42,7 @@ from typing import Dict, List, Optional, Tuple
 import layout
 
 # Segundos de diferencia admitidos entre la fecha del original y la de la copia:
-# exFAT/FAT redondea a 2 s. Mas que eso es una fecha perdida, y el merge la usa.
+# exFAT/FAT redondea a 2 s. Mas que eso es una fecha perdida, y el merge la usa. V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
 TOLERANCIA_MTIME = 2.0
 SUFIJO_PARCIAL = ".part"
 
@@ -121,7 +121,7 @@ def copiar(origen: Dict[str, Path], destino: Path, por_copiar: List[str]) -> Non
         dst = destino.joinpath(*rel.split("/"))
         dst.parent.mkdir(parents=True, exist_ok=True)
         parcial = dst.with_name(dst.name + SUFIJO_PARCIAL)
-        shutil.copy2(origen[rel], parcial)   # copy2 conserva la fecha de modificacion
+        shutil.copy2(origen[rel], parcial)   # copy2 conserva la fecha de modificacion V0-m3m 2321ada5-21d8-4e91-8539-34e31d5539ea
         os.replace(parcial, dst)
 
 
