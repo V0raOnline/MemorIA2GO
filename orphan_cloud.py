@@ -34,6 +34,7 @@ import unicodedata
 import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
+import layout
 
 from tree_index import read_frontmatter, INDEX_FILENAMES, iter_markdown_files
 
@@ -193,20 +194,22 @@ def project_vocabulary(prj_vault: Path,
 
 
 def iter_orphans(merged_vault: Path):
-    """(ruta, frontmatter) de cada nota huérfana de MERGED_VAULT."""
-    conv = merged_vault / "Conversations"
-    if not conv.exists():
-        return
-    for f in iter_markdown_files(conv):
-        if f.name in INDEX_FILENAMES:
+    """(ruta, frontmatter) de cada nota huérfana del vault fusionado."""
+    # Una carpeta de conversaciones, o una por proveedor si el vault esta partido.
+    for d in layout.cargar().conv_dirs(merged_vault):
+        conv = merged_vault / d
+        if not conv.exists():
             continue
-        fm = read_frontmatter(f)
-        prj = (fm.get("Project_name") or "none").strip().strip('"').lower()
-        if prj in ("none", ""):
-            yield f, fm
+        for f in iter_markdown_files(conv):
+            if f.name in INDEX_FILENAMES:
+                continue
+            fm = read_frontmatter(f)
+            prj = (fm.get("Project_name") or "none").strip().strip('"').lower()
+            if prj in ("none", ""):
+                yield f, fm
 
 
-def build_cloud(base_vault: Path, prj_vault_name: str = "PRJ_VAULT",
+def build_cloud(base_vault: Path, prj_vault_name: Optional[str] = None,
                 gizmo_map_path: Optional[Path] = None,
                 exports_dir: Optional[Path] = None,
                 top: int = 100, max_df_ratio: float = 0.25,
@@ -219,8 +222,9 @@ def build_cloud(base_vault: Path, prj_vault_name: str = "PRJ_VAULT",
     se muestran siempre que aparezcan en alguna huerfana.
     Calibrado contra datos reales: sin el techo, el top-30 era 100%% ruido."""
     base_vault = Path(base_vault)
-    merged = base_vault / "MERGED_VAULT"
-    vocab = project_vocabulary(base_vault / prj_vault_name, gizmo_map_path, exports_dir)
+    lay = layout.cargar(base_vault, prj_vault_name)
+    merged = lay.ruta(base_vault, "merged")
+    vocab = project_vocabulary(lay.ruta(base_vault, "prj"), gizmo_map_path, exports_dir)
 
     df: Dict[str, int] = {}
     total = 0
@@ -270,7 +274,7 @@ def build_cloud(base_vault: Path, prj_vault_name: str = "PRJ_VAULT",
 def notes_for_term(base_vault: Path, term: str, limit: int = 200) -> dict:
     """Notas huérfanas que contienen el término. Para el panel de detalle."""
     base_vault = Path(base_vault)
-    merged = base_vault / "MERGED_VAULT"
+    merged = layout.cargar(base_vault).ruta(base_vault, "merged")
     term_n = _norm(term.strip())
     notas: List[dict] = []
     total = 0
@@ -319,8 +323,8 @@ def _slug_tema(nombre: str) -> str:
 
 
 def generate_topic_index(base_vault: Path, topic_map_path: Path,
-                         subdir: str = "_Topics") -> dict:
-    """Genera una nota por tema en MERGED_VAULT/_Topics con wiki-links a las
+                         subdir: Optional[str] = None) -> dict:
+    """Genera una nota por tema en la carpeta de temas del vault fusionado con wiki-links a las
     huerfanas que contienen alguna de sus palabras (token exacto) o frases
     (subcadena sobre texto normalizado).
 
@@ -336,8 +340,10 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
     vieja (generado_por:) y esta version ya no las reconoce -- documentado
     en el README: hay que borrar el arbol viejo a mano."""
     base_vault = Path(base_vault)
-    merged = base_vault / "MERGED_VAULT"
-    out_dir = merged / subdir
+    lay = layout.cargar(base_vault)
+    merged = lay.ruta(base_vault, "merged")
+    # `subdir` explicito (tests, uso puntual) manda; por defecto, la carpeta de temas del layout.
+    out_dir = (merged / subdir) if subdir else lay.ruta(base_vault, "temas")
     temas = load_topic_map(topic_map_path)
     stats = {"temas": 0, "enlaces": 0, "borradas": 0, "sin_coincidencias": []}
     if not temas:
@@ -512,13 +518,14 @@ def generate_topic_index(base_vault: Path, topic_map_path: Path,
 def main():
     ap = argparse.ArgumentParser(description="Nube de palabras de conversaciones huérfanas (Fase 1, solo lectura).")
     ap.add_argument("base_vault")
-    ap.add_argument("--prj-vault-name", default="PRJ_VAULT")
+    ap.add_argument("--prj-vault-name", default=None,
+                    help="Nombre del vault de proyectos (por defecto, el del layout)")
     ap.add_argument("--gizmo-map", default=None)
     ap.add_argument("--exports-dir", default=None)
     ap.add_argument("--top", type=int, default=40)
     ap.add_argument("--term", help="En vez de la nube, lista las notas que contienen este término")
     ap.add_argument("--generate-topics", action="store_true",
-                    help="Genera el indice de temas en MERGED_VAULT/_Topics a partir del topic map")
+                    help="Genera el indice de temas en la carpeta de temas del vault fusionado a partir del topic map")
     ap.add_argument("--topic-map", default="topic_map.json",
                     help="Ruta al topic_map.json (por defecto, junto al script)")
     args = ap.parse_args()

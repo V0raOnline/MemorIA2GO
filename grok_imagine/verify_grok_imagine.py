@@ -23,7 +23,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-CARPETA_BANCO = "IMAGINE"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import layout  # noqa: E402
+
+# El banco de Imagine dentro de la carpeta GROK, segun el layout activo.
+CARPETA_BANCO = layout.cargar().relativa("grok.imagine", "grok.raiz")
 
 
 def _json(ruta: Path, defecto):

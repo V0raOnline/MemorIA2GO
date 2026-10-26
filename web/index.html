@@ -202,6 +202,14 @@
         <div class="path-suggest" id="suggest-base_vault"></div>
       </div>
       <div class="field">
+        <label for="cfg-raw_vault">Notes source (RAW) — optional</label>
+        <input type="text" id="cfg-raw_vault" autocomplete="off" placeholder="empty = inside the base folder">
+        <div class="path-suggest" id="suggest-raw_vault"></div>
+        <p class="field-help">Raw material for the pipeline, not meant to be opened in Obsidian. If you already have a vault,
+          do not change it here: move it with <code>python mover_raw.py --hacia &lt;folder&gt;</code>
+          or the pipeline will refuse to continue.</p>
+      </div>
+      <div class="field">
         <label for="cfg-exports_dir">Folder with your exports (.zip / .json / .html / .csv)</label>
         <input type="text" id="cfg-exports_dir" autocomplete="off">
         <div class="path-suggest" id="suggest-exports_dir"></div>
@@ -250,6 +258,15 @@
 
     <div class="card">
       <h2>Options</h2>
+      <div class="field">
+        <label for="cfg-layout_preset">Organization of the merged vault</label>
+        <select id="cfg-layout_preset" class="theme-select">
+          <option value="proyectos">All together + projects (default)</option>
+          <option value="unico">All together</option>
+          <option value="proveedor">One folder per provider</option>
+        </select>
+        <p class="field-help" id="layout-preset-help"></p>
+      </div>
       <div class="field">
         <label for="cfg-prj_vault_name">Project vault name</label>
         <input type="text" id="cfg-prj_vault_name">

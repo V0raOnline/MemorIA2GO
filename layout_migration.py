@@ -46,56 +46,66 @@ try:
 except Exception:
     pass
 
+import layout
 import relink_assets
 
-# Carpetas a renombrar, relativas a base_vault, siempre ruta VIEJA entera ->
-# ruta NUEVA entera. Los padres van antes que sus hijos.
-#
-# Ojo con CLAUDE/ARTEFACTOS/codigo: para cuando le toca el turno, su carpeta
-# padre ya se llama ARTIFACTS, asi que no esta donde dice la columna
-# izquierda. De eso se encarga _origen_actual(), que mira las dos
-# posibilidades -- expresarlo aqui con el nombre nuevo del padre parecia mas
-# simple pero rompia la deteccion, que corre ANTES de renombrar nada: la
-# subcarpeta no se veia en la primera pasada y hacian falta dos corridas.
-CARPETAS: List[Tuple[str, str]] = [
-    ("RAW_VAULT/Conversaciones", "RAW_VAULT/Conversations"),
-    ("MERGED_VAULT/Conversaciones", "MERGED_VAULT/Conversations"),
-    ("MERGED_VAULT/_Temas", "MERGED_VAULT/_Topics"),
-    ("CHATGPT/GENERADAS", "CHATGPT/GENERATED"),
-    ("CHATGPT/ADJUNTOS", "CHATGPT/ATTACHMENTS"),
-    ("GROK/ADJUNTOS", "GROK/ATTACHMENTS"),
-    ("GROK/GENERADAS_IMAGEN", "GROK/GENERATED_IMAGE"),
-    ("GROK/GENERADAS_VIDEO", "GROK/GENERATED_VIDEO"),
-    ("CLAUDE/ARTEFACTOS", "CLAUDE/ARTIFACTS"),
-    ("CLAUDE/ARTEFACTOS/codigo", "CLAUDE/ARTIFACTS/code"),
-]
+# Las dos tablas: la de la edicion espanola (de donde viene el vault) y la de esta.
+# Todo lo que hay que renombrar sale de compararlas -- antes estaba escrito a mano
+# aqui, y era una tercera copia de los nombres que se podia quedar atras.
+ES = layout.Layout(layout.TABLA_EDICION_ES)
+EN = layout.CLASICO
+
+# Las claves que cambian de nombre entre ediciones. `conversaciones` es relativa a
+# cada vault (RAW y MERGED), asi que se trata aparte.
+_CLAVES = [k for k in layout.TABLA_EDICION_ES if k != "conversaciones" and ES.rel(k) != EN.rel(k)]
+
+# La subcarpeta de codigo de los artefactos de Claude no es una clave del layout: la
+# crea split_chatgpt_export por tipo de artefacto, con su nombre en cada edicion.
+_SUB_CODIGO = ("codigo", "code")
+
+
+def _carpetas() -> List[Tuple[str, str]]:
+    """Carpetas a renombrar, relativas a base_vault, ruta VIEJA entera -> NUEVA entera.
+    Los padres van antes que sus hijos.
+
+    Ojo con la subcarpeta de codigo: para cuando le toca el turno, su carpeta padre
+    ya se llama ARTIFACTS, asi que no esta donde dice la columna izquierda. De eso se
+    encarga _origen_actual(), que mira las dos posibilidades -- expresarlo aqui con el
+    nombre nuevo del padre parecia mas simple pero rompia la deteccion, que corre
+    ANTES de renombrar nada: la subcarpeta no se veia en la primera pasada y hacian
+    falta dos corridas."""
+    pares = [(f"{ES.rel(v)}/{ES.rel('conversaciones')}", f"{EN.rel(v)}/{EN.rel('conversaciones')}")
+             for v in ("raw", "merged")]
+    pares += [(ES.rel(k), EN.rel(k)) for k in _CLAVES]
+    pares.append((f"{ES.rel('claude.artefactos')}/{_SUB_CODIGO[0]}", f"{EN.rel('claude.artefactos')}/{_SUB_CODIGO[1]}"))
+    return sorted(pares, key=lambda par: par[0].count("/"))
+
 
 # Notas generadas cuyo NOMBRE de fichero era espanol. Se expresan con la ruta
-# entera vieja -> entera nueva, pero ojo: _sin-tema.md vive DENTRO de _Temas,
-# asi que cuando le llega el turno su carpeta padre ya se ha renombrado y el
-# fichero no esta donde dice la columna izquierda. _origen_actual() resuelve
-# esa doble posibilidad en vez de depender del orden.
-FICHEROS: List[Tuple[str, str]] = [
-    ("MERGED_VAULT/_Temas/_sin-tema.md", "MERGED_VAULT/_Topics/_no-topic.md"),
-    ("MERGED_VAULT/_grok_pendientes.md", "MERGED_VAULT/_grok_pending.md"),
-    ("PRJ_VAULT/_grok_pendientes.md", "PRJ_VAULT/_grok_pending.md"),
-]
+# entera vieja -> entera nueva, pero ojo: la de puntos ciegos vive DENTRO de la
+# carpeta de temas, asi que cuando le llega el turno su carpeta padre ya se ha
+# renombrado y el fichero no esta donde dice la columna izquierda. _origen_actual()
+# resuelve esa doble posibilidad en vez de depender del orden.
+def _ficheros() -> List[Tuple[str, str]]:
+    return [(f"{ES.rel('temas')}/_sin-tema.md", f"{EN.rel('temas')}/_no-topic.md")] + [
+        (f"{ES.rel(v)}/_grok_pendientes.md", f"{EN.rel(v)}/_grok_pending.md") for v in ("merged", "prj")]
 
-# Prefijos de enlace a reescribir dentro de las notas. Mas especifico
-# primero: CLAUDE/ARTEFACTOS/codigo/ tiene que ganar a CLAUDE/ARTEFACTOS/,
-# o el segundo se lo come y deja la subcarpeta sin traducir.
-PREFIJOS_ENLACE: List[Tuple[str, str]] = [
-    ("CLAUDE/ARTEFACTOS/codigo/", "CLAUDE/ARTIFACTS/code/"),
-    ("CLAUDE/ARTEFACTOS/", "CLAUDE/ARTIFACTS/"),
-    ("CHATGPT/GENERADAS/", "CHATGPT/GENERATED/"),
-    ("CHATGPT/ADJUNTOS/", "CHATGPT/ATTACHMENTS/"),
-    ("GROK/ADJUNTOS/", "GROK/ATTACHMENTS/"),
-    ("GROK/GENERADAS_IMAGEN/", "GROK/GENERATED_IMAGE/"),
-    ("GROK/GENERADAS_VIDEO/", "GROK/GENERATED_VIDEO/"),
-]
+
+def _prefijos_enlace() -> List[Tuple[str, str]]:
+    """Prefijos de enlace a reescribir dentro de las notas. Mas especifico primero:
+    la subcarpeta de codigo tiene que ganar a la de artefactos, o la segunda se la
+    come y deja la subcarpeta sin traducir."""
+    pares = [(f"{viejo}/", f"{nuevo}/") for viejo, nuevo in _carpetas()
+             if not viejo.endswith("/" + ES.rel("conversaciones"))]
+    return sorted(pares, key=lambda par: len(par[0]), reverse=True)
+
+
+CARPETAS: List[Tuple[str, str]] = _carpetas()
+FICHEROS: List[Tuple[str, str]] = _ficheros()
+PREFIJOS_ENLACE: List[Tuple[str, str]] = _prefijos_enlace()
 
 # Vaults que contienen notas con enlaces a los bancos.
-VAULTS_CON_NOTAS = ("RAW_VAULT", "MERGED_VAULT", "PRJ_VAULT")
+VAULTS_CON_NOTAS = (EN.rel("raw"), EN.rel("merged"), EN.rel("prj"))
 
 
 def _origen_actual(base: Path, viejo: str, nuevo: str) -> Path:

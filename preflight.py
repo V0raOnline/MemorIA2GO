@@ -24,6 +24,7 @@ import re
 import zipfile
 from pathlib import Path
 from typing import Optional
+import layout
 
 REGISTRY_FILENAME = "_exports_procesados.json"
 
@@ -618,7 +619,7 @@ def validate_config(base_vault, exports_dir, gizmo_map_path=None, deep: bool = F
             else:
                 hay_problema = any((not c["valido"]) or c.get("aviso") for c in candidatos)
                 export_check["estado"] = "warn" if hay_problema else "ok"
-                raw_vault = (Path(base_vault) / "RAW_VAULT") if base_vault else None
+                raw_vault = layout.cargar(base_vault).ruta(base_vault, "raw") if base_vault else None
                 if raw_vault is not None:
                     pending = list_pending_exports(ed, raw_vault)
                     export_check["pendientes"] = len(pending)

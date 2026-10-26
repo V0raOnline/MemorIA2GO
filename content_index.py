@@ -32,6 +32,7 @@ import os
 import re
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional
+import layout
 
 from tree_index import read_frontmatter, INDEX_FILENAMES, iter_markdown_files
 
@@ -104,19 +105,26 @@ def _caption_for(meta: dict) -> str:
     return " · ".join(parts)
 
 
-def collect_bank_entries(vault: Path, conversations_dir: str, bank: BankSpec) -> list:
+def _notas(vault: Path, conversations_dir):
+    """Las notas de una o varias subcarpetas de conversaciones ('.' = el propio
+    vault). Varias cuando el vault fusionado esta partido por proveedor."""
+    carpetas = [conversations_dir] if isinstance(conversations_dir, str) else list(conversations_dir)
+    for d in carpetas:
+        base = vault if d == "." else vault / d
+        if base.exists():
+            yield from iter_markdown_files(base)
+
+
+def collect_bank_entries(vault: Path, conversations_dir, bank: BankSpec) -> list:
     """Una entrada por conversacion que referencia este banco, con la lista
     de items (fname, es_imagen, titulo, caption) encontrados en ella."""
-    conv_base = vault if conversations_dir == "." else vault / conversations_dir
     link_re = _link_re(bank.prefix)
     bank_dir = bank.bank_dir or (vault / bank.prefix)
     manifest = _load_manifest(bank_dir)
 
     entries = []
-    if not conv_base.exists():
-        return entries
 
-    for f in iter_markdown_files(conv_base):
+    for f in _notas(vault, conversations_dir):
         if f.name in INDEX_FILENAMES:
             continue
         try:
@@ -229,7 +237,7 @@ def render_bank_branch(bank: BankSpec, entries: list) -> str:
     return "\n".join(lines)
 
 
-def generate_provider_index(vault: Path, conversations_dir: str, provider_title: str,
+def generate_provider_index(vault: Path, conversations_dir, provider_title: str,
                              bancos: List[BankSpec]) -> dict:
     """Funcion reutilizable (pensada tambien para el futuro boton
     'Reindexar' de Cartografia). Devuelve {"markdown": str, "stats": {...}}."""
@@ -310,18 +318,20 @@ def main():
     ap = argparse.ArgumentParser(description="Genera un indice de contenido colapsable por proveedor.")
     ap.add_argument("vault", help="Ruta al vault a escanear (donde viven las notas)")
     ap.add_argument("--base-vault", default=None,
-                     help="Raiz donde viven los bancos de assets (hermanos de RAW_VAULT/MERGED_VAULT/"
-                          "PRJ_VAULT), p.ej. CHATGPT/GENERATED cuelga de aqui. Por defecto, el propio "
+                     help="Raiz donde viven los bancos de assets (hermanos de los vaults), de la que "
+                          "cuelgan los prefijos de --banco. Por defecto, el propio "
                           "vault (sirve si vault YA es esa raiz, pero normalmente no lo es).")
-    ap.add_argument("--conversations-dir", default="Conversations")
+    ap.add_argument("--conversations-dir", action="append",
+                     help="Subcarpeta de conversaciones; repetible (una por proveedor si el vault esta "
+                          "partido). Sin ella, la del layout.")
     ap.add_argument("--proveedor", required=True, help="Titulo del proveedor (ChatGPT, Claude, Grok...)")
     ap.add_argument("--out", required=True, help="Archivo de salida dentro del vault")
     ap.add_argument("--banco", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, un --banco por rama con enlaces en notas. "
-                          "Ejemplo: 'CHATGPT/GENERATED:Generated'")
+                          "El prefijo es la ruta tal como aparece en los enlaces, p.ej. 'banco/sub:Etiqueta'")
     ap.add_argument("--banco-catalogo", action="append", default=[],
                      help="prefijo:etiqueta -- repetible, para bancos SIN enlace en ninguna nota "
-                          "(p.ej. GROK/GENERATED_IMAGE: media_posts es root-level). Se lista "
+                          "(p.ej. las generaciones de Imagine: media_posts es root-level). Se lista "
                           "directo desde el manifest, no cruzando con notas.")
     ap.add_argument("--pendientes-json", default=None,
                      help="[Grok] Ruta a _pendientes_descarga.json -- genera ademas una nota aparte "
@@ -347,7 +357,8 @@ def main():
         prefix, label = raw.split(":", 1)
         bancos.append(BankSpec(prefix=prefix, label=label, bank_dir=base_vault / prefix, catalog=True))
 
-    resultado = generate_provider_index(vault, args.conversations_dir, args.proveedor, bancos)
+    carpetas = args.conversations_dir or [layout.cargar().rel("conversaciones")]
+    resultado = generate_provider_index(vault, carpetas, args.proveedor, bancos)
     out_path = vault / args.out
     out_path.write_text(resultado["markdown"], encoding="utf-8")
 

@@ -107,7 +107,7 @@ def test_si_la_url_derivada_falla_se_le_pregunta_a_la_pagina(tmp_path):
                         fetch_pagina=lambda u: pagina, pausa=0, log=_mudo)
 
     assert stats["rescatados"] == 1
-    assert list((tmp_path / "GROK" / "GENERADAS_VIDEO").glob("*.mp4"))
+    assert list((tmp_path / "GROK" / "GENERATED_VIDEO").glob("*.mp4"))
 
 
 def test_sin_red_de_seguridad_por_pagina_el_fallo_se_anota(tmp_path):
@@ -130,7 +130,7 @@ def test_rescata_una_imagen_a_su_banco_y_marca_la_entrada(tmp_path):
 
     assert stats["rescatados"] == 1 and stats["fallidos"] == 0
 
-    banco = tmp_path / "GROK" / "GENERADAS_IMAGEN"
+    banco = tmp_path / "GROK" / "GENERATED_IMAGE"
     fname = [f.name for f in banco.glob("*.png")][0]
     assert (banco / fname).read_bytes() == PNG
     # Mismo esquema de nombre que la extraccion automatica del export.
@@ -151,8 +151,8 @@ def test_el_video_va_a_su_propio_banco(tmp_path):
     rp.rescatar(tmp_path, "grok", fetch=_servidor({rp.URL_VIDEO % ID_VID: MP4}),
                 pausa=0, log=_mudo)
 
-    assert list((tmp_path / "GROK" / "GENERADAS_VIDEO").glob("*.mp4"))
-    assert not (tmp_path / "GROK" / "GENERADAS_IMAGEN").exists()
+    assert list((tmp_path / "GROK" / "GENERATED_VIDEO").glob("*.mp4"))
+    assert not (tmp_path / "GROK" / "GENERATED_IMAGE").exists()
 
 
 def test_un_video_nunca_acaba_archivando_la_miniatura(tmp_path):
@@ -164,7 +164,7 @@ def test_un_video_nunca_acaba_archivando_la_miniatura(tmp_path):
 
     rp.rescatar(tmp_path, "grok", fetch=fetch, pausa=0, log=_mudo)
 
-    guardado = list((tmp_path / "GROK" / "GENERADAS_VIDEO").glob("*"))[0]
+    guardado = list((tmp_path / "GROK" / "GENERATED_VIDEO").glob("*"))[0]
     assert guardado.read_bytes() == MP4
     assert not list(tmp_path.rglob("*%s*" % "poster"))
 
@@ -214,7 +214,7 @@ def test_una_pagina_de_error_no_se_archiva_como_activo(tmp_path):
                         pausa=0, log=_mudo)
 
     assert stats["rescatados"] == 0 and stats["fallidos"] == 1
-    assert not (tmp_path / "GROK" / "GENERADAS_IMAGEN").exists()
+    assert not (tmp_path / "GROK" / "GENERATED_IMAGE").exists()
     assert "estado" not in json.loads(path.read_text(encoding="utf-8"))[0]
 
 
@@ -293,7 +293,7 @@ def test_lo_rescatado_sobrevive_a_un_corte_a_mitad(tmp_path):
     guardados = [p for p in json.loads(path.read_text(encoding="utf-8"))
                  if p.get("estado") == "rescatada"]
     assert len(guardados) == 2
-    assert len(list((tmp_path / "GROK" / "GENERADAS_IMAGEN").glob("*.png"))) == 2
+    assert len(list((tmp_path / "GROK" / "GENERATED_IMAGE").glob("*.png"))) == 2
 
 
 # ── Detalles del disco ─────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ def test_dry_run_no_toca_nada(tmp_path):
                 pausa=0, log=_mudo)
 
     assert path.read_text(encoding="utf-8") == antes
-    assert not (tmp_path / "GROK" / "GENERADAS_IMAGEN").exists()
+    assert not (tmp_path / "GROK" / "GENERATED_IMAGE").exists()
 
 
 def test_dos_entradas_con_el_mismo_contenido_comparten_fichero(tmp_path):
@@ -319,7 +319,7 @@ def test_dos_entradas_con_el_mismo_contenido_comparten_fichero(tmp_path):
                   [_post("id-a", "image"), _post("id-b", "image")])
     rp.rescatar(tmp_path, "grok", fetch=lambda u: PNG, pausa=0, log=_mudo)
 
-    assert len(list((tmp_path / "GROK" / "GENERADAS_IMAGEN").glob("*.png"))) == 1
+    assert len(list((tmp_path / "GROK" / "GENERATED_IMAGE").glob("*.png"))) == 1
     entradas = json.loads(path.read_text(encoding="utf-8"))
     assert entradas[0]["fichero"] == entradas[1]["fichero"]
 

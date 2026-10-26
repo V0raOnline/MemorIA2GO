@@ -42,6 +42,9 @@ from typing import Dict, List, Optional
 from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+import layout  # noqa: E402
 PLANTILLA = HERE / "galeria_plantilla.html"
 ESTILO_APP = HERE / "web" / "style.css"
 ICONO = HERE / "web" / "assets" / "imageIA.png"      # el cerebrito de image.ia
@@ -54,21 +57,22 @@ VERSION_MINIATURAS = "2"
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 VID_EXTS = {".mp4", ".webm", ".mov"}
 
-# (carpeta del banco bajo la base, proveedor, origen, generador si el manifiesto no lo dice)
+# (clave del banco en layout.py, proveedor, origen, generador si el manifiesto no lo dice)
 BANCOS = [
-    ("CHATGPT/GENERATED", "chatgpt", "generada", None),
-    ("CHATGPT/ATTACHMENTS", "chatgpt", "subida", None),
-    ("GROK/GENERATED_IMAGE", "grok", "generada", "grok-chat"),
-    ("GROK/GENERATED_VIDEO", "grok", "generada", "grok-chat"),
-    ("GROK/IMAGINE", "grok", "generada", "grok-imagine"),
-    ("GROK/ATTACHMENTS", "grok", "subida", None),
+    ("chatgpt.generadas", "chatgpt", "generada", None),
+    ("chatgpt.adjuntos", "chatgpt", "subida", None),
+    ("grok.generadas_imagen", "grok", "generada", "grok-chat"),
+    ("grok.generadas_video", "grok", "generada", "grok-chat"),
+    ("grok.imagine", "grok", "generada", "grok-imagine"),
+    ("grok.adjuntos", "grok", "subida", None),
 ]
 # Copilot: su vault lo construye image.ia donde diga `paths.copilot_images_vault`; si no se dice, se
 # busca en el sitio de siempre dentro de la base. Notas en una subcarpeta, ficheros en otra.
-COPILOT = "COPILOT/GENERATED_IMAGE"
+COPILOT = "copilot.generadas_imagen"
 COPILOT_NOTAS = "Images"
 COPILOT_FICHEROS = "Files"
-MINIATURAS_PROPIAS = {"CHATGPT/GENERATED": ("CHATGPT/GENERATED_Thmbnails", "thmbnail_")}
+# banco -> (su carpeta de miniaturas propias, prefijo del fichero)
+MINIATURAS_PROPIAS = {"chatgpt.generadas": ("chatgpt.generadas_miniaturas", "thmbnail_")}
 
 ETIQUETAS = {
     "proveedor": {"chatgpt": "ChatGPT", "grok": "Grok", "copilot": "Copilot", "claude": "Claude"},
@@ -122,15 +126,26 @@ def _prompt_de(txt: str) -> str:
         return m.group(1) if m else ""
 
 
-def leer_conversaciones(base: Path) -> Dict[str, dict]:
+def _notas_fusionadas(base: Path, lay) -> List[Path]:
+    """Las notas de conversacion del vault fusionado: una carpeta, o una por proveedor si el layout
+    parte MERGED por proveedor. En orden de ruta, como siempre: la primera aparicion de una imagen
+    es la de la primera nota por ruta."""
+    merged = lay.ruta(base, "merged")
+    notas: List[Path] = []
+    for rel in lay.conv_dirs(merged):
+        raiz = merged.joinpath(*rel.split("/"))
+        if raiz.is_dir():
+            notas.extend(raiz.rglob("*.md"))
+    return sorted(notas)
+
+
+def leer_conversaciones(base: Path, lay=None) -> Dict[str, dict]:
     """{ruta del fichero relativa a la base: contexto de su primera aparicion en MERGED}. El contexto es
     la conversacion (titulo, fecha, nota, proveedor, proyecto), lo que pediste justo antes, el prompt
     si lo hubo y el titulo/hora que dejan los bloques de la biblioteca."""
     contexto: Dict[str, dict] = {}
-    raiz = base / "MERGED_VAULT" / "Conversations"
-    if not raiz.is_dir():
-        return contexto
-    for nota in sorted(raiz.rglob("*.md")):
+    lay = lay or layout.cargar(base)
+    for nota in _notas_fusionadas(base, lay):
         try:
             texto = nota.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -184,10 +199,12 @@ def recoger(base: Path, copilot: Optional[Path] = None) -> List[dict]:
     """Todas las imagenes y videos de los bancos, con todo lo que se sabe de cada uno. `copilot` es el
     vault de imagenes de Copilot (por defecto, el sitio de siempre dentro de la base)."""
     base = Path(base)
-    contexto = leer_conversaciones(base)
+    lay = layout.cargar(base)
+    contexto = leer_conversaciones(base, lay)
     items: List[dict] = []
-    for rel, prov, origen, gen_defecto in BANCOS:
-        carpeta = base / rel
+    for clave, prov, origen, gen_defecto in BANCOS:
+        rel = lay.rel(clave)
+        carpeta = lay.ruta(base, clave)
         if not carpeta.is_dir():
             continue
         manifiesto = _leer_manifiesto(carpeta)
@@ -203,7 +220,7 @@ def recoger(base: Path, copilot: Optional[Path] = None) -> List[dict]:
             conv = ctx.get("conv")
             fecha = (conv or {}).get("fecha") or (meta.get("creada") or meta.get("create_time") or "")[:10]
             items.append({
-                "ruta": ruta, "abs": str(f), "banco": rel, "prov": prov, "origen": origen, "tipo": tipo,
+                "ruta": ruta, "abs": str(f), "banco": rel, "clave": clave, "prov": prov, "origen": origen, "tipo": tipo,
                 "gen": (meta.get("generador") or gen_defecto) if origen == "generada" else None,
                 "modelo": meta.get("modelo"), "ed": bool(meta.get("edicion")),
                 "titulo": ctx.get("titulo") or meta.get("titulo_biblioteca") or
@@ -212,7 +229,7 @@ def recoger(base: Path, copilot: Optional[Path] = None) -> List[dict]:
                 "pet": ctx.get("peticion") or "", "hora": ctx.get("hora") or "",
                 "fecha": fecha or _fecha_fichero(f), "conv": conv,
             })
-    items.extend(_recoger_copilot(base, Path(copilot) if copilot else base / COPILOT))
+    items.extend(_recoger_copilot(base, Path(copilot) if copilot else lay.ruta(base, COPILOT), lay))
     return items
 
 
@@ -223,13 +240,14 @@ def _fecha_fichero(f: Path) -> str:
         return ""
 
 
-def _recoger_copilot(base: Path, raiz: Path) -> List[dict]:
+def _recoger_copilot(base: Path, raiz: Path, lay=None) -> List[dict]:
     """Copilot no asocia sus imagenes a conversaciones: cada imagen tiene su nota (la que construye
     image.ia) con el prompt y la fecha, y el fichero esta en su carpeta de ficheros. El vault puede
     estar fuera de la base: entonces no hay enlace a Obsidian (es otro vault)."""
     notas = raiz / COPILOT_NOTAS
     if not notas.is_dir():
         return []
+    lay = lay or layout.cargar(base)
     items = []
     for nota in sorted(notas.rglob("*.md")):
         texto = nota.read_text(encoding="utf-8", errors="ignore")
@@ -245,8 +263,8 @@ def _recoger_copilot(base: Path, raiz: Path) -> List[dict]:
         dentro = _dentro_de(fichero, base)
         items.append({
             "ruta": fichero.relative_to(base).as_posix() if dentro else
-                    f"COPILOT/{fichero.relative_to(raiz).as_posix()}",
-            "abs": str(fichero), "banco": COPILOT, "prov": "copilot", "origen": "generada",
+                    f"{lay.rel('copilot.raiz')}/{fichero.relative_to(raiz).as_posix()}",
+            "abs": str(fichero), "banco": lay.rel(COPILOT), "prov": "copilot", "origen": "generada",
             "tipo": _tipo(fichero.name), "gen": "copilot", "modelo": None, "ed": False,
             "titulo": "", "prompt": _limpiar(prompt, 1200), "pet": "", "hora": "", "fecha": fecha,
             "nota": nota.relative_to(base).with_suffix("").as_posix() if _dentro_de(nota, base) else None,
@@ -303,6 +321,7 @@ def generar_miniaturas(items: List[dict], base: Path, salida: Path, log=print) -
         raise ErrorGaleria("Pillow is needed for the thumbnails: pip install pillow "
                            "(or run with --sin-miniaturas)")
     hechas = reutilizadas = fallidas = 0
+    lay = layout.cargar(base)
     marca = salida / "thumbnails" / ".version"
     al_dia = marca.is_file() and marca.read_text(encoding="utf-8").strip() == VERSION_MINIATURAS
     for it in items:
@@ -315,9 +334,9 @@ def generar_miniaturas(items: List[dict], base: Path, salida: Path, log=print) -
             reutilizadas += 1
             continue
         fuente = original
-        propias = MINIATURAS_PROPIAS.get(it["banco"])
+        propias = MINIATURAS_PROPIAS.get(it.get("clave"))
         if propias:
-            p = base / propias[0] / f"{propias[1]}{Path(it['ruta']).stem}.png"
+            p = lay.ruta(base, propias[0]) / f"{propias[1]}{Path(it['ruta']).stem}.png"
             if p.is_file():
                 fuente = p
         try:

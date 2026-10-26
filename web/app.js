@@ -128,6 +128,7 @@ async function loadConfig() {
   const opts = cfg.options || {};
 
   document.getElementById("cfg-base_vault").value = paths.base_vault || "";
+  document.getElementById("cfg-raw_vault").value = paths.raw_vault || "";
   document.getElementById("cfg-exports_dir").value = paths.exports_dir || "";
   document.getElementById("cfg-gizmo_map").value = paths.gizmo_map || "";
   document.getElementById("cfg-suno_backup").value = paths.suno_backup || "";
@@ -138,6 +139,9 @@ async function loadConfig() {
   document.getElementById("cfg-copilot_images_vault").value = paths.copilot_images_vault || "";
   document.getElementById("cfg-substack_vault").value = paths.substack_vault || "";
   document.getElementById("cfg-prj_vault_name").value = opts.prj_vault_name || "PRJ_VAULT";
+  const presetSel = document.getElementById("cfg-layout_preset");
+  presetSel.value = ["unico", "proveedor", "proyectos"].includes(opts.layout_preset) ? opts.layout_preset : "proyectos";
+  await refreshLayoutPresets();
   document.getElementById("cfg-by_year").checked = opts.by_year !== false;
   document.getElementById("cfg-by_month").checked = opts.by_month !== false;
   document.getElementById("cfg-make_index").checked = opts.make_index !== false;
@@ -150,6 +154,52 @@ async function loadConfig() {
 
   updateConfigBadge(Boolean((paths.base_vault || "").trim() && (paths.exports_dir || "").trim()));
 }
+
+// Que significa cada preset de organizacion, en una frase.
+const PRESET_HELP = {
+  proyectos: "All conversations together in MERGED_VAULT, plus a project vault with one folder per project. This is the usual setup.",
+  unico: "All conversations together in MERGED_VAULT. No project vault is created.",
+  proveedor: "MERGED_VAULT with one folder per provider (ChatGPT, Claude, Grok…), each with its own conversations. Topics still cut across providers. No project vault is created.",
+};
+
+function presetHelpText(id, help) {
+  return (PRESET_HELP[id] || "") + (help.dataset.nota ? " " + help.dataset.nota : "");
+}
+
+// Pregunta al servidor que presets admite el vault de la config guardada. Un vault
+// que ya tiene conversaciones fusionadas no cambia de organizacion sin migrarlo, y
+// es mejor decirlo aqui, junto al campo, que dejar elegir y fallar al importar.
+async function refreshLayoutPresets() {
+  const sel = document.getElementById("cfg-layout_preset");
+  const help = document.getElementById("layout-preset-help");
+  const prj = document.getElementById("cfg-prj_vault_name");
+  let bloqueados = {};
+  try {
+    const res = await fetch("/api/layout/presets");
+    const data = await res.json();
+    (data.presets || []).forEach((p) => { if (p.conflictos && p.conflictos.length) bloqueados[p.id] = p.conflictos[0]; });
+  } catch (_) {}
+  Array.from(sel.options).forEach((o) => {
+    o.disabled = Boolean(bloqueados[o.value]) && o.value !== sel.value;
+  });
+  const actual = sel.value;
+  const hayBloqueo = Object.keys(bloqueados).length > 0;
+  help.dataset.nota = hayBloqueo
+    ? "The other organizations cannot be chosen: this vault already has merged conversations, and moving them needs a migration, which is not available yet."
+    : "";
+  help.textContent = presetHelpText(actual, help);
+  // El nombre del vault de proyectos solo cuenta si hay vault de proyectos.
+  prj.disabled = actual !== "proyectos";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const presetSel = document.getElementById("cfg-layout_preset");
+  if (presetSel) presetSel.addEventListener("change", () => {
+    const help = document.getElementById("layout-preset-help");
+    help.textContent = presetHelpText(presetSel.value, help);
+    document.getElementById("cfg-prj_vault_name").disabled = presetSel.value !== "proyectos";
+  });
+});
 
 // Cambio en vivo del tema desde el select: aplica al instante para que
 // V0ra vea el cambio antes de guardar. La persistencia real llega con
@@ -166,6 +216,7 @@ async function saveConfig() {
   const payload = {
     paths: {
       base_vault: document.getElementById("cfg-base_vault").value.trim(),
+      raw_vault: document.getElementById("cfg-raw_vault").value.trim(),
       exports_dir: document.getElementById("cfg-exports_dir").value.trim(),
       gizmo_map: document.getElementById("cfg-gizmo_map").value.trim(),
       suno_backup: document.getElementById("cfg-suno_backup").value.trim(),
@@ -178,6 +229,7 @@ async function saveConfig() {
     },
     options: {
       prj_vault_name: document.getElementById("cfg-prj_vault_name").value.trim() || "PRJ_VAULT",
+      layout_preset: document.getElementById("cfg-layout_preset").value,
       by_year: document.getElementById("cfg-by_year").checked,
       by_month: document.getElementById("cfg-by_month").checked,
       make_index: document.getElementById("cfg-make_index").checked,
@@ -419,9 +471,17 @@ function etiquetaMes(key) {
   return MESES_CORTOS[Number(partes[1]) - 1] + " " + partes[0].slice(2);
 }
 
+// Estadisticas del vault fusionado, sea cual sea su nombre. El servidor dice cual es en
+// stats.layout.merged; las cachés escritas por versiones anteriores no lo traen y eran
+// siempre el clasico.
+function vaultFusionado(stats) {
+  const nombre = (stats.layout && stats.layout.merged) || "MERGED_VAULT";
+  return (stats.vaults && stats.vaults[nombre]) || {};
+}
+
 function prepareEvolution(stats) {
   // Fuente de verdad temporal: MERGED_VAULT (consolidado, sin ramas duplicadas)
-  const mv = (stats.vaults && stats.vaults.MERGED_VAULT) || {};
+  const mv = vaultFusionado(stats);
   const porMes = mv.notas_por_mes || {};
   evoSinFecha = porMes["sin fecha"] || 0;
   const meses = Object.keys(porMes).filter(m => m !== "sin fecha").sort();
@@ -520,7 +580,7 @@ function renderFreshness(stats) {
 
 function renderProviders(stats) {
   const el = document.getElementById("dashboard-providers");
-  const mv = (stats.vaults && stats.vaults.MERGED_VAULT) || {};
+  const mv = vaultFusionado(stats);
   const pp = mv.notas_por_proveedor || {};
   const NOMBRES = { chatgpt: "ChatGPT", claude: "Claude", grok: "Grok" };
   const entries = Object.entries(pp);
@@ -1619,6 +1679,7 @@ attachPathAutocomplete("cfg-base_vault", "suggest-base_vault");
 attachPathAutocomplete("cfg-exports_dir", "suggest-exports_dir");
 attachPathAutocomplete("cfg-gizmo_map", "suggest-gizmo_map", "json");
 attachPathAutocomplete("cfg-suno_backup", "suggest-suno_backup");
+attachPathAutocomplete("cfg-raw_vault", "suggest-raw_vault");
 attachPathAutocomplete("cfg-suno_vault", "suggest-suno_vault");
 attachPathAutocomplete("cfg-flowmusic_backup", "suggest-flowmusic_backup");
 attachPathAutocomplete("cfg-flowmusic_vault", "suggest-flowmusic_vault");

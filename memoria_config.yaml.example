@@ -7,6 +7,16 @@ paths:
   # 📦 Carpeta base donde se crea el vault
   base_vault: 'G:\ruta\a\tu\vault'
 
+  # 🗄️ Notes source (RAW) — OPTIONAL. Empty = inside base_vault, in
+  # RAW_VAULT, as usual. It is the pipeline's raw material, not something meant
+  # to be browsed: if you don't want it to show up when you open the vault in
+  # Obsidian, put it in another folder (another drive, or outside the vault).
+  # If you already have a vault with a RAW, do NOT change this by hand: use
+  #   python mover_raw.py --hacia <folder>
+  # which copies, verifies and does not delete the original. If you change it
+  # without moving, the pipeline refuses to go on instead of splitting your source in two.
+  raw_vault: ''
+
   # 🧾 Carpeta con los exports de ChatGPT (.zip/.json/.html)
   exports_dir: 'G:\ruta\a\tus\exports'
 
@@ -54,6 +64,16 @@ paths:
 #=============================================
 
 options:
+
+  #--- How the merged vault (MERGED_VAULT) is organized ---
+  #   proyectos  = all conversations together in MERGED_VAULT/Conversations, plus
+  #                PRJ_VAULT with one folder per project. This is the usual setup.
+  #   unico      = the same but WITHOUT a project vault.
+  #   proveedor  = one folder per provider inside MERGED_VAULT (ChatGPT, Claude,
+  #                Grok...), each with its own Conversations. No project vault.
+  # Empty = proyectos. In a vault that ALREADY has merged conversations the organization
+  # cannot change without a migration: the pipeline refuses instead of duplicating them.
+  layout_preset: ''
 
   #--- Nombre del vault de proyectos ---
   prj_vault_name: 'PRJ_VAULT'

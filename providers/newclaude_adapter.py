@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from providers import claude_adapter
+import layout
 
 # Characters Windows doesn't allow in file/folder names. They get
 # replaced with "_"; accents and spaces are kept (Obsidian handles
@@ -793,19 +794,22 @@ def write_memories(folder: Any, claude_mem_dir: Any) -> Dict[str, Any]:
 # metadata, no vault value).
 
 def ingest_extras(folder: Any, base_vault: Any,
-                  prj_vault_name: str = "PRJ_VAULT") -> Dict[str, Any]:
+                  prj_vault_name: Optional[str] = None) -> Dict[str, Any]:
     """Ingest the categories in the new layout that are not
     conversations. Idempotent: safe to rerun without duplicating.
 
-    Fixed paths (per D2/D3/D4 in bck/NewClaude/PLAN.md):
-        base_vault/PRJ_VAULT/<name>/…               (D3)
+    Paths (per D2/D3/D4 in bck/NewClaude/PLAN.md; the names come from the
+    layout, these are the classic ones):
+        base_vault/PRJ_VAULT/<name>/…               (D3; without a project vault,
+                                                     MERGED_VAULT/CLAUDE_WEB/PROJECTS)
         base_vault/MERGED_VAULT/CLAUDE_WEB/FRAMES/…  (own bank)
         base_vault/Claude_Mem/…                     (D2, new vault)
 
     Returns {"projects": stats, "frames": stats, "memories": stats}."""
     base_vault = Path(base_vault)
+    lay = layout.cargar(base_vault, prj_vault_name)
     return {
-        "projects": write_projects(folder, base_vault / prj_vault_name),
-        "frames": write_frames(folder, base_vault / "MERGED_VAULT" / "CLAUDE_WEB" / "FRAMES"),
-        "memories": write_memories(folder, base_vault / "Claude_Mem"),
+        "projects": write_projects(folder, lay.ruta(base_vault, "claude.proyectos")),
+        "frames": write_frames(folder, lay.ruta(base_vault, "claude.web_frames")),
+        "memories": write_memories(folder, lay.ruta(base_vault, "claude.memorias")),
     }

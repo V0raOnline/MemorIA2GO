@@ -30,6 +30,7 @@ import hashlib
 import os
 import re
 from typing import Dict, List, Tuple
+import layout
 
 HASH_SUFFIX_RE = re.compile(r"-(h[0-9a-f]{7,8}|v\d+|t\d{12})(?:-\d+)?(?=\.md$)", re.IGNORECASE)
 
@@ -184,7 +185,7 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
-    conv_dir = os.path.join(args.raw_dir, "Conversations")
+    conv_dir = os.path.join(args.raw_dir, layout.cargar().rel("conversaciones"))
     if not os.path.isdir(conv_dir):
         conv_dir = args.raw_dir  # permite apuntar directo a la carpeta de notas
 
@@ -224,8 +225,11 @@ def main():
         _conteo[d] = _conteo.get(d, 0) + 1
     destinos_en_colision = {d for d, n in _conteo.items() if n > 1}
 
-    out_conv = os.path.join(args.merged_dir, "Conversations")
-    os.makedirs(out_conv, exist_ok=True)
+    lay = layout.cargar()
+    # Con MERGED partido por proveedor la carpeta depende de cada nota, y crear
+    # aqui la de siempre dejaria un `Conversaciones/` vacio al lado de las buenas.
+    if lay.particion != "proveedor":
+        os.makedirs(os.path.join(args.merged_dir, lay.conv_rel()), exist_ok=True)
 
     stats = {"grupos": 0, "variantes_totales": 0, "mensajes_campeon": 0,
              "mensajes_fusionados": 0, "mensajes_recuperados": 0, "notas_escritas": 0,
@@ -306,7 +310,7 @@ def main():
 
         date = front.get("date", "0000-00-00").strip('"')
         y, m = (date[:4], date[5:7]) if re.match(r"\d{4}-\d{2}-\d{2}", date) else ("0000", "00")
-        out_dir = out_conv
+        out_dir = os.path.join(args.merged_dir, lay.conv_rel(champion["front"].get("provider")))
         if args.by_year:
             out_dir = os.path.join(out_dir, y)
         if args.by_month:
