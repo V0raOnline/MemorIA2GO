@@ -34,6 +34,7 @@ if _BASE_DIR not in sys.path:
 from providers import claude_adapter
 from providers import grok_adapter
 from providers import copilot_adapter
+import layout
 
 GENERIC_TITLES = {
     "", "conversación", "conversation", "new chat", "conversación nueva",
@@ -1312,6 +1313,23 @@ def main():
 
     args = ap.parse_args()
 
+    # Nombres de carpeta: del layout activo (lo fija el orquestador por entorno;
+    # solo, es el clasico). Si un banco no termina en la ruta que se escribiria
+    # en los enlaces, se para AHORA: seguir dejaria notas con imagenes rotas.
+    lay = layout.cargar()
+    incoherentes = layout.incoherencias(lay, [
+        (args.generadas_dir, "chatgpt.generadas"), (args.adjuntos_dir, "chatgpt.adjuntos"),
+        (args.grok_adjuntos_dir, "grok.adjuntos"),
+        (args.grok_generadas_imagen_dir, "grok.generadas_imagen"),
+        (args.grok_generadas_video_dir, "grok.generadas_video"),
+        (args.claude_artefactos_dir, "claude.artefactos"),
+    ])
+    if incoherentes:
+        print("Error: los directorios de banco no casan con el layout activo:")
+        for m in incoherentes:
+            print("  -", m)
+        sys.exit(2)
+
     ensure_dir(args.output)
 
     image_meta: Dict[str, dict] = {}
@@ -1356,9 +1374,9 @@ def main():
     asset_index = AssetIndex(zf) if tiene_bancos else None
     asset_writers: Dict[str, BankTarget] = {}
     if args.generadas_dir:
-        asset_writers["generada"] = BankTarget(AssetWriter(args.generadas_dir), "CHATGPT/GENERADAS")
+        asset_writers["generada"] = BankTarget(AssetWriter(args.generadas_dir), lay.rel("chatgpt.generadas"))
     if args.adjuntos_dir:
-        asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), "CHATGPT/ADJUNTOS")
+        asset_writers["subida"] = BankTarget(AssetWriter(args.adjuntos_dir), lay.rel("chatgpt.adjuntos"))
     if tiene_bancos:
         print(f"Assets indexados en el ZIP: {len(asset_index.by_id)}")
         if asset_index.sin_indexar:
@@ -1382,8 +1400,8 @@ def main():
         if media_posts:
             n_extraidas, pendientes = process_grok_media_posts(
                 media_posts, grok_asset_index,
-                imagen_writer, "GROK/GENERADAS_IMAGEN",
-                video_writer, "GROK/GENERADAS_VIDEO",
+                imagen_writer, lay.rel("grok.generadas_imagen"),
+                video_writer, lay.rel("grok.generadas_video"),
             )
             print(f"Imagine (media_posts): {len(media_posts)} totales, {n_extraidas} extraidas, "
                   f"{len(pendientes)} pendientes de descarga")
@@ -1547,12 +1565,12 @@ def main():
             # trae binario, se resuelve aqui tambien (o degrada a texto si no hay
             # --grok-adjuntos-dir, mismo criterio que las imagenes de ChatGPT).
             content = render_grok_file_tokens(content, grok_asset_index, grok_adjuntos_writer,
-                                               "GROK/ADJUNTOS" if grok_adjuntos_writer else None)
+                                               lay.rel("grok.adjuntos") if grok_adjuntos_writer else None)
             # Independiente de lo anterior: si es Claude y hay artefactos,
             # se resuelven aqui (o degradan a texto sin --claude-artefactos-dir).
             content = render_claude_artifact_tokens(
                 content, conv.get("artifacts"), claude_artifacts_writer,
-                "CLAUDE/ARTEFACTOS" if claude_artifacts_writer else None,
+                lay.rel("claude.artefactos") if claude_artifacts_writer else None,
                 conv_id=conv.get("conv_id"),
             )
             rendered_msgs.append({"role": msg.get("role"), "content": content})

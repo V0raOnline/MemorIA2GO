@@ -22,6 +22,7 @@ import glob
 import json
 import os
 import re
+import layout
 
 
 def norm_hex_id(s: str):
@@ -118,12 +119,12 @@ def patch_note(path: str, gizmo_map: dict) -> bool:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Parchea Project_name en RAW_VAULT a partir de un gizmo_map.json actualizado.")
-    ap.add_argument("raw_vault", help="Ruta a RAW_VAULT (o a la carpeta que contiene Conversaciones)")
+    ap = argparse.ArgumentParser(description="Parchea Project_name en el vault crudo a partir de un gizmo_map.json actualizado.")
+    ap.add_argument("raw_vault", help="Ruta al vault crudo (o a la carpeta que contiene las conversaciones)")
     ap.add_argument("gizmo_map", help="Ruta al gizmo_map.json ya actualizado")
     args = ap.parse_args()
 
-    conv_dir = os.path.join(args.raw_vault, "Conversaciones")
+    conv_dir = os.path.join(args.raw_vault, layout.cargar().rel("conversaciones"))
     if not os.path.isdir(conv_dir):
         conv_dir = args.raw_vault
 

@@ -42,6 +42,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+import layout
 from pendientes import ref_pendiente
 
 # ---------- Anatomia del marcador ----------
@@ -356,7 +357,8 @@ def resolve_markers(
                             "conversacion": conv_titulo,
                         })
 
-            salida = [f"![](CHATGPT/WEB/{f})" for f in rescatadas]
+            lay = layout.cargar()
+            salida = [f"![]({lay.enlace('chatgpt.web', f)})" for f in rescatadas]
             if pendientes:
                 ctx = f': "{queries[0]}"' if queries else ""
                 salida.append(

@@ -59,6 +59,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from split_chatgpt_export import sniff_ext  # noqa: E402
+import layout  # noqa: E402
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -79,7 +80,8 @@ ESPERA_DESCARGA = 0.25
 GUARDAR_CADA = 10
 TERMINALES = ("ok", "repetida", "ausente")
 
-CARPETA_BANCO = "IMAGINE"
+# El banco de Imagine dentro de la carpeta GROK, segun el layout activo.
+CARPETA_BANCO = layout.cargar().relativa("grok.imagine", "grok.raiz")
 INVENTARIO = "_inventario.json"
 ESTADO = "_estado.json"
 MANIFEST = "_image_manifest.json"
