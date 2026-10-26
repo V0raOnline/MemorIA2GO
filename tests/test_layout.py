@@ -25,6 +25,10 @@ CLASICO_TAL_CUAL = {
     "chatgpt.adjuntos": "CHATGPT/ADJUNTOS",
     "chatgpt.web": "CHATGPT/WEB",
     "chatgpt.pendientes": "CHATGPT/_pendientes_descarga.json",
+    # Los dos que la galeria escribia a mano (entraron en la tabla al juntar layout con la galeria).
+    "chatgpt.generadas_miniaturas": "CHATGPT/GENERADAS_Thmbnails",
+    "copilot.raiz": "COPILOT",
+    "copilot.generadas_imagen": "COPILOT/GENERADAS_IMAGEN",
     "grok.raiz": "GROK",
     "grok.adjuntos": "GROK/ADJUNTOS",
     "grok.generadas_imagen": "GROK/GENERADAS_IMAGEN",

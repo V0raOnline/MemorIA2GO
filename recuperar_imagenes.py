@@ -69,19 +69,30 @@ from typing import Dict, List, Optional
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import layout  # noqa: E402
 import split_chatgpt_export as sce  # noqa: E402
 
 # El aviso que deja render_image_tokens cuando el binario no esta en el export.
 MARCA_RE = re.compile(rb"\*\[imagen no disponible en el export: ([^\]\r\n]+)\]\*")
 
-# origen de la imagen -> (carpeta del banco bajo la base, prefijo del enlace en las notas)
+# origen de la imagen -> clave del banco en layout.py (su carpeta y el prefijo del enlace en las notas)
 BANCOS = {
-    "generada": "CHATGPT/GENERADAS",
-    "subida": "CHATGPT/ADJUNTOS",
+    "generada": "chatgpt.generadas",
+    "subida": "chatgpt.adjuntos",
 }
 
-# Donde viven las notas dentro de la base (nombres de siempre).
-CARPETAS_NOTAS = ("RAW_VAULT/Conversaciones", "MERGED_VAULT/Conversaciones", "PRJ_VAULT")
+# En la copia de seguridad, las notas que viven fuera de la base (un RAW externo) van bajo esta carpeta.
+FUERA_DE_LA_BASE = "_fuera_de_la_base"
+
+
+def carpetas_notas(base: Path, lay=None) -> List[Path]:
+    """Donde viven las notas: las conversaciones del RAW (que puede estar fuera de la base), las del
+    vault fusionado (una carpeta, o una por proveedor) y el vault de proyectos."""
+    lay = lay or layout.cargar(base)
+    merged = lay.ruta(base, "merged")
+    return ([lay.ruta(base, "raw").joinpath(*lay.rel("conversaciones").split("/"))]
+            + [merged.joinpath(*rel.split("/")) for rel in lay.conv_dirs(merged)]
+            + [lay.ruta(base, "prj")])
 
 
 class ErrorRecuperar(Exception):
@@ -98,8 +109,7 @@ def buscar_avisos(base: Path):
     por_puntero: Dict[str, List[Path]] = {}
     titulo_de: Dict[str, str] = {}
     escaneadas = 0
-    for rel in CARPETAS_NOTAS:
-        raiz = base / rel
+    for raiz in carpetas_notas(base):
         if not raiz.is_dir():
             continue
         for dirpath, dirnames, filenames in os.walk(raiz, onerror=lambda e: None):
@@ -152,11 +162,36 @@ def _leer_biblioteca(zf) -> Dict[str, dict]:
     return {x["file_id"]: x for x in datos if isinstance(x, dict) and x.get("file_id")}
 
 
+def _rel_en_copia(ruta: Path, base: Path) -> str:
+    """Donde va una nota dentro de la copia: su ruta relativa a la base, o, si vive fuera (un RAW
+    externo), bajo FUERA_DE_LA_BASE con la ruta absoluta sin la unidad."""
+    try:
+        return str(Path(ruta).relative_to(base))
+    except ValueError:
+        sin_unidad = Path(ruta).relative_to(Path(ruta).anchor)
+        return str(Path(FUERA_DE_LA_BASE) / sin_unidad)
+
+
 def _hacer_copia(ruta: Path, base: Path, destino: Path) -> None:
-    rel = ruta.relative_to(base)
-    copia = destino / rel
+    copia = destino / _rel_en_copia(ruta, base)
     copia.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ruta, copia)          # copy2: conserva tambien la fecha de modificacion
+
+
+def _diario(export: Path, base: Path, marca_tiempo: str, notas) -> dict:
+    """`notas`: las de dentro de la base, relativas a ella (como siempre). `externas`: {ruta en la copia:
+    ruta absoluta} de las que viven fuera, para que deshacer sepa devolverlas a su sitio."""
+    dentro, externas = [], {}
+    for r in notas:
+        rel = _rel_en_copia(r, base)
+        if rel.startswith(FUERA_DE_LA_BASE + os.sep):
+            externas[rel] = str(r)
+        else:
+            dentro.append(rel)
+    d = {"export": str(export), "base": str(base), "fecha": marca_tiempo, "notas": dentro}
+    if externas:
+        d["externas"] = externas
+    return d
 
 
 def _escribir_conservando_fecha(ruta: Path, datos: bytes) -> None:
@@ -181,10 +216,8 @@ def _cambiar_notas(base: Path, notas, transformar, export: Path, aplicar: bool,
     log(f"Copia de seguridad de las {len(notas)} notas en {copia}")
     for ruta in notas:
         _hacer_copia(ruta, base, copia)
-    (copia / "diario.json").write_text(json.dumps({
-        "export": str(export), "base": str(base), "fecha": marca_tiempo,
-        "notas": [str(r.relative_to(base)) for r in notas],
-    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    (copia / "diario.json").write_text(json.dumps(_diario(export, base, marca_tiempo, notas),
+                                                  ensure_ascii=False, indent=2), encoding="utf-8")
     cambiadas = 0
     for ruta in notas:
         datos = ruta.read_bytes()
@@ -201,8 +234,7 @@ CONV_ID_RE = re.compile(rb'^conv_id:\s*"?([^"\r\n]+?)"?\s*$', re.MULTILINE)
 def notas_por_conv_id(base: Path) -> Dict[str, List[Path]]:
     """{conversation_id: [notas de RAW, MERGED y PRJ]} segun el `conv_id` de la cabecera."""
     por_hilo: Dict[str, List[Path]] = {}
-    for rel in CARPETAS_NOTAS:
-        raiz = base / rel
+    for raiz in carpetas_notas(base):
         if not raiz.is_dir():
             continue
         for dirpath, dirnames, filenames in os.walk(raiz, onerror=lambda e: None):
@@ -227,8 +259,9 @@ def recuperar(export: Path, base: Path, aplicar: bool = False, biblioteca: bool 
         raise ErrorRecuperar(f"--export tiene que ser el .zip del export de ChatGPT: {export}")
     if not base.is_dir():
         raise ErrorRecuperar(f"no existe la carpeta base: {base}")
-    if not any((base / c).is_dir() for c in CARPETAS_NOTAS):
-        raise ErrorRecuperar(f"no encuentro RAW_VAULT, MERGED_VAULT ni PRJ_VAULT en {base}")
+    lay = layout.cargar(base)
+    if not any(c.is_dir() for c in carpetas_notas(base, lay)):
+        raise ErrorRecuperar(f"no encuentro {lay.rel('raw')}, {lay.rel('merged')} ni {lay.rel('prj')} en {base}")
 
     log(f"Buscando avisos 'imagen no disponible' en {base} ...")
     por_puntero, titulo_de, escaneadas = buscar_avisos(base)
@@ -245,7 +278,7 @@ def recuperar(export: Path, base: Path, aplicar: bool = False, biblioteca: bool 
     if not indice.by_id:
         raise ErrorRecuperar("no he podido indexar ninguna imagen del zip: el formato del export no se reconoce")
 
-    escritores = {origen: _Escritor(base / prefijo, aplicar) for origen, prefijo in BANCOS.items()}
+    escritores = {origen: _Escritor(lay.ruta(base, clave), aplicar) for origen, clave in BANCOS.items()}
     biblioteca_por_id = _leer_biblioteca(zf)
     enlace_de: Dict[str, str] = {}
     sin_recuperar: List[str] = []
@@ -271,7 +304,7 @@ def recuperar(export: Path, base: Path, aplicar: bool = False, biblioteca: bool 
         if titulo_de.get(puntero):
             meta["primera_conversacion"] = titulo_de[puntero]
         fname = escritores[origen].write(data, ext, meta=meta or None)
-        enlace_de[puntero] = f"{BANCOS[origen]}/{fname}"
+        enlace_de[puntero] = lay.enlace(BANCOS[origen], fname)
         bytes_total += len(data)
 
     resultado = {
@@ -328,6 +361,7 @@ def _colgar_biblioteca(zf, indice, image_meta, base: Path, aplicar: bool, escrit
     referenciadas = {sce.AssetIndex.resolve_pointer_id(p) for p in image_meta}
     r = dict(cero, generadas=len(entradas))
     escritor = escritores["generada"]
+    lay = layout.cargar(base)
     enlace_de: Dict[str, str] = {}
     candidatas: List[dict] = []
     for x in entradas:
@@ -341,7 +375,7 @@ def _colgar_biblioteca(zf, indice, image_meta, base: Path, aplicar: bool, escrit
         data, ext = indice.get_bytes(x["file_id"])
         meta = {"origen": "generada", "generador": "chatgpt-biblioteca", "titulo_biblioteca": sce.titulo_biblioteca(x),
                 "creada": (x.get("created_at") or "")[:19]}
-        enlace_de[x["file_id"]] = f"{BANCOS['generada']}/{escritor.write(data, ext, meta=meta)}"
+        enlace_de[x["file_id"]] = lay.enlace(BANCOS["generada"], escritor.write(data, ext, meta=meta))
     r["copiadas"] = len(candidatas)
 
     # Cada imagen en las notas de su hilo.
@@ -396,7 +430,7 @@ def completar_metadatos(export: Path, base: Path, aplicar: bool = False, carpeta
     export, base = Path(export), Path(base)
     if not export.is_file() or export.suffix.lower() != ".zip":
         raise ErrorRecuperar(f"--export tiene que ser el .zip del export de ChatGPT: {export}")
-    ruta_man = base / BANCOS["generada"] / "_image_manifest.json"
+    ruta_man = layout.cargar(base).ruta(base, BANCOS["generada"]) / "_image_manifest.json"
     if not ruta_man.is_file():
         raise ErrorRecuperar(f"no encuentro el manifiesto de las generadas: {ruta_man}")
     manifiesto = json.loads(ruta_man.read_text(encoding="utf-8-sig"))
@@ -460,8 +494,10 @@ def deshacer(copia: Path, log=print) -> int:
     d = json.loads(diario.read_text(encoding="utf-8"))
     base = Path(d["base"])
     n = 0
-    for rel in d["notas"]:
-        origen, destino = copia / rel, base / rel
+    pares = [(rel, base / rel) for rel in d["notas"]]
+    pares += [(rel, Path(destino)) for rel, destino in (d.get("externas") or {}).items()]
+    for rel, destino in pares:
+        origen = copia / rel
         if not origen.is_file():
             log(f"  [aviso] falta en la copia: {rel}")
             continue

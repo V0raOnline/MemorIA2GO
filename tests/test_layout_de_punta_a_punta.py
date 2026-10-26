@@ -51,6 +51,9 @@ OTRO = lay.Layout({
     "chatgpt.adjuntos": "{chatgpt.raiz}/mis_subidas",
     "chatgpt.web": "{chatgpt.raiz}/de_la_web",
     "chatgpt.pendientes": "{chatgpt.raiz}/por_bajar.json",
+    "chatgpt.generadas_miniaturas": "{chatgpt.raiz}/miniaturas",
+    "copilot.raiz": "MSFT",
+    "copilot.generadas_imagen": "{copilot.raiz}/imagenes",
     "claude.raiz": "ANT",
     "claude.artefactos": "{claude.raiz}/piezas",
     "claude.memorias": "Memorias",
@@ -73,7 +76,7 @@ def test_el_layout_de_prueba_no_comparte_ningun_nombre_importante_con_el_clasico
     de vigilar justo ese nombre y el test seguiria en verde."""
     for n in ("RAW_VAULT", "MERGED_VAULT", "PRJ_VAULT", "CHATGPT", "GROK", "CLAUDE", "Conversaciones",
               "GENERADAS", "ADJUNTOS", "ARTEFACTOS", "GENERADAS_IMAGEN", "GENERADAS_VIDEO", "WEB",
-              "IMAGINE", "Claude_Mem"):
+              "IMAGINE", "Claude_Mem", "COPILOT", "GENERADAS_Thmbnails"):
         assert n in NOMBRES_CLASICOS, f"'{n}' ya no esta prohibido: OTRO lo reutiliza"
 
 

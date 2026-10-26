@@ -70,6 +70,8 @@ TABLA_CLASICA: Dict[str, str] = {
     "chatgpt.adjuntos": "{chatgpt.raiz}/ADJUNTOS",
     "chatgpt.web": "{chatgpt.raiz}/WEB",
     "chatgpt.pendientes": "{chatgpt.raiz}/_pendientes_descarga.json",
+    # Miniaturas que algunos vaults ya traen junto a GENERADAS: la galeria parte de ellas si estan.
+    "chatgpt.generadas_miniaturas": "{chatgpt.raiz}/GENERADAS_Thmbnails",
 
     "grok.raiz": "GROK",
     "grok.adjuntos": "{grok.raiz}/ADJUNTOS",
@@ -81,6 +83,11 @@ TABLA_CLASICA: Dict[str, str] = {
     "claude.raiz": "CLAUDE",
     "claude.artefactos": "{claude.raiz}/ARTEFACTOS",
     "claude.memorias": "Claude_Mem",
+
+    # El vault de imagenes de Copilot que construye image.ia, si la config no lo pone en otro sitio
+    # (`paths.copilot_images_vault`).
+    "copilot.raiz": "COPILOT",
+    "copilot.generadas_imagen": "{copilot.raiz}/GENERADAS_IMAGEN",
 
     # Cuelgan de MERGED_VAULT.
     "claude.web_raiz": "{merged}/CLAUDE_WEB",

@@ -127,9 +127,11 @@ def test_sin_biblioteca_el_importador_no_cambia(tmp_path):
 def test_el_importador_cuenta_en_el_resumen_las_que_ha_colgado(tmp_path):
     z = _export(tmp_path, [_entrada("file_gen1", "Una.png")], {"file_gen1.dat": PNG})
     import subprocess, sys
+    # Los bancos donde el layout dice: el importador se niega a escribir en una carpeta distinta de la
+    # que pondria en los enlaces de las notas.
     r = subprocess.run([sys.executable, str(Path(rec.__file__).parent / "split_chatgpt_export.py"), str(z),
-                        str(tmp_path / "RAW"), "--generadas-dir", str(tmp_path / "G"),
-                        "--adjuntos-dir", str(tmp_path / "A")], capture_output=True, text=True,
+                        str(tmp_path / "RAW"), "--generadas-dir", str(tmp_path / "CHATGPT" / "GENERADAS"),
+                        "--adjuntos-dir", str(tmp_path / "CHATGPT" / "ADJUNTOS")], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     assert "Biblioteca: 1 imagenes generadas colgadas de su conversacion" in r.stdout
 

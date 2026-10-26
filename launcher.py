@@ -1032,7 +1032,7 @@ def taller_estado():
             out["recuperar"]["falta"] = "Configura primero base_vault"
         # Indices: la fecha de _tree_index.md, que el paso 4 reescribe siempre. Si una recuperacion de
         # imagenes cambio notas despues, los indices se han quedado viejos.
-        arbol = Path(base) / "MERGED_VAULT" / "_tree_index.md" if base else None
+        arbol = layout.cargar(base).ruta(base, "merged") / "_tree_index.md" if base else None
         if arbol and arbol.is_file():
             fecha = arbol.stat().st_mtime
             ultima_rep = max((c.stat().st_mtime for c in copias), default=0)
