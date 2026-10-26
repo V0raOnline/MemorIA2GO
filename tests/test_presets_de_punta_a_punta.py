@@ -82,9 +82,17 @@ def construido(request, tmp_path_factory):
 
 
 def _notas(carpeta: Path):
+    """Notas de conversacion: sin indices ni lo que vive en carpetas de la app que empiezan por `_`.
+    El pipeline genera `_Temas/` si junto al programa hay un topic_map.json (en el equipo de quien
+    usa la app lo hay), y esas notas de tema no son conversaciones."""
     indices = ("_tree_index.md", "scaffolding_index.md")
     return [p for p in carpeta.rglob("*.md")
-            if p.name not in indices and not p.name.startswith("_")]
+            if p.name not in indices and not any(c.startswith("_") for c in p.relative_to(carpeta).parts)]
+
+
+def _carpetas(merged: Path):
+    """Las carpetas de MERGED que no son de la app (`_Temas` y compania)."""
+    return {p.name for p in merged.iterdir() if p.is_dir() and not p.name.startswith("_")}
 
 
 def _provider(nota: Path) -> str:
@@ -132,7 +140,7 @@ def test_cada_nota_esta_en_la_carpeta_que_toca(construido):
 
 def test_con_merged_partido_hay_una_carpeta_por_proveedor_y_ninguna_mas(construido):
     preset, _, base, _, _ = construido
-    hijos = {p.name for p in (base / "MERGED_VAULT").iterdir() if p.is_dir()}
+    hijos = _carpetas(base / "MERGED_VAULT")
     if lay.PRESETS[preset][0] == "proveedor":
         assert {"ChatGPT", "Claude", "Grok"} <= hijos
         assert "Conversaciones" not in hijos, "carpeta de conversaciones de siempre, vacia, al lado de las buenas"
@@ -258,7 +266,7 @@ def test_solo_se_crean_las_carpetas_de_los_proveedores_que_tienen_notas(tmp_path
     shutil.copy(FIXTURES / "claude_export.zip", tmp / "exports" / "claude_export.zip")
     r = _ejecutar(_config(tmp, "proveedor"))
     assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-800:]
-    hijos = {p.name for p in (tmp / "vault" / "MERGED_VAULT").iterdir() if p.is_dir()}
+    hijos = _carpetas(tmp / "vault" / "MERGED_VAULT")
     assert hijos == {"Claude"}, hijos
 
 
