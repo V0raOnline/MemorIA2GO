@@ -32,6 +32,17 @@ Navigation indexes (project/year/month), attachment usage index, per-provider co
 - **Galleries** (Tools → Galleries, or `python galeria.py` / `python galeria_tintero.py`) — whenever you want to see your images or your posts: it isn't a pipeline step and doesn't touch the vault, so after importing you need to rebuild it. [GALLERY.md](GALLERY.md).
 - **Rebuild indexes** (Tools → Workshop) — after recovering images, registering pending downloads or moving assets by hand: it redoes step 4 without reprocessing. Its folded title warns you if a recovery changed notes after the latest indexes.
 - **Recover images** (Tools → Workshop, or `python recuperar_imagenes.py`) — once for each ChatGPT export you keep, if your notes carry *imagen no disponible* notices. **Don't reprocess everything for this**: it would duplicate conversations. [RECOVER_IMAGES.md](RECOVER_IMAGES.md).
+- **Move the RAW** (`python mover_raw.py --hacia <folder>`) — once, if you want the raw source outside the vault. It copies and verifies; you delete the original. [VAULT_LAYOUT.md](VAULT_LAYOUT.md).
+
+### Folder names live in one place: `layout.py`
+
+`RAW_VAULT`, `MERGED_VAULT`, `CHATGPT/GENERATED`… used to be hand-written in some fifteen files, and changing one meant searching blind. Now they're **a data table** in `layout.py`: logical identifier → path relative to the base folder. It's a table and not a handful of functions on purpose: two tables can be compared, and that's exactly what a migration needs (the one from the Spanish edition already comes from comparing the Spanish table with this edition's).
+
+- **Each edition has its own table**: this one uses `Conversations`, `_Topics`, `GENERATED`, `ATTACHMENTS`… `layout_migration.py` converts a vault built with the Spanish edition by comparing the two.
+- **The organizations are named combinations** of two switches: how MERGED is split (all together or by provider) and whether there's a project vault. What each one means for whoever uses the app: [VAULT_LAYOUT.md](VAULT_LAYOUT.md).
+- **The vault records which layout it was built with**, in `.m3m0ria_layout.json`. The orchestrator passes it to every child process through the environment, so they all use exactly the same one.
+- **The failures it prevents raise no error.** A RAW somewhere other than where the vault knows it is, or a vault with notes that changes organization, would leave conversations out of the merge or duplicated, with everything green. That's why `layout.conflictos` stops the pipeline before writing, and the importer refuses if a bank doesn't end in the folder it would put in the links.
+- **A test watches it**: `tests/test_sin_nombres_a_mano.py` walks the code and fails if anyone writes a folder name outside `layout.py` again.
 
 ---
 

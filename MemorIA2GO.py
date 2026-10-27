@@ -737,7 +737,7 @@ def main():
     # seguir partiria el RAW en dos sin un solo error.
     conflicto = layout.conflictos(params["vault_path"], lay)
     if conflicto:
-        error("Stopping: the settings and the vault do not agree on where the source (RAW) is:")
+        error("Stopping: the settings do not match how the vault was built:")
         for m in conflicto:
             error(f"    {m}")
         sys.exit(2)

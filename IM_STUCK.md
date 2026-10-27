@@ -184,4 +184,15 @@ How they work inside, and what surprises people about each one: [RECOVER_IMAGES.
 
 ---
 
+## It says "Stopping" and doesn't import anything
+
+That's on purpose: M3M0R·IA has seen something that, if it went on, would split your vault in two **without any error**. Below the "Stopping" it explains what. It's almost always one of these two:
+
+- **"The settings put the RAW in… but the vault…"** — you changed the source folder in Settings (*Notes source (RAW)*) without moving the source. Leave it as it was, or really move it with `python mover_raw.py --hacia <folder>`, which copies and checks every file and doesn't delete the original. If the source is on an external drive, it may simply not be connected.
+- **"The vault already has merged conversations organized…"** — you picked another *Organization of the merged vault* for a vault that already has notes. Go back to the one it had: in Settings, the ones that can't be chosen show up disabled, with the reason.
+
+What can change and when: [VAULT_LAYOUT.md](VAULT_LAYOUT.md).
+
+---
+
 *Still stuck? Whatever isn't here is probably in [ARCHITECTURE.md](ARCHITECTURE.md) (how it works inside) or [DEVLOG.md](DEVLOG.md) (what we learned building it).*

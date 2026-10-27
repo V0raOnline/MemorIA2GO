@@ -43,6 +43,16 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 The conversations from all four providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell, MUSIC·0LOGY and image.ia build vaults of their own: it made no sense to treat an editorial archive, a music library and an image gallery the same way.
 
+### New — choose how your vault is organized (next version)
+
+It's already in the code, but not in the v3.2.0 downloadable package.
+
+- **Three organizations for the merged vault**, in Settings: all together with a project vault (the usual), all together without it, or **one folder per provider** (ChatGPT, Claude, Grok…). Topics stay shared, because a topic cuts across providers.
+- **The raw source (`RAW_VAULT`) can live outside the vault**, in another folder or another drive: it's the pipeline's raw material, not something to open in Obsidian. `mover_raw.py` moves it by copying and verifying, without deleting the original.
+- **If something doesn't add up, it stops.** If the settings and the vault disagree on where the source is, or a vault with notes asks for another organization, M3M0R·IA doesn't go on: going on would split your vault in two without a single error.
+
+What can change, when and why: **[VAULT_LAYOUT.md](VAULT_LAYOUT.md)**.
+
 ### New — ChatGPT's images, and a gallery for all of them (v3.2.0)
 
 In 2026 OpenAI changed the ChatGPT export, without notice. Images started being called `file_XXXX.dat`, and M3M0R·IA didn't recognise them: each one appeared in your note as *imagen no disponible en el export* (image not available in the export), **without a single error**. In the vault it was built with, that was over 20,000 notices. On top of that, generated images no longer travel inside the conversations: they only arrive loose, in a separate "library". And the prompt they were generated with no longer travels.
@@ -304,6 +314,7 @@ In the Windows package, from the `app` folder and with its own Python: `python\p
 ## Configuration
 
 - `memoria_config.yaml` — your paths (base vault, exports folder, gizmo map) and options (by-year/by-month folders, index generation). Created from `memoria_config.yaml.example`; never committed.
+- `layout_preset` and `raw_vault` (in `memoria_config.yaml`, or from Settings) — how the merged vault is organized (`proyectos`, `unico` or `proveedor`) and where the raw source lives. Empty, the usual. A vault with notes doesn't change organization without a migration, and the RAW is moved with `mover_raw.py`, not by changing the path by hand: [VAULT_LAYOUT.md](VAULT_LAYOUT.md).
 - `gizmo_map.json` — maps ChatGPT project (gizmo) IDs to human names. Curated from the web UI (Cartography tab); never committed.
 - `topic_map.json` — your themes for unassigned conversations: `{"theme": ["words", "phrases", "field=value"]}`. Curated from the UI; generates linked index notes in `MERGED_VAULT/_Topics`. Never committed, and it's curation of yours that no reprocess rebuilds: keep a copy. How it decides which note goes in each theme (exact text matching, not AI) is in [CARTOGRAPHY.md](CARTOGRAPHY.md).
 - `substack_vault` (in `memoria_config.yaml`) — where the Inkwell vault gets built. It's the **only** path it needs: the Substack export and its stats CSV live in your usual exports folder, because the conversation pipeline rejects them and Inkwell picks them up from there. One folder, two doors.
@@ -326,6 +337,7 @@ Each document answers **one** question. If you're looking for something that isn
 | **[GALLERY.md](GALLERY.md)** | What does the gallery show about each image, and where does it get it? |
 | **[RECOVER_IMAGES.md](RECOVER_IMAGES.md)** | How do I put back into my notes the ChatGPT images that are missing? |
 | **[INKWELL_GALLERY.md](INKWELL_GALLERY.md)** | What does the gallery of my Substack posts show, and where does it get the covers? |
+| **[VAULT_LAYOUT.md](VAULT_LAYOUT.md)** | How are my vault's folders organized, and why does it sometimes refuse to continue? |
 | **[IM_STUCK.md](IM_STUCK.md)** | What if I don't know any of this? |
 | **[DEVLOG.md](DEVLOG.md)** | What did we learn building it? |
 
@@ -338,6 +350,7 @@ Each document answers **one** question. If you're looking for something that isn
 - Manual conversation↔project selector for residual cases (`manual:` namespace in gizmo_map, designed and deferred until the unassigned-conversations pile shrinks further)
 - **ChatGPT's generated images from March to May 2026**: neither the export nor its library carries them. Check whether ChatGPT's web gallery gives them through its API, like Copilot and Grok.
 - **One document per tool**, like [CARTOGRAPHY.md](CARTOGRAPHY.md), with its test: Observatory, Verification, Build, Local sessions, music.ia, image.ia, Inkwell and the Workshop.
+- **Migrating a vault with notes from one organization to another** (for example, from all together to one folder per provider). Today it can be chosen for a new vault; in one with notes, the app prevents it and explains why.
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
 
 ---
