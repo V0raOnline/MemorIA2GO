@@ -740,7 +740,7 @@ def main():
     # seguir partiria el RAW en dos sin un solo error.
     conflicto = layout.conflictos(params["vault_path"], lay)
     if conflicto:
-        error("No sigo: la configuracion y el vault no coinciden en donde esta la fuente (RAW):")
+        error("No sigo: la configuración no casa con cómo está construido el vault:")
         for m in conflicto:
             error(f"    {m}")
         sys.exit(2)

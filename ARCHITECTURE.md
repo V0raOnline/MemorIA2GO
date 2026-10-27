@@ -32,6 +32,16 @@ Construye `PRJ_VAULT` como una vista de proyecto/año/mes de MERGED. Se refresca
 - **Galerías** (Herramientas → Galerías, o `python galeria.py` / `python galeria_tintero.py`) — cuando quieras ver tus imágenes o tus posts: no es un paso del pipeline y no toca el vault, así que tras importar hay que regenerarla. [GALERIA.md](GALERIA.md).
 - **Regenerar índices** (Herramientas → Taller) — tras recuperar imágenes, registrar pendientes o mover assets a mano: rehace el paso 4 sin reprocesar. Su título plegado avisa si una recuperación cambió notas después de los últimos índices.
 - **Recuperar imágenes** (Herramientas → Taller, o `python recuperar_imagenes.py`) — una vez por cada export de ChatGPT que guardes, si tus notas tienen avisos de *imagen no disponible*. **No reprocesar todo para esto**: duplicaría conversaciones. [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md).
+- **Mover el RAW** (`python mover_raw.py --hacia <carpeta>`) — una vez, si quieres la fuente cruda fuera del vault. Copia y verifica; el original lo borras tú. [ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md).
+
+### Los nombres de carpeta viven en un solo sitio: `layout.py`
+
+`RAW_VAULT`, `MERGED_VAULT`, `CHATGPT/GENERADAS`… estaban escritos a mano en unos quince ficheros, y cambiar uno era buscar a ciegas. Ahora son **una tabla de datos** en `layout.py`: identificador lógico → ruta relativa a la carpeta base. Es una tabla y no un puñado de funciones a propósito: dos tablas se pueden comparar, y eso es justo lo que necesita una migración (la de la edición inglesa ya sale de comparar la tabla española con la suya).
+
+- **Las organizaciones son combinaciones con nombre** de dos interruptores: cómo se parte MERGED (todo junto o por proveedor) y si hay vault de proyectos. Qué significa cada una para quien usa la app: [ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md).
+- **El vault guarda con qué layout se construyó**, en `.m3m0ria_layout.json`. El orquestador lo pasa a cada proceso hijo por entorno, para que todos usen exactamente el mismo.
+- **Los fallos que se evitan no dan error.** Un RAW en otro sitio del que el vault conoce, o un vault con notas que cambia de organización, dejarían conversaciones fuera de la fusión o duplicadas, con todo en verde. Por eso `layout.conflictos` para el pipeline antes de escribir, y el importador se niega si un banco no termina en la carpeta que pondría en los enlaces.
+- **Un test lo vigila**: `tests/test_sin_nombres_a_mano.py` recorre el código y falla si alguien vuelve a escribir un nombre de carpeta fuera de `layout.py`. Al juntar el layout con la galería y la recuperación de imágenes, escritas después, cazó 17.
 
 ---
 

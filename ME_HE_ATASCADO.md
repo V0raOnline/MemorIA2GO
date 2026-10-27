@@ -186,4 +186,15 @@ Cómo funcionan por dentro, y lo que sorprende de cada una: [RECUPERAR_IMAGENES.
 
 ---
 
+## Dice «No sigo» y no importa nada
+
+Es a propósito: M3M0R·IA ha visto algo que, si siguiera, partiría tu vault en dos **sin dar ningún error**. Debajo del «No sigo» explica qué es. Casi siempre es una de estas dos cosas:
+
+- **«La configuración pone el RAW en… pero el vault…»** — cambiaste en Configuración la carpeta de la fuente (*Fuente de las notas (RAW)*) sin mover la fuente. Déjala como estaba, o muévela de verdad con `python mover_raw.py --hacia <carpeta>`, que copia y comprueba cada fichero y no borra el original. Si la fuente está en un disco externo, puede que simplemente no esté conectado.
+- **«El vault ya tiene conversaciones fusionadas organizadas…»** — elegiste otra *Organización del vault fusionado* en un vault que ya tiene notas. Vuelve a la que tenía: en Configuración, las que no se pueden elegir salen desactivadas, con el motivo.
+
+Qué se puede cambiar y cuándo: [ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md).
+
+---
+
 *¿Sigues atascada? Lo que no esté aquí probablemente esté en [ARCHITECTURE.md](ARCHITECTURE.md) (cómo funciona por dentro) o en [DEVLOG.md](DEVLOG.md) (qué aprendimos construyéndolo).*

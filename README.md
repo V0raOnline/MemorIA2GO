@@ -43,6 +43,16 @@ A diferencia de las herramientas genéricas de migración, que solo transfieren 
 
 Las conversaciones de los cuatro proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen y recorrer un hilo de pensamiento completo. Tintero, MUSIC·0LOGY e image.ia construyen sus propios vaults: no tenía sentido tratar igual un archivo editorial, una biblioteca musical y una galería de imágenes.
 
+### Novedad — elige cómo se organiza tu vault (próxima versión)
+
+Ya está en el código, pero no en el paquete descargable de la v3.2.0.
+
+- **Tres organizaciones del vault fusionado**, en Configuración: todo junto con un vault de proyectos (lo de siempre), todo junto sin él, o **una carpeta por proveedor** (ChatGPT, Claude, Grok…). Los temas siguen siendo comunes, porque un tema cruza proveedores.
+- **La fuente cruda (`RAW_VAULT`) puede vivir fuera del vault**, en otra carpeta u otro disco: es materia prima del pipeline, no algo para abrir en Obsidian. `mover_raw.py` la lleva copiando y verificando, sin borrar el original.
+- **Si algo no cuadra, se para.** Si la configuración y el vault no coinciden en dónde está la fuente, o un vault con notas pide otra organización, M3M0R·IA no sigue: seguir partiría tu vault en dos sin un solo error.
+
+Qué se puede cambiar, cuándo y por qué: **[ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md)**.
+
 ### Novedad — las imágenes de ChatGPT, y una galería para todas (v3.2.0)
 
 En 2026 OpenAI cambió el export de ChatGPT, sin avisar. Las imágenes pasaron a llamarse `file_XXXX.dat`, y M3M0R·IA no las reconocía: cada una salía en tu nota como *imagen no disponible en el export*, **sin un solo error**. En el vault con el que se construyó eran más de 20.000 avisos. Además, las imágenes generadas ya no van dentro de las conversaciones: solo llegan sueltas, en una «biblioteca» aparte. Y el prompt con el que se generaron ya no viaja.
@@ -301,6 +311,7 @@ En el paquete de Windows, desde la carpeta `app` y con su Python: `python\python
 ## Configuración
 
 - `memoria_config.yaml` — tus rutas (vault base, carpeta de exports, mapa de gizmos) y opciones (carpetas por año/mes, generación de índice). Se crea desde `memoria_config.yaml.example`; nunca se commitea.
+- `layout_preset` y `raw_vault` (en `memoria_config.yaml`, o desde Configuración) — cómo se organiza el vault fusionado (`proyectos`, `unico` o `proveedor`) y dónde vive la fuente cruda. Vacíos, lo de siempre. Un vault con notas no cambia de organización sin migrarlo, y el RAW se mueve con `mover_raw.py`, no cambiando la ruta a mano: [ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md).
 - `gizmo_map.json` — mapea IDs de proyecto (gizmo) de ChatGPT a nombres humanos. Se cura desde la interfaz web (pestaña Cartografía); nunca se commitea.
 - `topic_map.json` — tus temas para conversaciones sin asignar: `{"tema": ["palabras", "frases", "campo=valor"]}`. Se cura desde la interfaz; genera notas de índice enlazadas en `MERGED_VAULT/_Temas`. Nunca se commitea, y es curación tuya que ningún reproceso reconstruye: guarda una copia. Cómo decide qué nota entra en cada tema (por coincidencia exacta de texto, no por IA) está en [CARTOGRAFIA.md](CARTOGRAFIA.md).
 - `substack_vault` (en `memoria_config.yaml`) — dónde se construye el vault de Tintero. Es la **única** ruta que necesita: el export de Substack y su CSV de estadísticas viven en tu carpeta de exports de siempre, porque el pipeline de conversaciones los rechaza y Tintero los recoge de ahí. Una carpeta, dos puertas.
@@ -323,6 +334,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 | **[GALERIA.md](GALERIA.md)**               | ¿Qué enseña la galería de cada imagen, y de dónde lo saca? |
 | **[RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md)** | ¿Cómo devuelvo a mis notas las imágenes de ChatGPT que faltan? |
 | **[GALERIA_TINTERO.md](GALERIA_TINTERO.md)** | ¿Qué enseña la galería de mis posts de Substack, y de dónde saca las portadas? |
+| **[ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md)** | ¿Cómo se organizan las carpetas de mi vault, y por qué a veces se niega a seguir? |
 | **[ME_HE_ATASCADO.md](ME_HE_ATASCADO.md)** | ¿Y si no sé nada de esto?                |
 | **[DEVLOG.md](DEVLOG.md)**                 | ¿Qué aprendimos construyéndolo?          |
 
@@ -335,6 +347,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 - Selector manual conversación↔proyecto para casos residuales (namespace `manual:` en gizmo_map, diseñado y diferido hasta que el montón de conversaciones sin asignar se reduzca más)
 - **Las imágenes generadas de ChatGPT de marzo a mayo de 2026**: ni el export ni su biblioteca las traen. Mirar si la galería web de ChatGPT las da por su API, como Copilot y Grok.
 - **Un documento por herramienta**, como [CARTOGRAFIA.md](CARTOGRAFIA.md), con su test: Observatorio, Verificación, Construcción, Sesiones locales, music.ia, image.ia, Tintero y el Taller.
+- **Migrar un vault con notas de una organización a otra** (por ejemplo, de todo junto a una carpeta por proveedor). Hoy se puede elegir en un vault nuevo; en uno con notas, la app lo impide y explica por qué.
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
 
 ---
