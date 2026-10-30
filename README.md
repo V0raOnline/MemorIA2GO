@@ -13,7 +13,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-### ⬇ **[Download M3M0R·IA for Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.2.0-en/M3M0R-IA-3.2.0-en.zip)** · 28 MB
+### ⬇ **[Download M3M0R·IA for Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.3.0-en/M3M0R-IA-3.3.0-en.zip)** · 28 MB
 
 Unpack it and double-click. **No programming, nothing installed** — it carries
 its own Python inside. The details are under *Installation — the Windows
@@ -43,9 +43,16 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 The conversations from all four providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell, MUSIC·0LOGY and image.ia build vaults of their own: it made no sense to treat an editorial archive, a music library and an image gallery the same way.
 
-### New — choose how your vault is organized (next version)
+### New — Tools, and your vault your way (v3.3.0)
 
-It's already in the code, but not in the v3.2.0 downloadable package.
+**Tools**, at the bottom of the sidebar, brings together what used to exist only in the console:
+
+- **Galleries**: the one for your images and videos, and a new one for your **Substack posts**, with each one's cover, subtitle, first words and filters by status, publication, section, tag and month. They're built and opened in your browser with one button. **[INKWELL_GALLERY.md](INKWELL_GALLERY.md)**.
+- **The Workshop**, with the repairs: recover ChatGPT images (simulate, apply and undo, no console), pending downloads, rebuild indexes and move Inkwell's old layout. Each one folded, with its status in the title.
+
+The Reconnection tab is now called **Local sessions**.
+
+And **you choose how the vault is organized**:
 
 - **Three organizations for the merged vault**, in Settings: all together with a project vault (the usual), all together without it, or **one folder per provider** (ChatGPT, Claude, Grok…). Topics stay shared, because a topic cuts across providers.
 - **The raw source (`RAW_VAULT`) can live outside the vault**, in another folder or another drive: it's the pipeline's raw material, not something to open in Obsidian. `mover_raw.py` moves it by copying and verifying, without deleting the original.
@@ -212,7 +219,7 @@ The stats CSV is optional, but it's the only source carrying each post's **secti
 ### Installation — the Windows package
 
 **If you've never opened a console in your life, this is your path.** Download
-**[`M3M0R-IA-3.2.0-en.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.2.0-en/M3M0R-IA-3.2.0-en.zip)**
+**[`M3M0R-IA-3.3.0-en.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.3.0-en/M3M0R-IA-3.3.0-en.zip)**
 (28 MB), unpack it wherever you like, and double-click **`M3M0R-IA.bat`**.
 That's it: your browser opens with M3M0R·IA inside.
 

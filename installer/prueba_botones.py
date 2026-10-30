@@ -59,6 +59,9 @@ CASOS = [
     # (ruta, cuerpo, segundos de paciencia, nota)
     ("/api/config", {}, 15, "guardar sin nada"),
     ("/api/config", {"paths": {"base_vault": str(vault)}}, 15, "guardar una ruta"),
+    ("/api/config", {"options": {"layout_preset": "no-existe"}}, 15, "organizacion del vault que no existe"),
+    ("/api/config", {"options": {"layout_preset": "proveedor"}, "paths": {"raw_vault": "C:/no/existe"}}, 15,
+     "organizacion y RAW externo en un vault vacio"),
     ("/api/topics", {}, 15, "temas: cuerpo vacio"),
     ("/api/topics", {"topics": {"prueba": ["palabra"]}}, 15, "temas: uno valido"),
     ("/api/topics/generate", {}, 90, "generar indice de temas"),
