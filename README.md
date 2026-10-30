@@ -13,7 +13,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-### ⬇ **[Descargar M3M0R·IA para Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.3.0-es/M3M0R-IA-3.3.0-es.zip)** · 28 MB
+### ⬇ **[Descargar M3M0R·IA para Windows](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.3.0-es/M3M0R-IA-3.3.0-es.zip)** · 29 MB
 
 Descomprimes y haces doble clic. **No hace falta saber programar ni instalar
 nada** — lleva su propio Python dentro. Los detalles, en *Instalación — el
@@ -217,7 +217,7 @@ El CSV de estadísticas es opcional, pero es la única fuente en la que están l
 
 **Si no has abierto una consola en tu vida, este es tu camino.** Descarga
 **[`M3M0R-IA-3.3.0-es.zip`](https://github.com/V0raOnline/MemorIA2GO/releases/download/v3.3.0-es/M3M0R-IA-3.3.0-es.zip)**
-(28 MB), descomprímelo donde quieras y haz doble clic en **`M3M0R-IA.bat`**.
+(29 MB), descomprímelo donde quieras y haz doble clic en **`M3M0R-IA.bat`**.
 Ya está: se abre tu navegador con M3M0R·IA dentro.
 
 > **Un paso antes de descomprimir, y te ahorra un susto.** Windows marca todo
