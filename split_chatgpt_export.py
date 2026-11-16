@@ -933,7 +933,9 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
     elif isinstance(c, str):
         return _resolver_marcadores(c, refs, markers_ctx)
     elif isinstance(c, dict) and c.get("content_type"):
-        return render_bloque_sin_parts(c)
+        # El razonamiento y las herramientas tambien llevan citas internas
+        # (citeturn0search1...): mismo ultimo paso que el resto del texto.
+        return _resolver_marcadores(render_bloque_sin_parts(c), refs, markers_ctx)
     else:
         return json.dumps(c, ensure_ascii=False)
 

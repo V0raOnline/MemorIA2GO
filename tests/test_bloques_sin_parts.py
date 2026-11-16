@@ -112,6 +112,13 @@ def test_titulo_no_sale_de_las_instrucciones():
     assert S.smart_title("", msgs).startswith("Receta")
 
 
+def test_marcadores_internos_no_quedan_en_los_bloques():
+    cita = "citeturn0search1"
+    m = _msgs([{"content_type": "thoughts", "thoughts": [{"summary": "Busco", "content": "segun la fuente " + cita}]},
+               "respuesta"])
+    assert not any("" <= ch <= "" for ch in m[0]["content"])
+
+
 def test_recap_va_al_titulo_del_razonamiento():
     m = _msgs([{"content_type": "thoughts", "thoughts": [{"summary": "Plan", "content": "x"}]},
                {"content_type": "reasoning_recap", "content": "Pensó durante 11s"}, "respuesta"])
