@@ -492,9 +492,14 @@ def editada_a_mano(en_merged: bytes, de_la_fusion: bytes) -> bool:
     return en_merged != de_la_fusion and bool(_lineas_de(en_merged) - _lineas_de(de_la_fusion))
 
 
+def _ruta_config() -> str:
+    """La de MEMORIA_CONFIG si esta puesta (asi lanza el Taller), si no la del programa: como galeria.py."""
+    return os.environ.get("MEMORIA_CONFIG") or str(HERE / "memoria_config.yaml")
+
+
 def _params(base: Path) -> dict:
     import MemorIA2GO as M
-    p = M.load_from_yaml(str(HERE / "memoria_config.yaml")) or {}
+    p = M.load_from_yaml(_ruta_config()) or {}
     p["vault_path"] = Path(base)
     return p
 
@@ -915,7 +920,7 @@ def escribir_csv(informe: dict, ruta: Path) -> None:
 def _config_base() -> Optional[str]:
     try:
         from config_loader import load_config, get_path
-        base = get_path(load_config(str(HERE / "memoria_config.yaml")), "base_vault")
+        base = get_path(load_config(_ruta_config()), "base_vault")
         return str(base) if base else None
     except Exception:
         return None
@@ -937,6 +942,8 @@ def main(argv=None) -> int:
     ap.add_argument("--logs", metavar="CARPETA", help="Donde guardar la copia (por defecto, logs/ junto al programa)")
     ap.add_argument("--exports", metavar="CARPETA",
                     help="Donde estan los exports (por defecto, exports_dir de memoria_config.yaml)")
+    ap.add_argument("--resumen-json", action="store_true",
+                    help="Terminar con una linea __RESUMEN__ {json}: la lee el Taller para pintar el resultado")
     args = ap.parse_args(argv)
     try:
         if args.deshacer:
@@ -1005,6 +1012,15 @@ def main(argv=None) -> int:
             print(f"      {k}")
     if copia:
         print(f"\n  para deshacer: python reparseame.py --deshacer \"{copia}\"")
+    if args.resumen_json:
+        print("__RESUMEN__ " + json.dumps({
+            "aplicado": bool(copia), "copia": str(copia) if copia else None,
+            "reescritas": plan["reescribir"], "renombradas": plan["renombrar"], "apartadas": plan["papelera"],
+            "imagenes": plan.get("imagenes", 0), "regeneracion": plan.get("regeneracion", {}),
+            "merged_al_dia": der["atrasadas"], "huerfanas": len(der["huerfanas"]),
+            "prj_huerfanas": len(der.get("prj_huerfanas", [])), "protegidas": der["protegidas"],
+            "desconocidas": der["desconocidas"],
+        }, ensure_ascii=False))
     return 0
 
 

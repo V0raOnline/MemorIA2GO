@@ -3,7 +3,7 @@
 > **¿Qué pregunta responde este documento?**
 > *Mi vault se escribió con versiones antiguas del parser: ¿cómo lo pongo al día sin perder nada y sin duplicar conversaciones?*
 
-> **Estado (2026-11-16): fases 1, 2 y 3 hechas, en `reparseame.py`.** Diagnóstico, reescritura de RAW y puesta al día de MERGED y PRJ, todo probado sobre una copia entera del vault real. Pendientes: la fase 4 (derivas que necesitan el export) y la 5 (pantalla del Taller).
+> **Estado (2026-11-16): las cinco fases hechas y aplicadas al vault real.** Son el diagnóstico, la reescritura de RAW, la puesta al día de MERGED y PRJ, las imágenes de cualquier export (4a), la regeneración desde el export propio (4b) y la pantalla del Taller (5). En la app está en Herramientas › Taller › **REParsea·me**: *Simular* (no escribe), *Aplicar* (aparece después de simular y pide confirmación) y *Deshacer la última*, con el registro en directo y un resumen en tarjetas. Endpoints: `GET/POST /api/taller/reparseame` y `POST /api/taller/reparseame/deshacer`. Pendientes: que el diagnóstico distinga «fiel a su export» de «roto», y el port a EN (REParse·me).
 >
 > Prueba en una copia del vault real (RAW con 7.358 notas, MERGED y PRJ):
 > - **RAW:** 1.745 notas reescritas, 209 renombradas por su huella y 3.695 versiones idénticas apartadas. Quedan 3.663 notas.

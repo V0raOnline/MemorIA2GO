@@ -916,6 +916,20 @@ button.btn.secondary:hover {
 .source-sub.estado.ok { color: var(--green); }
 .fila-botones { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
+/* REParsea·me: el aviso de antes de aplicar y las tarjetas del resultado */
+.card-help.aviso-previo { border-left: 3px solid var(--yellow); padding-left: 10px; }
+.resumen-taller {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.resumen-taller .cifra { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+.resumen-taller .cifra span { display: block; font-size: 12px; color: var(--text-dim); }
+.resumen-taller .cifra strong { font-family: var(--mono); font-size: 18px; color: var(--text); font-weight: 600; }
+.resumen-taller .cifra.aviso strong { color: var(--accent); }
+.resumen-taller .nota-pie { grid-column: 1 / -1; font-size: 12px; color: var(--text-dim); margin: 2px 0 0; }
+
 .card-help {
   color: var(--text-dim);
   font-size: 13px;

@@ -1988,7 +1988,7 @@ async function loadGalerias() {
 
 // Lee una respuesta de log en vivo (lineas de texto y al final "__DONE__ <codigo>") y la va pintando
 // en `log`. Devuelve el codigo de salida del proceso. Lo usan las galerias y el Taller.
-async function leerLogEnVivo(res, log) {
+async function leerLogEnVivo(res, log, alResumen) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let resto = "", codigo = null;
@@ -2000,6 +2000,11 @@ async function leerLogEnVivo(res, log) {
     resto = lineas.pop();
     for (const linea of lineas) {
       if (linea.startsWith("__DONE__")) { codigo = parseInt(linea.slice(8).trim(), 10); continue; }
+      // Una herramienta puede cerrar con su resultado en JSON (REParsea·me): no va al registro.
+      if (linea.startsWith("__RESUMEN__")) {
+        if (alResumen) { try { alResumen(JSON.parse(linea.slice(11))); } catch (_) { /* sin resumen */ } }
+        continue;
+      }
       if (linea.startsWith("__ERROR__")) throw new Error(linea.slice(9).trim());
       log.textContent += linea + "\n";
       log.scrollTop = log.scrollHeight;
@@ -2072,7 +2077,7 @@ function ponerEstado(id, texto, tipo) {
 async function loadTaller() {
   // Si el estado no se puede leer (p. ej. sin configuracion), se dice en cada titulo: callarse dejaba
   // "contando avisos…" para siempre, que es justo un fallo que no da error.
-  const sinEstado = () => ["recuperar-estado", "reindex-estado", "migrar-estado"].forEach((id) =>
+  const sinEstado = () => ["reparseame-estado", "recuperar-estado", "reindex-estado", "migrar-estado"].forEach((id) =>
     ponerEstado(id, "no se puede leer: mira la Configuración", "aviso"));
   let d = {};
   try {
@@ -2096,6 +2101,7 @@ async function loadTaller() {
   btnDes.textContent = ultima ? `Deshacer la última (${fechaCorta(ultima.fecha) || "?"} · ${ultima.tipo})` : "Deshacer la última";
   btnDes.dataset.copia = ultima ? `${fechaCorta(ultima.fecha) || ultima.nombre}, ${ultima.tipo}` : "";
   cargarAvisos();
+  cargarReparseame();
 
   // Indices: la fecha de los ultimos, y si una recuperacion cambio notas despues
   const ix = d.indices || {};
@@ -2186,6 +2192,114 @@ async function deshacerRecuperacion() {
     msg.className = "msg error";
   }
 }
+
+// ---- REParsea·me ----
+// El titulo plegado: la ultima pasada y el recuento rapido (notas con JSON crudo). Lo demas solo lo
+// sabe una simulacion, que tarda unos minutos.
+async function cargarReparseame() {
+  ponerEstado("reparseame-estado", "mirando tus notas…");
+  const btnDes = document.getElementById("btn-reparseame-deshacer");
+  try {
+    const r = await (await fetch("/api/taller/reparseame")).json();
+    if (r.falta) { ponerEstado("reparseame-estado", r.falta.replace("Configura primero", "configura"), "aviso"); return; }
+    if (r.error) { ponerEstado("reparseame-estado", "no se ha podido mirar", "aviso"); return; }
+    const partes = [r.ultima ? `última pasada: ${fechaCorta(r.ultima)}` : "nunca pasado"];
+    if (r.json_crudo) partes.push(`${r.json_crudo.toLocaleString("es-ES")} notas con JSON crudo`);
+    ponerEstado("reparseame-estado", partes.join(" · "), r.json_crudo ? "aviso" : (r.ultima ? "ok" : ""));
+    btnDes.disabled = !r.deshacer;
+    btnDes.textContent = r.deshacer ? `Deshacer la última (${fechaCorta(r.deshacer.fecha) || "?"})` : "Deshacer la última";
+    btnDes.dataset.copia = r.deshacer ? (fechaCorta(r.deshacer.fecha) || r.deshacer.nombre) : "";
+  } catch (_) {
+    ponerEstado("reparseame-estado", "no se ha podido mirar", "aviso");
+  }
+}
+
+function pintarResumenReparseame(r) {
+  const caja = document.getElementById("reparseame-resumen");
+  const n = (x) => (x || 0).toLocaleString("es-ES");
+  const cifra = (etiqueta, valor, aviso) =>
+    `<div class="cifra${aviso ? " aviso" : ""}"><span>${etiqueta}</span><strong>${n(valor)}</strong></div>`;
+  const regen = r.regeneracion || {};
+  caja.innerHTML = [
+    cifra(r.aplicado ? "Notas de RAW reescritas" : "Notas de RAW que se reescriben", r.reescritas),
+    cifra(r.aplicado ? "Versiones idénticas apartadas" : "Versiones idénticas que se apartan", r.apartadas),
+    cifra("Regeneradas desde su export", regen.regeneradas),
+    cifra("Imágenes de tus exports en el fusionado", r.imagenes),
+    cifra(r.aplicado ? "Notas del fusionado al día" : "Notas del fusionado atrasadas", r.merged_al_dia),
+    cifra("Huérfanas apartadas", (r.huerfanas || 0) + (r.prj_huerfanas || 0)),
+    cifra("No coinciden con su export", (r.protegidas || []).length, (r.protegidas || []).length > 0),
+    `<p class="nota-pie">«No coinciden con su export»: notas del fusionado editadas a mano. No se tocan, pero `
+      + `la próxima importación las devuelve al archivo, porque las notas no se editan.`
+      + ((r.protegidas || []).length ? ` Son: ${r.protegidas.map(escapeHtml).join(", ")}.` : "") + `</p>`,
+  ].join("");
+  caja.style.display = "";
+}
+
+// Simular primero; "Aplicar" aparece solo despues de una simulacion que termina bien, y pide
+// confirmacion: reescribe el vault (con copia de seguridad y vuelta atras).
+async function reparseame(aplicar) {
+  const btnSim = document.getElementById("btn-reparseame-simular");
+  const btnApl = document.getElementById("btn-reparseame-aplicar");
+  const msg = document.getElementById("reparseame-msg");
+  const log = document.getElementById("reparseame-log");
+  if (aplicar && !confirm("REParsea·me va a reescribir tu vault: RAW, el fusionado y el de proyectos.\n\n"
+                          + "Se guarda antes una copia exacta de todo lo que toca y se puede deshacer.\n"
+                          + "¿Has cerrado Obsidian y tienes copia del vault?\n\n¿Aplicar?")) return;
+  btnSim.disabled = btnApl.disabled = true;
+  msg.textContent = aplicar ? "Aplicando (tarda unos minutos)..." : "Simulando: no se escribe nada en tu vault (tarda unos minutos)...";
+  msg.className = "msg";
+  log.style.display = "";
+  log.textContent = "";
+  document.getElementById("reparseame-resumen").style.display = "none";
+  try {
+    const res = await fetch("/api/taller/reparseame", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aplicar }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const codigo = await leerLogEnVivo(res, log, pintarResumenReparseame);
+    if (codigo !== 0) throw new Error("no ha terminado bien — mira el detalle");
+    if (aplicar) {
+      btnApl.style.display = "none";
+      msg.textContent = "Hecho. Ya puedes abrir Obsidian.";
+      loadTaller();
+    } else {
+      btnApl.style.display = "";
+      msg.textContent = "Simulación terminada: no se ha escrito nada. Si los números te cuadran, pulsa «Aplicar».";
+    }
+    msg.className = "msg ok";
+  } catch (e) {
+    btnApl.style.display = "none";
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  } finally {
+    btnSim.disabled = btnApl.disabled = false;
+  }
+}
+
+async function deshacerReparseame() {
+  const msg = document.getElementById("reparseame-msg");
+  const cual = document.getElementById("btn-reparseame-deshacer").dataset.copia;
+  if (!confirm(`Se deshace la última pasada de REParsea·me (${cual}): RAW, el fusionado y el de proyectos vuelven `
+               + "a como estaban. Las imágenes copiadas a los bancos se quedan.\n\nCierra Obsidian. ¿Deshacer?")) return;
+  try {
+    const res = await fetch("/api/taller/reparseame/deshacer", { method: "POST" });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    msg.textContent = `Deshecho: ${d.notas.toLocaleString("es-ES")} notas restauradas (${d.copia}).`;
+    msg.className = "msg ok";
+    loadTaller();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = "msg error";
+  }
+}
+
+document.getElementById("btn-reparseame-simular").addEventListener("click", () => reparseame(false));
+document.getElementById("btn-reparseame-aplicar").addEventListener("click", () => reparseame(true));
+document.getElementById("btn-reparseame-deshacer").addEventListener("click", deshacerReparseame);
 
 document.getElementById("btn-recuperar-simular").addEventListener("click", () => recuperar(false));
 document.getElementById("btn-recuperar-aplicar").addEventListener("click", () => recuperar(true));

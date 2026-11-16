@@ -977,6 +977,24 @@ PREFIJO_COPIA_RECUPERAR = "recuperar_imagenes_"
 MARCA_DESHECHA = "deshecho.json"          # dentro de una copia ya deshecha: "deshacer la ultima" la salta
 
 
+PREFIJO_COPIA_REPARSEAME = "reparseame_"  # las copias de REParsea·me (reparseame.py), en LOGS_DIR
+_reparseame_cache: dict = {}               # recuento rapido; se borra al aplicar o deshacer
+
+
+def _copias_reparseame(incluir_deshechas: bool = False) -> list:
+    """Las pasadas aplicadas de REParsea·me, la mas reciente primero (sin las deshechas, salvo que se pida)."""
+    if not LOGS_DIR.is_dir():
+        return []
+    copias = [c for c in LOGS_DIR.iterdir() if c.is_dir() and c.name.startswith(PREFIJO_COPIA_REPARSEAME)
+              and (c / "manifiesto.json").is_file() and (incluir_deshechas or not (c / MARCA_DESHECHA).exists())]
+    return sorted(copias, key=lambda c: c.name, reverse=True)
+
+
+def _fecha_de_copia_reparseame(copia: Path):
+    m = re.match(PREFIJO_COPIA_REPARSEAME + r"(\d{8})-(\d{6})$", copia.name)
+    return datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").isoformat(timespec="seconds") if m else None
+
+
 def _cfg_rutas():
     from config_loader import load_config, get_path
     cfg = load_config(str(CONFIG_PATH))
@@ -1072,6 +1090,91 @@ def taller_avisos():
             return jsonify({"avisos": _avisos_cache["avisos"], "imagenes": _avisos_cache["imagenes"]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/taller/reparseame")
+def taller_reparseame_estado():
+    """{ultima, deshacer, json_crudo}: la ultima pasada aplicada (y la que desharia «Deshacer la
+    ultima») y el recuento rapido de notas con JSON crudo. Lo demas solo lo sabe una simulacion."""
+    try:
+        base = _cfg_rutas()["base_vault"]
+        if not base:
+            return jsonify({"falta": "Configura primero base_vault"})
+        todas, vivas = _copias_reparseame(incluir_deshechas=True), _copias_reparseame()
+        out = {"ultima": _fecha_de_copia_reparseame(todas[0]) if todas else None,
+               "deshacer": ({"nombre": vivas[0].name, "fecha": _fecha_de_copia_reparseame(vivas[0])}
+                            if vivas else None)}
+        with _avisos_lock:
+            if _reparseame_cache.get("base") != str(base):
+                import reparseame
+                inf = reparseame.diagnosticar(Path(base), log=lambda *_: None)
+                _reparseame_cache.update(base=str(base), json_crudo=inf["por_deriva"]["json_crudo"])
+            out["json_crudo"] = _reparseame_cache["json_crudo"]
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/taller/reparseame", methods=["POST"])
+def taller_reparseame():
+    """reparseame.py con su log en vivo. Sin `aplicar`, simulacion (no escribe en el vault)."""
+    cuerpo = request.get_json(silent=True) or {}
+    base = _cfg_rutas()["base_vault"]
+    if not base:
+        return jsonify({"error": "Configura primero base_vault"}), 400
+    aplicar = bool(cuerpo.get("aplicar"))
+    args = [sys.executable, str(HERE / "reparseame.py"), "--base-vault", str(base), "--logs", str(LOGS_DIR),
+            "--resumen-json"]
+    if aplicar:
+        args.append("--aplicar")
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+
+    def generate():
+        try:
+            # PYTHONUNBUFFERED: sin consola, Python escribe por bloques y el registro «en directo» se
+            # quedaba minutos en la primera linea.
+            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1",
+                   "MEMORIA_CONFIG": str(CONFIG_PATH)}
+            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                    encoding="utf-8", errors="replace", bufsize=1, env=env, cwd=str(HERE))
+            for line in proc.stdout:
+                if "python reparseame.py --deshacer" in line:
+                    continue  # linea de ordenes: aqui esta el boton
+                yield line.rstrip() + "\n"
+            proc.wait()
+            if aplicar:
+                _reparseame_cache.clear()
+                _avisos_cache.clear()
+            yield f"__DONE__ {proc.returncode}\n"
+        except Exception as e:
+            yield f"__ERROR__ {e}\n"
+        finally:
+            run_lock.release()
+
+    return Response(generate(), mimetype="text/plain",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/taller/reparseame/deshacer", methods=["POST"])
+def taller_reparseame_deshacer():
+    """Deshace la ultima pasada aplicada de REParsea·me (RAW, MERGED, PRJ y la correspondencia de
+    imagenes). reparseame.deshacer marca la copia como deshecha; pulsar otra vez deshace la anterior."""
+    copias = _copias_reparseame()
+    if not copias:
+        return jsonify({"error": "No hay nada que deshacer"}), 404
+    if not run_lock.acquire(blocking=False):
+        return jsonify({"error": "Ya hay una ejecucion en curso"}), 409
+    try:
+        import reparseame
+        n = reparseame.deshacer(copias[0], log=lambda *_: None)
+        _reparseame_cache.clear()
+        _avisos_cache.clear()
+        return jsonify({"ok": True, "copia": copias[0].name, "notas": n})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        run_lock.release()
 
 
 @app.route("/api/taller/recuperar", methods=["POST"])
