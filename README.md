@@ -43,6 +43,18 @@ A diferencia de las herramientas genéricas de migración, que solo transfieren 
 
 Las conversaciones de los cuatro proveedores conviven en un único vault fusionado; cada nota lleva `provider` y `source` en su frontmatter, así que puedes filtrar, colorear e indexar por origen y recorrer un hilo de pensamiento completo. Tintero, MUSIC·0LOGY e image.ia construyen sus propios vaults: no tenía sentido tratar igual un archivo editorial, una biblioteca musical y una galería de imágenes.
 
+### Novedad — REParsea·me: tus notas, como las escribiría hoy (en el código; llega en la próxima versión)
+
+Cada mejora de la importación vale para lo que importas **después**. Las notas que ya tenías se quedan como salieron. En el vault con el que se construyó, casi la mitad de las notas de ChatGPT llevaban **bloques de JSON crudo**: unos 46.000 bloques de razonamiento, llamadas a herramientas, archivos citados, documentos de Canvas y tus instrucciones personalizadas, ilegibles en mitad de la conversación. Reimportar no lo arreglaba: **duplicaba** conversaciones.
+
+- **La importación ya no vuelca nada en crudo.** El razonamiento, las herramientas y los resultados van **plegados**; los documentos de Canvas se leen como documentos; tus instrucciones personalizadas van **una vez, arriba**, y solo se marca cuándo las cambiaste tú.
+- **REParsea·me pone al día lo que ya tenías**, en Herramientas → Taller. Primero una simulación que no escribe nada; después aplicar, con copia de todo lo que toca y un «deshacer» que lo deja **idéntico**: nombres, bytes y fechas.
+- **Tu fuente cruda sigue siendo el archivo fiel de cada export.** Cada nota se reescribe como la escribiría hoy *su* export, se renombra para que la próxima importación la reconozca y no la duplique, y las versiones idénticas se apartan.
+- **Las imágenes de cualquiera de tus exports se ven en el vault fusionado**, aunque el export de esa nota no las trajera. La fuente cruda no se toca, y la fusión ya no duplica un mensaje por tener una vez el aviso y otra la imagen.
+- **Lo que editaste a mano en el vault fusionado se marca, no se pisa.** Las notas son el archivo de tus conversaciones, y la siguiente importación las devuelve a su forma original.
+
+En el vault real: 7.358 notas de la fuente cruda se quedaron en 3.663 sin perder un mensaje, y las notas fusionadas con avisos de imagen bajaron de 602 a 194. Las que quedan son de imágenes que ningún export trae. Cómo funciona, qué no hace y por qué: **[REPARSEAME.md](REPARSEAME.md)**.
+
 ### Novedad — Herramientas, y tu vault a tu manera (v3.3.0)
 
 **Herramientas**, abajo en la barra lateral, junta lo que antes solo existía en la consola:
@@ -339,6 +351,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 | **[ARCHITECTURE.md](ARCHITECTURE.md)**     | ¿Cómo funciona por dentro y por qué así? |
 | **[CARTOGRAFIA.md](CARTOGRAFIA.md)**       | ¿Cómo decide Cartografía qué nota va en qué tema? |
 | **[GALERIA.md](GALERIA.md)**               | ¿Qué enseña la galería de cada imagen, y de dónde lo saca? |
+| **[REPARSEAME.md](REPARSEAME.md)** | Mi vault se escribió con versiones antiguas de la importación: ¿cómo lo pongo al día sin perder nada ni duplicar? |
 | **[RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md)** | ¿Cómo devuelvo a mis notas las imágenes de ChatGPT que faltan? |
 | **[GALERIA_TINTERO.md](GALERIA_TINTERO.md)** | ¿Qué enseña la galería de mis posts de Substack, y de dónde saca las portadas? |
 | **[ORGANIZAR_VAULT.md](ORGANIZAR_VAULT.md)** | ¿Cómo se organizan las carpetas de mi vault, y por qué a veces se niega a seguir? |
@@ -356,6 +369,7 @@ Cada documento responde **una** pregunta. Si buscas algo que no está aquí, pro
 - **Un documento por herramienta**, como [CARTOGRAFIA.md](CARTOGRAFIA.md), con su test: Observatorio, Verificación, Construcción, Sesiones locales, music.ia, image.ia, Tintero y el Taller.
 - **Migrar un vault con notas de una organización a otra** (por ejemplo, de todo junto a una carpeta por proveedor). Hoy se puede elegir en un vault nuevo; en uno con notas, la app lo impide y explica por qué.
 - Distinguir "nunca tuvo proyecto" de "tiene un proyecto que nadie ha nombrado todavía" en `Project_name` — hoy ambos colapsan a `none`
+- **REParsea·me**: que el diagnóstico distinga una nota «fiel a su export» (lo que le falta, su export tampoco lo trae) de una rota, y que cubra los dos casos que le quedan a `recuperar_imagenes.py` (colgar las generadas de la biblioteca en notas antiguas y los metadatos de generación), para poder retirarlo.
 
 ---
 
