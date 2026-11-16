@@ -706,6 +706,57 @@ def render_bloque_sin_parts(c: dict) -> str:
                     _bloque_codigo(json.dumps(c, ensure_ascii=False, indent=1), "json"))
 
 
+class EstadoHilo:
+    """Lo que hay que recordar de un hilo mientras se recorren sus mensajes."""
+
+    def __init__(self) -> None:
+        self.instrucciones: Optional[str] = None
+
+
+def incorporar_especial(messages: List[Dict[str, str]], c: Any, estado: EstadoHilo) -> bool:
+    """Los bloques que no son un mensaje mas: las instrucciones personalizadas
+    (una vez, arriba) y el «Pensó durante…» (al titulo de su razonamiento).
+    Devuelve True si el bloque ya quedo incorporado o descartado.
+
+    Vive aparte del bucle porque lo comparten la importacion y REParsea·me
+    (reparseame.py): asi una nota reparada sale igual que una importada hoy."""
+    ctipo = c.get("content_type") if isinstance(c, dict) else None
+    if ctipo == "user_editable_context":
+        # ChatGPT las inyecta, ocultas, en cada hilo y a veces varias veces.
+        # Van una vez, arriba, con rol propio para que smart_title no las tome
+        # por el primer mensaje de V0ra. Si cambian a mitad del hilo, se dice.
+        texto = texto_instrucciones(c)
+        vigentes = estado.instrucciones
+        # A veces la inyeccion trae solo el perfil y en el turno siguiente
+        # vuelven las instrucciones: eso no es un cambio de V0ra (20 de 24
+        # «cambios» en el export de dic-2025).
+        if vigentes and "**Cómo quiere que respondas**" not in texto:
+            return True
+        if vigentes and "**Cómo quiere que respondas**" not in vigentes:
+            # Al reves: arriba quedo solo el perfil. Se completa ese bloque en
+            # lugar de anunciar un cambio.
+            for m_prev in messages:
+                if m_prev["role"] == "contexto":
+                    m_prev["content"] = _callout("info", TITULO_INSTRUCCIONES, texto)
+                    break
+            estado.instrucciones = texto
+            return True
+        if texto and texto != vigentes:
+            titulo_i = TITULO_INSTRUCCIONES + (" (cambian aquí)" if vigentes else "")
+            messages.append({"role": "contexto", "content": _callout("info", titulo_i, texto)})
+            estado.instrucciones = texto
+        return True
+    if ctipo == "reasoning_recap" and messages and \
+            messages[-1]["content"].startswith(f"> [!abstract]- {TITULO_RAZONAMIENTO}\n"):
+        # «Pensó durante 11s» va al titulo del razonamiento que resume.
+        recap = (c.get("content") or "").strip()
+        if recap:
+            cab = f"> [!abstract]- {TITULO_RAZONAMIENTO}"
+            messages[-1]["content"] = cab + f" · {recap}" + messages[-1]["content"][len(cab):]
+        return True
+    return False
+
+
 def write_md(base_out_dir: str, title: str, date_str: str,
              messages: List[Dict[str, str]], tags: List[str],
              by_year: bool = False, by_month: bool = False,
@@ -776,6 +827,13 @@ def write_md(base_out_dir: str, title: str, date_str: str,
                 write_path = f"{base}-t{short_ts(dt)}-{i}{ext}"
                 i += 1
         elif scheme == "hash":
+            # La primera version de cada conversacion se llama sin huella. Si
+            # ya dice esto mismo, no hay nada que escribir: sin esta comprobacion
+            # nacia al lado una gemela -hXXXX identica (2.100 en el vault real
+            # de V0ra, medido el 2026-11-16). Ver REPARSEAME.md.
+            if contenido_identico(path, content_text):
+                rel = os.path.relpath(path, base_out_dir).replace("\\", "/")
+                return path, rel
             h = content_hash(content_text)
             base, ext = os.path.splitext(path)
             write_path = f"{base}-h{h}{ext}"
@@ -1058,7 +1116,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
         current_node = conv.get("current_node")
         messages: List[Dict[str, str]] = []
         modelos_vistos: Dict[str, int] = {}
-        instrucciones_vigentes: Optional[str] = None
+        estado_hilo = EstadoHilo()
 
         if isinstance(mapping, dict):
             ordered_nodes: List[Dict[str, Any]] = []
@@ -1099,39 +1157,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 if slug:
                     modelos_vistos[slug] = modelos_vistos.get(slug, 0) + 1
                 c = msg.get("content")
-                ctipo = c.get("content_type") if isinstance(c, dict) else None
-                if ctipo == "user_editable_context":
-                    # ChatGPT las inyecta, ocultas, en cada hilo y a veces
-                    # varias veces. Van una vez, arriba, con rol propio para
-                    # que smart_title no las tome por el primer mensaje de
-                    # V0ra. Si cambian a mitad del hilo, se dice donde.
-                    texto = texto_instrucciones(c)
-                    # A veces la inyeccion trae solo el perfil y en el turno
-                    # siguiente vuelven las instrucciones: eso no es un cambio
-                    # de V0ra (20 de 24 «cambios» en el export de dic-2025).
-                    if instrucciones_vigentes and "**Cómo quiere que respondas**" not in texto:
-                        continue
-                    if instrucciones_vigentes and "**Cómo quiere que respondas**" not in instrucciones_vigentes:
-                        # Al reves: arriba quedo solo el perfil. Se completa
-                        # ese bloque en lugar de anunciar un cambio.
-                        for m_prev in messages:
-                            if m_prev["role"] == "contexto":
-                                m_prev["content"] = _callout("info", TITULO_INSTRUCCIONES, texto)
-                                break
-                        instrucciones_vigentes = texto
-                        continue
-                    if texto and texto != instrucciones_vigentes:
-                        titulo_i = TITULO_INSTRUCCIONES + (" (cambian aquí)" if instrucciones_vigentes else "")
-                        messages.append({"role": "contexto", "content": _callout("info", titulo_i, texto)})
-                        instrucciones_vigentes = texto
-                    continue
-                if ctipo == "reasoning_recap" and messages and \
-                        messages[-1]["content"].startswith(f"> [!abstract]- {TITULO_RAZONAMIENTO}\n"):
-                    # «Pensó durante 11s» va al titulo del razonamiento que resume.
-                    recap = (c.get("content") or "").strip()
-                    if recap:
-                        cab = f"> [!abstract]- {TITULO_RAZONAMIENTO}"
-                        messages[-1]["content"] = cab + f" · {recap}" + messages[-1]["content"][len(cab):]
+                if incorporar_especial(messages, c, estado_hilo):
                     continue
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
                 content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids,

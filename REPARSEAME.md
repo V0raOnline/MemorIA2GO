@@ -3,7 +3,12 @@
 > **¿Qué pregunta responde este documento?**
 > *Mi vault se escribió con versiones antiguas del parser: ¿cómo lo pongo al día sin perder nada y sin duplicar conversaciones?*
 
-> **Estado: DISEÑO.** Nada de esto está implementado todavía. Decidido con V0ra el 2026-11-16; las decisiones abiertas están al final.
+> **Estado (2026-11-16): fases 1 y 2 hechas, en `reparseame.py`.** El diagnóstico y la reescritura de RAW están probados sobre una copia del vault real. Los pasos 3 (derivados), 4 (derivas que necesitan el export) y 5 (pantalla del Taller) están pendientes. **No aplicar sobre el vault real hasta tener el paso 3.**
+>
+> Prueba en una copia del RAW real (7.358 notas):
+> - 1.745 notas reescritas, 209 renombradas por su huella y 3.695 versiones idénticas apartadas. Quedan 3.663 notas.
+> - Pasarlo otra vez no hace nada, y `--deshacer` deja la copia idéntica (nombres, bytes y fechas).
+> - Al importar después el export de 2025-12-20 con el mapa de proyectos real, la copia reparada gana **0** notas; la copia sin reparar gana 312.
 
 Para la recuperación de imágenes, que es otra herramienta, ve a [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md). Para el diseño general, a [ARCHITECTURE.md](ARCHITECTURE.md).
 
