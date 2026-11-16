@@ -1519,6 +1519,8 @@ def main():
                     help="[Solo exports de Grok] Ruta a un JSON donde anotar los media_posts (Imagine) SIN "
                          "binario en el zip -- prompt+link+tipo, para descargarlos a mano.")
 
+    ap.add_argument("--solo-conv-ids", default=None, metavar="FICHERO",
+                    help="Procesar solo las conversaciones cuyos conv_id trae este fichero (uno por linea)")
     ap.add_argument("--chatgpt-pendientes-out", default=None,
                     help="[Solo exports de ChatGPT] Ruta a un JSON donde anotar las imagenes de busqueda "
                          "web que ChatGPT mostro en la conversacion pero no vienen en el export "
@@ -1584,6 +1586,12 @@ def main():
 
     conversations, zf = load_conversations(args.input, image_meta_out=image_meta,
                                             markers_ctx=markers_ctx)
+    if args.solo_conv_ids:
+        # REParsea·me regenera notas sueltas desde su export: misma salida
+        # exacta que una importacion, solo para las conversaciones pedidas.
+        with open(args.solo_conv_ids, "r", encoding="utf-8") as f:
+            pedidas = set(f.read().split())
+        conversations = [c for c in conversations if c.get("conv_id") in pedidas]
     if not conversations:
         print("No se encontraron conversaciones.")
         sys.exit(2)

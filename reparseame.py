@@ -331,8 +331,11 @@ def diagnosticar(base: Path, log: Callable[[str], None] = print) -> dict:
 _SUFIJO = re.compile(r"-(h[0-9a-f]{7,8}|v\d+|t\d{12})(?:-\d+)?$", re.IGNORECASE)  # el de vault_merge.py
 
 
-def planificar(base: Path, log: Callable[[str], None] = print) -> dict:
-    """Que haria --aplicar. No escribe nada."""
+def planificar(base: Path, log: Callable[[str], None] = print,
+               reemplazos: Optional[Dict[Path, bytes]] = None) -> dict:
+    """Que haria --aplicar. No escribe nada. `reemplazos` ({nota: bytes}, de
+    regenerar) son notas regeneradas desde su propio export (fase 4b)."""
+    reemplazos = reemplazos or {}
     raw = carpeta_raw(Path(base))
     if not raw.is_dir():
         raise ErrorReparsea(f"no encuentro las conversaciones de RAW en {raw}")
@@ -341,7 +344,10 @@ def planificar(base: Path, log: Callable[[str], None] = print) -> dict:
     for nota in sorted(raw.rglob("*.md")):
         datos = nota.read_bytes()
         texto = datos.decode("utf-8", errors="replace")
-        nuevo = reparar_texto(texto) if proveedor_de(_frontmatter(texto)) == "chatgpt" else None
+        if nota in reemplazos:
+            nuevo = reemplazos[nota].decode("utf-8", errors="replace")
+        else:
+            nuevo = reparar_texto(texto) if proveedor_de(_frontmatter(texto)) == "chatgpt" else None
         m = _SUFIJO.search(nota.stem)
         grupos[(nota.parent, nota.stem[:m.start()] if m else nota.stem)].append({
             "ruta": nota, "final": nuevo.encode("utf-8") if nuevo is not None else datos,
@@ -667,6 +673,132 @@ def simular_derivados(base: Path, carpeta_logs: Optional[Path] = None, log: Call
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---------- fase 4b: regenerar desde el export PROPIO ----------
+#
+# Lo que la nota sola no sabe (el `model`, el `conv_id`, las imagenes que su
+# export SI traia y el parser antiguo no supo leer) se arregla regenerando la
+# nota desde el export que la escribio, con el parser de hoy. Asi RAW sigue
+# siendo el archivo fiel de cada export, solo que bien leido.
+#
+# ¿Cual es su export? El manifiesto de la importacion (logs/
+# conversaciones_manifest.jsonl) dice que exports trajeron cada conversacion.
+# Se regeneran esas conversaciones desde cada uno (--solo-conv-ids) y se busca
+# la version EXACTA: mismos mensajes, sin contar imagenes ni frontmatter. Una
+# version mas larga o mas corta es de otro export y no vale.
+
+_IMAGEN_CUALQUIERA = re.compile(r"!\[[^\]]*\]\([^)]*\)|\*\[imagen (?:no disponible en el export|omitida): [^\]\n]+\]\*"
+                                "|\x00IMG:[^\x00]+\x00")
+DERIVAS_DE_EXPORT = {k for k, (_, como) in DERIVAS.items() if como == "export"} | {"json_crudo"}
+
+
+def esqueleto(texto: str):
+    """Los mensajes de una nota con cada imagen (enlace, aviso o marcador)
+    igualada: lo que tienen que compartir dos versiones del mismo export."""
+    p = partir(texto)
+    return None if p is None else [(m["role"], _IMAGEN_CUALQUIERA.sub("<IMG>", m["content"])) for m in p[1]]
+
+
+def _candidatos(logs: Path, exports: List[Path]):
+    """({conv_id: exports}, {(titulo, fecha): conv_ids}) del manifiesto de la
+    importacion, con los nombres de export de hoy (se renombraron el 2026-11-09)."""
+    disponibles = {p.name: p for p in exports}
+    renombrados = {}
+    ren = logs / "backups_renombrado_20261109.csv"
+    if ren.exists():
+        with open(ren, encoding="utf-8-sig", newline="") as f:
+            renombrados = {r["nombre_antiguo"]: r["nombre_nuevo"] for r in csv.DictReader(f)}
+    por_cid, por_titulo = defaultdict(set), defaultdict(set)
+    man = logs / "conversaciones_manifest.jsonl"
+    if man.exists():
+        for linea in open(man, encoding="utf-8"):
+            if not linea.strip():
+                continue
+            e = json.loads(linea)
+            exp = disponibles.get(e["export"]) or disponibles.get(renombrados.get(e["export"], ""))
+            if exp and e.get("conv_id"):
+                por_cid[e["conv_id"]].add(exp)
+                por_titulo[(e.get("titulo", ""), (e.get("fecha_conv") or "")[:10])].add(e["conv_id"])
+    return por_cid, por_titulo
+
+
+def regenerar(base: Path, exports: List[Path], destino: Path, bancos_reales: bool,
+              logs: Optional[Path] = None, log: Callable[[str], None] = print) -> dict:
+    """{ruta de RAW: bytes regenerados} de las notas con derivas de export que
+    encuentran su version exacta en su export, y el recuento de las que no.
+    Con bancos_reales, las imagenes van a los bancos del vault (como en una
+    importacion); si no, a una carpeta aparte (simulacion)."""
+    params = _params(base)
+    lay = layout.cargar(base)
+    por_cid, por_titulo = _candidatos(Path(logs or HERE / "logs"), exports)
+    afectadas = []
+    for nota in carpeta_raw(base).rglob("*.md"):
+        datos = nota.read_bytes()
+        if not set(derivas_de(datos)) & DERIVAS_DE_EXPORT:
+            continue
+        texto = datos.decode("utf-8", errors="replace")
+        f = _frontmatter(texto)
+        cids = {f["conv_id"]} if f.get("conv_id") else por_titulo.get((f.get("title", ""), f.get("date", "")[:10]), set())
+        afectadas.append((nota, texto, cids))
+    pedir = defaultdict(set)
+    for _, _, cids in afectadas:
+        for cid in cids:
+            for exp in por_cid.get(cid, ()):
+                pedir[exp].add(cid)
+    log(f"Regenerando {len({c for _, _, cs in afectadas for c in cs})} conversaciones desde {len(pedir)} exports ...")
+    regeneradas = defaultdict(list)
+    for exp in sorted(pedir, reverse=True):
+        carpeta = destino / exp.stem
+        ids = destino / f"{exp.stem}.ids"
+        ids.parent.mkdir(parents=True, exist_ok=True)
+        ids.write_text("\n".join(sorted(pedir[exp])), encoding="utf-8")
+        # El parser exige que el banco acabe como en el layout (si no, los
+        # enlaces apuntarian a otra carpeta): en simulacion, la misma ruta
+        # relativa bajo una carpeta aparte.
+        def banco(clave):
+            return lay.ruta(base, clave) if bancos_reales else carpeta / "bancos" / lay.rel(clave)
+        args = [sys.executable, str(HERE / "split_chatgpt_export.py"), str(exp), str(carpeta / "notas"),
+                "--by-year", "--by-month", "--keep-versions", "--solo-conv-ids", str(ids),
+                "--generadas-dir", str(banco("chatgpt.generadas")), "--adjuntos-dir", str(banco("chatgpt.adjuntos"))]
+        if params.get("gizmo_map_path"):
+            args += ["--gizmo-map", str(params["gizmo_map_path"])]
+        r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(HERE),
+                           env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        if r.returncode != 0:
+            log(f"  {exp.name}: no se pudo regenerar ({(r.stderr or r.stdout).strip()[-200:]})")
+            continue
+        for p in (carpeta / "notas").rglob("*.md"):
+            t = p.read_bytes()
+            regeneradas[_frontmatter(t.decode("utf-8", errors="replace")).get("conv_id")].append(t)
+    reemplazos, motivos = {}, defaultdict(int)
+    for nota, texto, cids in afectadas:
+        if not cids or not any(por_cid.get(c) for c in cids):
+            motivos["su export ya no esta"] += 1
+            continue
+        mio = esqueleto(reparar_texto(texto) or texto)
+        iguales = [t for c in cids for t in regeneradas.get(c, [])
+                   if esqueleto(t.decode("utf-8", errors="replace")) == mio]
+        if not iguales:
+            motivos["ningun export da esta version exacta"] += 1
+            continue
+        # Si varios exports dan la misma version, la que MAS SE PARECE a la
+        # nota: es la huella del export que la escribio de verdad. Elegir la
+        # que mas imagenes resuelve la sacaba de su export (si ese no traia
+        # una imagen, su verdad es el aviso) y la siguiente importacion volvia
+        # a crear la version con aviso: 60 notas en la copia del vault real.
+        # Las imagenes que su export no traia ya las pone MERGED (fase 4a).
+        propias = set(texto.split("\n"))
+        mejor = max(iguales, key=lambda t: len(propias & set(t.decode("utf-8", errors="replace").split("\n"))))
+        if mejor != nota.read_bytes():
+            reemplazos[nota] = mejor
+        else:
+            # Su export la escribe hoy igual: p. ej. el aviso de una imagen que
+            # ese export tampoco traia. La nota ya es fiel.
+            motivos["ya fiel a su export"] += 1
+    motivos["regeneradas"] = len(reemplazos)
+    log("  " + ", ".join(f"{k}: {v}" for k, v in motivos.items()))
+    return {"reemplazos": reemplazos, "motivos": dict(motivos)}
+
+
 def punteros_en_raw(base: Path) -> set:
     """Las imagenes que las notas de RAW citan con un aviso."""
     punteros = set()
@@ -709,8 +841,9 @@ def ejecutar(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str
         punteros = Path(lay.ruta(base, "chatgpt.raiz")) / "_punteros_imagenes.json"
         punteros_antes = punteros.read_bytes() if punteros.exists() else None
         imagenes = preparar_imagenes(base, exports, aplicar=True, log=log)
-        plan = planificar(base, log)
-        plan["imagenes"] = imagenes
+        regen = regenerar(base, exports, tmp / "regen", bancos_reales=True, log=log)  # manifiesto: logs/ del programa
+        plan = planificar(base, log, regen["reemplazos"])
+        plan["imagenes"], plan["regeneracion"] = imagenes, regen["motivos"]
         copia = aplicar(plan, carpeta_logs, log)
         # Para que --deshacer devuelva tambien la correspondencia de imagenes: si
         # no, la siguiente fusion volveria a poner las que esta pasada anadio.
@@ -824,8 +957,13 @@ def main(argv=None) -> int:
                 "prj_huerfanas": res["prj"]["huerfanas"], "prj_desconocidas": res["prj"]["desconocidas"]}
         else:
             imagenes = preparar_imagenes(Path(base), exports, aplicar=False)
-            plan, copia = planificar(Path(base)), None
-            plan["imagenes"] = imagenes
+            tmp = _staging(logs)
+            try:
+                regen = regenerar(Path(base), exports, tmp / "regen", bancos_reales=False)
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+            plan, copia = planificar(Path(base), reemplazos=regen["reemplazos"]), None
+            plan["imagenes"], plan["regeneracion"] = imagenes, regen["motivos"]
             der = simular_derivados(Path(base), logs)
     except ErrorReparsea as e:
         print(f"[error] {e}")
@@ -847,6 +985,7 @@ def main(argv=None) -> int:
     print(f"  {'renombradas' if copia else 'que se renombran'} por su huella sin cambiar el texto: {plan['renombrar']}")
     print(f"  versiones identicas {'apartadas' if copia else 'que se apartan'} a la copia: {plan['papelera']}")
     print(f"  imagenes avisadas que trae algun export (al banco; se veran en MERGED): {plan['imagenes']}")
+    print("  regeneradas desde su propio export: " + ", ".join(f"{k} {v}" for k, v in plan["regeneracion"].items()))
     print()
     print("HECHO en MERGED y PRJ" if copia else "MERGED y PRJ (se rehacen al aplicar)")
     if copia:

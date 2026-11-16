@@ -21,6 +21,11 @@
 > - El día después (dos exports más, y fusión) no hay ni un duplicado en MERGED.
 > - Las 710 imágenes que ningún export trae se quedan como aviso.
 > - Con esto, el «control» de `recuperar_imagenes.py` (sin reparar, el siguiente export duplicaba turnos) ya no se cumple: la fusión lo evita sola.
+>
+> **Fase 4b, regenerar desde el export propio (2026-11-16).** Para lo que la nota sola no sabe (`model`, `conv_id`, imágenes que su export sí traía y el parser antiguo no leía), REParsea·me regenera la conversación desde los exports que la trajeron (`logs/conversaciones_manifest.jsonl`, con `--solo-conv-ids`) y busca la versión exacta: los mismos mensajes, sin contar imágenes ni frontmatter. Si varios exports dan la misma versión, se queda con la que más se parece a la nota, porque esa es la huella de su export. Elegir la que más imágenes tenía la sacaba de su export: 60 notas volvían a duplicarse al reimportar.
+> - En la copia del vault real: 10 notas regeneradas. Otras 985 ya eran fieles a su export (lo que les falta, su export tampoco lo trae). 14 no encuentran su versión exacta y 43 tienen el export que ya no está.
+> - Es idempotente, `--deshacer` lo deja todo idéntico, y el día después no hay duplicados.
+> - Lo que queda en el diagnóstico (avisos, notas sin `model`) es, en su mayoría, la verdad de su export. El diagnóstico todavía no distingue «fiel» de «roto»: pendiente.
 
 Para la recuperación de imágenes, que es otra herramienta, ve a [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md). Para el diseño general, a [ARCHITECTURE.md](ARCHITECTURE.md).
 
