@@ -12,7 +12,9 @@
 > - Pasarlo otra vez no hace nada. `--deshacer` deja RAW, MERGED y PRJ **idénticos** al original (nombres, bytes y fechas).
 > - **El día después:** importar después el export de 2025-12-20 con el mapa de proyectos real y volver a fusionar no cambia ni una nota de RAW; en MERGED cambia una sola, la editada a mano (ver abajo). Sin reparar, la misma importación crea 312 notas en RAW.
 >
-> **Ojo, y no es de REParsea·me:** la fusión normal del pipeline pisa en cada importación cualquier edición a mano de MERGED. REParsea·me la protege, pero la siguiente importación se la lleva igual. Pendiente: que `vault_merge.py` use el mismo detector (`editada_a_mano`).
+> **Las notas no se editan a mano** (decisión de V0ra, 2026-11-16): son el archivo de las conversaciones y dicen lo que se dijo, erratas incluidas. Por eso la fusión normal hace bien en pisar cualquier cambio a mano en MERGED. REParsea·me solo marca esas notas como aviso («no coincide con el archivo») y las deja para que la siguiente importación las devuelva a su forma original.
+>
+> **Aplicado al vault real** el 2026-11-16, con backup previo y Obsidian cerrado. Dio las mismas cifras que en la copia.
 
 Para la recuperación de imágenes, que es otra herramienta, ve a [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md). Para el diseño general, a [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -104,7 +106,7 @@ Cada nota escrita, por la importación o por REParsea·me, lleva `parser: <fecha
 Tomadas con V0ra el 2026-11-16:
 
 1. **Versiones: se arreglan todas.** RAW sigue siendo el archivo fiel de cada export, solo que legible, y la fusión sigue teniendo todas las versiones para elegir.
-2. **Notas editadas a mano: se marcan y no se tocan.** Si, quitando las derivas conocidas, una nota sigue sin coincidir con lo que sale de su export, el informe la lista como «no toco: difiere del export» para que V0ra la mire.
+2. **Notas editadas a mano: se marcan y no se tocan.** Si, quitando las derivas conocidas, una nota sigue sin coincidir con lo que sale de su export, el informe la lista como «no toco: difiere del export» para que V0ra la mire. Las notas no deberían editarse nunca, porque son el archivo; el aviso existe para encontrar las que sí se editaron.
 3. **Recuperar imágenes queda integrado.** Coser cada nota con su imagen es trabajo del parser: hoy, al importar, resuelve los `file_XXXX.dat`, cuelga las generadas de la biblioteca en su conversación y guarda con qué se generó cada una. Al regenerar desde el export con el parser de hoy, las imágenes vuelven solas. «Imagen no disponible» pasa a ser una deriva más, de las que necesitan el export. `recuperar_imagenes.py` se retira cuando REParsea·me cubra sus tres casos (avisos, `--biblioteca` y `--metadatos`) con tests. Hasta entonces se queda como está.
 
 Abiertas:
