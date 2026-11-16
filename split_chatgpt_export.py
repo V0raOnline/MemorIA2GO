@@ -580,6 +580,132 @@ def render_attachments(msg: dict) -> str:
     return "\n".join(lines)
 
 
+# ---------- bloques sin 'parts' ----------
+#
+# Buena parte de los mensajes de ChatGPT no traen 'parts': traen un dict con
+# su propio content_type (razonamiento, llamadas a herramientas, archivos
+# citados, las instrucciones personalizadas...). Hasta 2026-11-16 caian al
+# json.dumps del final de _render_parts y llegaban crudos a la nota: 46.000
+# bloques en 3.316 de las 7.358 notas del vault de V0ra. Ahora se pintan como
+# callouts de Obsidian plegados, para que la conversacion se lea limpia y el
+# detalle quede a un clic. Formato acordado con V0ra el mismo dia.
+
+TITULO_RAZONAMIENTO = "🧠 Razonamiento"
+TITULO_INSTRUCCIONES = "⚙️ Instrucciones personalizadas"
+
+
+def _callout(tipo: str, titulo: str, cuerpo: str) -> str:
+    """Callout plegado ('-') de Obsidian: cada linea del cuerpo va con '> '.
+    De paso protege la nota: un '### ' dentro de un bloque ya no se confunde
+    con la cabecera de un mensaje al releerla (vault_merge.read_note)."""
+    cuerpo = (cuerpo or "").replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+    lineas = [f"> [!{tipo}]- {titulo}"]
+    lineas += [("> " + ln) if ln else ">" for ln in cuerpo.split("\n")] if cuerpo else []
+    return "\n".join(lineas)
+
+
+def _bloque_codigo(texto: str, lenguaje: str = "") -> str:
+    """Bloque de codigo cuya valla es mas larga que cualquier racha de
+    backticks del texto, para que un ``` interior no lo cierre antes de tiempo."""
+    racha = max((len(r) for r in re.findall("`+", texto or "")), default=0)
+    valla = "`" * max(3, racha + 1)
+    return f"{valla}{lenguaje}\n{(texto or '').rstrip()}\n{valla}"
+
+
+def _entre_vallas(texto: str) -> str:
+    """ChatGPT envuelve el perfil y las instrucciones en una plantilla en
+    ingles con el dato real entre ```. Se queda solo con lo de dentro."""
+    t = (texto or "").strip()
+    i, j = t.find("```"), t.rfind("```")
+    if i != -1 and j > i:
+        return t[i + 3:j].strip()
+    return t
+
+
+# Frases que OpenAI mete DENTRO de las vallas, delante de las instrucciones de
+# la usuaria. No son suyas, y la segunda aparecio a mitad de noviembre de 2025:
+# si se dejaran, cada hilo de esa epoca diria que sus instrucciones cambiaron.
+_PLANTILLA_OPENAI = (
+    "Follow the instructions below naturally",
+    "All the following instructions should guide your behavior",
+)
+
+
+def texto_instrucciones(c: dict) -> str:
+    """Perfil e instrucciones personalizadas, sin la plantilla de OpenAI."""
+    partes = []
+    perfil = _entre_vallas(c.get("user_profile") or "")
+    instr = _entre_vallas(c.get("user_instructions") or "")
+    instr = "\n".join(ln for ln in instr.split("\n")
+                      if not ln.strip().startswith(_PLANTILLA_OPENAI)).strip()
+    instr = re.sub("\n{3,}", "\n\n", instr)
+    if perfil:
+        partes.append("**Perfil**\n\n" + perfil)
+    if instr:
+        partes.append("**Cómo quiere que respondas**\n\n" + instr)
+    return "\n\n".join(partes)
+
+
+def _canvas(texto: str) -> Optional[str]:
+    """Un documento de Canvas viaja como 'code' JSON con name/type/content.
+    Si lo es, se pinta el documento como texto; si no, None."""
+    try:
+        d = json.loads(texto)
+    except Exception:
+        return None
+    if isinstance(d, dict) and isinstance(d.get("content"), str) and (d.get("name") or d.get("type")):
+        return _callout("note", f"📝 Canvas: {d.get('name') or d.get('type')}", d["content"])
+    return None
+
+
+def render_bloque_sin_parts(c: dict) -> str:
+    """Pinta un content dict sin 'parts'. Devuelve '' si no hay nada que
+    enseñar (navegacion vacia) y un callout de 'bloque sin interpretar' si el
+    tipo es nuevo: nunca el JSON suelto en mitad de la nota."""
+    tipo = str(c.get("content_type") or "").lower()
+    if tipo == "tether_quote":
+        nombre = c.get("domain") or c.get("title") or c.get("url") or "archivo desconocido"
+        texto = (c.get("text") or "").replace("\\r\\n", "\n").replace("\\n", "\n")
+        lineas = texto.replace("\r\n", "\n").replace("\r", "\n").strip().split("\n")
+        if len(lineas) > 40:
+            lineas = lineas[:40] + ["", "*… (contenido truncado)*"]
+        return _callout("quote", f"📄 Archivo cargado: {nombre}", "\n".join(lineas) or "(sin contenido)")
+    if tipo == "user_editable_context":
+        return _callout("info", TITULO_INSTRUCCIONES, texto_instrucciones(c))
+    if tipo == "code":
+        texto = c.get("text") or ""
+        lenguaje = c.get("language") or ""
+        if texto.strip() in ("", "{}"):
+            return ""  # llamada sin argumentos: no cuenta nada
+        if lenguaje in ("json", "unknown", ""):
+            doc = _canvas(texto)
+            if doc:
+                return doc
+        etiqueta = f" ({lenguaje})" if lenguaje and lenguaje != "unknown" else ""
+        return _callout("example", f"🛠️ Herramienta{etiqueta}", _bloque_codigo(texto, lenguaje if lenguaje != "unknown" else ""))
+    if tipo == "execution_output":
+        return _callout("example", "📤 Resultado", _bloque_codigo(c.get("text") or ""))
+    if tipo == "thoughts":
+        trozos = []
+        for t in c.get("thoughts") or []:
+            if not isinstance(t, dict):
+                continue
+            resumen, contenido = (t.get("summary") or "").strip(), (t.get("content") or "").strip()
+            trozos.append("\n\n".join(x for x in (f"**{resumen}**" if resumen else "", contenido) if x))
+        return _callout("abstract", TITULO_RAZONAMIENTO, "\n\n".join(x for x in trozos if x))
+    if tipo == "reasoning_recap":
+        recap = (c.get("content") or "").strip()
+        return f"*🧠 {recap}*" if recap else ""
+    if tipo == "tether_browsing_display":
+        cuerpo = "\n\n".join(x for x in ((c.get("summary") or "").strip(), (c.get("result") or "").strip()) if x)
+        return _callout("example", "🌐 Navegación", cuerpo) if cuerpo else ""
+    if tipo == "system_error":
+        nombre = c.get("name") or "error"
+        return _callout("warning", f"⚠️ Error de herramienta ({nombre})", c.get("text") or "")
+    return _callout("bug", f"Bloque sin interpretar ({tipo or 'desconocido'})",
+                    _bloque_codigo(json.dumps(c, ensure_ascii=False, indent=1), "json"))
+
+
 def write_md(base_out_dir: str, title: str, date_str: str,
              messages: List[Dict[str, str]], tags: List[str],
              by_year: bool = False, by_month: bool = False,
@@ -806,6 +932,8 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
         return _resolver_marcadores("\n".join(str(p) for p in c), refs, markers_ctx)
     elif isinstance(c, str):
         return _resolver_marcadores(c, refs, markers_ctx)
+    elif isinstance(c, dict) and c.get("content_type"):
+        return render_bloque_sin_parts(c)
     else:
         return json.dumps(c, ensure_ascii=False)
 
@@ -928,6 +1056,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
         current_node = conv.get("current_node")
         messages: List[Dict[str, str]] = []
         modelos_vistos: Dict[str, int] = {}
+        instrucciones_vigentes: Optional[str] = None
 
         if isinstance(mapping, dict):
             ordered_nodes: List[Dict[str, Any]] = []
@@ -968,6 +1097,40 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 if slug:
                     modelos_vistos[slug] = modelos_vistos.get(slug, 0) + 1
                 c = msg.get("content")
+                ctipo = c.get("content_type") if isinstance(c, dict) else None
+                if ctipo == "user_editable_context":
+                    # ChatGPT las inyecta, ocultas, en cada hilo y a veces
+                    # varias veces. Van una vez, arriba, con rol propio para
+                    # que smart_title no las tome por el primer mensaje de
+                    # V0ra. Si cambian a mitad del hilo, se dice donde.
+                    texto = texto_instrucciones(c)
+                    # A veces la inyeccion trae solo el perfil y en el turno
+                    # siguiente vuelven las instrucciones: eso no es un cambio
+                    # de V0ra (20 de 24 «cambios» en el export de dic-2025).
+                    if instrucciones_vigentes and "**Cómo quiere que respondas**" not in texto:
+                        continue
+                    if instrucciones_vigentes and "**Cómo quiere que respondas**" not in instrucciones_vigentes:
+                        # Al reves: arriba quedo solo el perfil. Se completa
+                        # ese bloque en lugar de anunciar un cambio.
+                        for m_prev in messages:
+                            if m_prev["role"] == "contexto":
+                                m_prev["content"] = _callout("info", TITULO_INSTRUCCIONES, texto)
+                                break
+                        instrucciones_vigentes = texto
+                        continue
+                    if texto and texto != instrucciones_vigentes:
+                        titulo_i = TITULO_INSTRUCCIONES + (" (cambian aquí)" if instrucciones_vigentes else "")
+                        messages.append({"role": "contexto", "content": _callout("info", titulo_i, texto)})
+                        instrucciones_vigentes = texto
+                    continue
+                if ctipo == "reasoning_recap" and messages and \
+                        messages[-1]["content"].startswith(f"> [!abstract]- {TITULO_RAZONAMIENTO}\n"):
+                    # «Pensó durante 11s» va al titulo del razonamiento que resume.
+                    recap = (c.get("content") or "").strip()
+                    if recap:
+                        cab = f"> [!abstract]- {TITULO_RAZONAMIENTO}"
+                        messages[-1]["content"] = cab + f" · {recap}" + messages[-1]["content"][len(cab):]
+                    continue
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
                 content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids,
                                         refs=(msg.get("metadata") or {}).get("content_references"),
