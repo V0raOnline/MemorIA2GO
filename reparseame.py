@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -275,7 +276,7 @@ def planificar(base: Path, log: Callable[[str], None] = print) -> dict:
         m = _SUFIJO.search(nota.stem)
         grupos[(nota.parent, nota.stem[:m.start()] if m else nota.stem)].append({
             "ruta": nota, "final": nuevo.encode("utf-8") if nuevo is not None else datos,
-            "reescrita": nuevo is not None,
+            "reescrita": nuevo is not None, "mtime": nota.stat().st_mtime_ns,
             "esquema": "base" if not m else ("hash" if m.group(1).lower().startswith("h") else "otro"),
         })
     ops: List[dict] = []
@@ -283,10 +284,19 @@ def planificar(base: Path, log: Callable[[str], None] = print) -> dict:
         # La del nombre sin sufijo primero: es el hueco que la importacion
         # compara antes que ninguno, y si hay identicas se queda ella.
         notas.sort(key=lambda n: (n["esquema"] != "base", n["ruta"].name))
+        for n in notas:
+            n["sha"] = hashlib.sha1(n["final"]).hexdigest()
+        # La que se queda hereda la fecha MAS RECIENTE de sus identicas: la
+        # fusion elige el titulo de una conversacion renombrada por la version
+        # mas reciente en disco, y sin esto 5 conversaciones cambiaban de nombre
+        # en MERGED (medido en la copia del vault real).
+        mas_reciente: Dict[str, int] = {}
+        for n in notas:
+            mas_reciente[n["sha"]] = max(mas_reciente.get(n["sha"], 0), n["mtime"])
         destino_de: Dict[str, Path] = {}
         ocupados = set()
         for n in notas:
-            sha = hashlib.sha1(n["final"]).hexdigest()
+            sha = n["sha"]
             if sha in destino_de:
                 ops.append({"tipo": "papelera", "origen": n["ruta"], "igual_a": destino_de[sha]})
                 continue
@@ -299,12 +309,14 @@ def planificar(base: Path, log: Callable[[str], None] = print) -> dict:
                     i += 1
             ocupados.add(destino)
             destino_de[sha] = destino
-            if destino != n["ruta"] or n["reescrita"]:
-                ops.append({"tipo": "reescribir" if n["reescrita"] else "renombrar",
-                            "origen": n["ruta"], "destino": destino, "final": n["final"]})
+            if destino != n["ruta"] or n["reescrita"] or mas_reciente[sha] != n["mtime"]:
+                tipo = "reescribir" if n["reescrita"] else ("renombrar" if destino != n["ruta"] else "fecha")
+                ops.append({"tipo": tipo, "origen": n["ruta"], "destino": destino, "final": n["final"],
+                            "mtime_final": mas_reciente[sha]})
     return {"raw": raw, "ops": ops,
             "reescribir": sum(o["tipo"] == "reescribir" for o in ops),
             "renombrar": sum(o["tipo"] == "renombrar" for o in ops),
+            "fecha": sum(o["tipo"] == "fecha" for o in ops),
             "papelera": sum(o["tipo"] == "papelera" for o in ops),
             "renombradas_al_reescribir": sum(o["tipo"] == "reescribir" and o["destino"] != o["origen"] for o in ops)}
 
@@ -334,7 +346,7 @@ def aplicar(plan: dict, carpeta_logs: Optional[Path] = None, log: Callable[[str]
         if o["tipo"] == "papelera":
             continue
         o["destino"].write_bytes(o["final"])
-        os.utime(o["destino"], ns=(reg["mtime_ns"], reg["mtime_ns"]))
+        os.utime(o["destino"], ns=(o["mtime_final"], o["mtime_final"]))
     log(f"Hecho. Copia para deshacer: {copia}")
     return copia
 
@@ -343,6 +355,9 @@ def deshacer(copia: Path, log: Callable[[str], None] = print) -> int:
     """Deja RAW como estaba antes de un --aplicar. Se niega si alguna nota
     escrita ha cambiado desde entonces: no pisa trabajo posterior."""
     copia = Path(copia)
+    if (copia / "deshecho.json").exists():
+        raise ErrorReparsea(f"esta copia ya se deshizo: {copia}")
+    _deshacer_derivados(copia, log)  # primero los derivados: se rehicieron a partir del RAW reparado
     man = json.loads((copia / "manifiesto.json").read_text(encoding="utf-8"))
     raw = Path(man["raw"])
     for reg in man["ops"]:
@@ -362,6 +377,288 @@ def deshacer(copia: Path, log: Callable[[str], None] = print) -> int:
     (copia / "deshecho.json").write_text(json.dumps({"cuando": datetime.now().isoformat()}), encoding="utf-8")
     log(f"{len(man['ops'])} notas restauradas desde {copia}.")
     return len(man["ops"])
+
+
+# ---------- fase 3: los derivados (MERGED y PRJ) ----------
+#
+# MERGED no es solo la fusion: en MERGED_VAULT/Conversaciones conviven las
+# carpetas de año (las escribe vault_merge.py) con Sesiones-Code y
+# Sesiones-Codex (las escribe session_ingest.py), y al lado estan CLAUDE_CODE,
+# CODEX, _Temas y los indices. Por eso no se sustituye MERGED entero: se
+# rehace la fusion aparte y se sincronizan SOLO las notas de las carpetas de año.
+#
+# - Una nota de MERGED con lineas que la fusion de RAW no produce se edito a
+#   mano: se marca y no se toca (decision de V0ra). Medido el 2026-11-16:
+#   exactamente una, una errata corregida en Obsidian.
+# - Una nota de MERGED que la fusion ya no produce es huerfana (la fusion
+#   nunca borra): a la copia, si su conversacion sigue existiendo con otro
+#   nombre. Si no, se deja y se avisa.
+# - PRJ es una vista de MERGED: se refresca con project_organizer.py, como en
+#   el pipeline, y sus copias huerfanas van a la copia.
+
+_ANIO = re.compile(r"^\d{4}/")
+
+
+def _notas_fusion(carpeta: Path) -> Dict[str, Path]:
+    """Las notas que escribe vault_merge.py: las de las carpetas de año."""
+    if not carpeta.is_dir():
+        return {}
+    return {p.relative_to(carpeta).as_posix(): p for p in carpeta.rglob("*.md")
+            if _ANIO.match(p.relative_to(carpeta).as_posix())}
+
+
+def _lineas_de(datos: bytes) -> set:
+    return set(datos.decode("utf-8", errors="replace").split("\n"))
+
+
+def editada_a_mano(en_merged: bytes, de_la_fusion: bytes) -> bool:
+    """MERGED dice algo que la fusion de RAW no dice. Si solo le FALTA algo
+    (se quedo atras, p. ej. sin las imagenes de la biblioteca), no es una edicion."""
+    return en_merged != de_la_fusion and bool(_lineas_de(en_merged) - _lineas_de(de_la_fusion))
+
+
+def _params(base: Path) -> dict:
+    import MemorIA2GO as M
+    p = M.load_from_yaml(str(HERE / "memoria_config.yaml")) or {}
+    p["vault_path"] = Path(base)
+    return p
+
+
+def fusionar(base: Path, destino: Path) -> Path:
+    """vault_merge.py con los argumentos del pipeline (paso 2), pero hacia
+    `destino`. Devuelve su carpeta de conversaciones."""
+    lay = layout.cargar(base)
+    if getattr(lay, "particion", "unico") == "proveedor":
+        raise ErrorReparsea("MERGED partido por proveedor: REParsea·me todavia no lo sabe sincronizar")
+    r = subprocess.run([sys.executable, str(HERE / "vault_merge.py"), str(lay.ruta(base, "raw")), str(destino),
+                        "--merge", "--by-year", "--by-month"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(HERE),
+                       env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+    if r.returncode != 0:
+        raise ErrorReparsea("la fusion fallo: " + (r.stderr or r.stdout)[-600:])
+    return Path(destino) / lay.conv_rel()
+
+
+def _conv_id(p: Path) -> Optional[str]:
+    return _frontmatter(p.read_text(encoding="utf-8", errors="replace")).get("conv_id") or None
+
+
+def planificar_merged(base: Path, antes: Path, despues: Path) -> dict:
+    """Que cambia en MERGED. `antes` y `despues` son fusiones de RAW sin
+    reparar y reparado; con `antes` se distinguen las ediciones a mano."""
+    lay = layout.cargar(base)
+    conv = lay.ruta(base, "merged") / lay.conv_rel()
+    actual, n_antes, n_desp = _notas_fusion(conv), _notas_fusion(antes), _notas_fusion(despues)
+    protegidas = sorted(k for k in actual if k in n_antes
+                        and editada_a_mano(actual[k].read_bytes(), n_antes[k].read_bytes()))
+    escribir = sorted(k for k in n_desp if k not in protegidas
+                      and (k not in actual or actual[k].read_bytes() != n_desp[k].read_bytes()))
+    vivas = {_conv_id(p) for p in n_desp.values()} - {None}
+    huerfanas, desconocidas = [], []
+    for k in sorted(set(actual) - set(n_desp) - set(protegidas)):
+        (huerfanas if _conv_id(actual[k]) in vivas else desconocidas).append(k)
+    return {"conv": conv, "despues": despues, "protegidas": protegidas, "escribir": escribir,
+            "nuevas": [k for k in escribir if k not in actual], "huerfanas": huerfanas,
+            "desconocidas": desconocidas}
+
+
+def aplicar_merged(pm: dict, copia: Path, log: Callable[[str], None] = print) -> dict:
+    conv: Path = pm["conv"]
+    registro = {"conv": str(conv), "sobrescritas": [], "nuevas": [], "huerfanas": []}
+    for k in pm["escribir"] + pm["huerfanas"]:
+        if (conv / k).exists():
+            dst = copia / "merged" / k
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(conv / k, dst)
+    for k in pm["escribir"]:
+        datos = (pm["despues"] / k).read_bytes()
+        (registro["nuevas"] if not (conv / k).exists() else registro["sobrescritas"]).append(
+            {"rel": k, "sha1": hashlib.sha1(datos).hexdigest()})
+        (conv / k).parent.mkdir(parents=True, exist_ok=True)
+        (conv / k).write_bytes(datos)
+    for k in pm["huerfanas"]:
+        (conv / k).unlink()
+        registro["huerfanas"].append({"rel": k})
+    log(f"MERGED: {len(pm['escribir'])} notas al dia, {len(pm['huerfanas'])} huerfanas a la copia, "
+        f"{len(pm['protegidas'])} editadas a mano sin tocar.")
+    return registro
+
+
+def _prj_esperadas(params: dict, conv: Path) -> Dict[str, Path]:
+    """Lo que project_organizer.py deja en PRJ: proyecto[/año/mes]/nombre."""
+    from project_organizer import extract_yaml_field
+    lay = layout.cargar(params["vault_path"])
+    merged = lay.ruta(params["vault_path"], "merged")
+    esperadas = {}
+    for d in lay.conv_dirs(merged):
+        for md in (merged / d).rglob("*.md"):
+            txt = md.read_text(encoding="utf-8", errors="ignore")
+            proyecto = extract_yaml_field(txt, "Project_name") or "none"
+            y, m, *_ = ((extract_yaml_field(txt, "date") or "0000-00-00").split("-") + ["00", "00"])[:2]
+            rel = f"{proyecto}/{y}/{m}/{md.name}" if params.get("by_date") else f"{proyecto}/{md.name}"
+            esperadas[rel] = md
+    return esperadas
+
+
+def actualizar_prj(params: dict, conv: Path, copia: Path, conocidas: set, log_path: Path,
+                   log: Callable[[str], None] = print) -> dict:
+    """Refresca PRJ como el paso 3 del pipeline y aparta sus copias huerfanas:
+    las que no corresponden a ninguna nota de MERGED pero son copia exacta de
+    algo que si estuvo (por su sha1), o la misma conversacion que ahora vive en
+    otra carpeta. Lo que no se reconoce, se deja."""
+    import MemorIA2GO as M
+    lay = layout.cargar(params["vault_path"])
+    if not lay.proyectos:
+        return {"huerfanas": [], "desconocidas": []}
+    prj = lay.ruta(params["vault_path"], "prj")
+    M.paso3_organizar(params, lay.ruta(params["vault_path"], "merged"), log_path)
+    esperadas = _prj_esperadas(params, conv)
+    # La misma conversacion con el mismo nombre en otra carpeta: cambio de
+    # proyecto (o de fecha) y aqui quedo su copia vieja. 16 en el vault real,
+    # casi todas de `none/` a `Substack/`.
+    vive_en_otro_sitio = defaultdict(set)
+    for rel, md in esperadas.items():
+        vive_en_otro_sitio[rel.rsplit("/", 1)[-1]].add(_conv_id(md))
+    huerfanas, desconocidas = [], []
+    for p in sorted(prj.rglob("*.md")):
+        rel = p.relative_to(prj).as_posix()
+        if "/" not in rel or rel in esperadas:
+            continue  # los indices viven en la raiz de PRJ
+        movida = (_conv_id(p) or None) in (vive_en_otro_sitio.get(p.name, set()) - {None})
+        if movida or hashlib.sha1(p.read_bytes()).hexdigest() in conocidas:
+            dst = copia / "prj" / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(p), str(dst))
+            huerfanas.append(rel)
+        else:
+            desconocidas.append(rel)
+    log(f"PRJ: refrescado; {len(huerfanas)} copias huerfanas a la copia, {len(desconocidas)} sin reconocer (se quedan).")
+    return {"prj": str(prj), "huerfanas": huerfanas, "desconocidas": desconocidas}
+
+
+def _fotografiar(raiz: Path, filtro: Callable[[str], bool], destino: Path) -> List[str]:
+    """Copia exacta de las notas de `raiz` que pasan el filtro. Para que
+    --deshacer deje PRJ y los indices de MERGED como estaban: el refresco y los
+    indices tocan cientos de ficheros que no son conversaciones reparadas."""
+    rels = []
+    if raiz.is_dir():
+        for p in raiz.rglob("*.md"):
+            rel = p.relative_to(raiz).as_posix()
+            if filtro(rel):
+                (destino / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, destino / rel)
+                rels.append(rel)
+    return rels
+
+
+def _restaurar_foto(raiz: Path, filtro: Callable[[str], bool], foto: Path, rels: List[str]) -> None:
+    for p in list(raiz.rglob("*.md")) if raiz.is_dir() else []:
+        rel = p.relative_to(raiz).as_posix()
+        if filtro(rel) and rel not in set(rels):
+            p.unlink()  # lo creo el refresco o los indices
+    for rel in rels:
+        (raiz / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(foto / rel, raiz / rel)
+
+
+def _filtro_indices(base: Path) -> Callable[[str], bool]:
+    """Lo de MERGED que no son notas de conversacion ni de sesiones: indices y
+    _Temas. Las carpetas salen de layout.py, como en todo el programa."""
+    lay = layout.cargar(base)
+    merged = lay.ruta(base, "merged")
+    fuera = [d.rstrip("/") + "/" for d in lay.conv_dirs(merged)]
+    for clave in ("sesiones.claude_code", "sesiones.codex"):
+        try:
+            rel = lay.ruta(base, clave).relative_to(merged).as_posix()
+            fuera.append(rel.split("/")[0] + "/")
+        except (KeyError, ValueError):
+            pass
+    return lambda rel: not rel.startswith(tuple(fuera))
+
+
+def _sha_de(carpetas) -> set:
+    return {hashlib.sha1(p.read_bytes()).hexdigest() for c in carpetas if c.is_dir() for p in c.rglob("*.md")}
+
+
+def _staging(carpeta_logs: Optional[Path]) -> Path:
+    return Path(carpeta_logs or HERE / "logs") / f"_reparseame_staging_{datetime.now():%Y%m%d-%H%M%S}"
+
+
+def simular_derivados(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str], None] = print) -> dict:
+    """Sin escribir en el vault: fusiona RAW tal cual aparte y lo compara con
+    MERGED para contar ediciones a mano y huerfanas que ya hay."""
+    tmp = _staging(carpeta_logs)
+    try:
+        log("Fusionando RAW aparte para compararlo con MERGED (menos de un minuto) ...")
+        antes = fusionar(base, tmp / "antes")
+        pm = planificar_merged(base, antes, antes)
+        return {"protegidas": pm["protegidas"], "huerfanas": pm["huerfanas"],
+                "desconocidas": pm["desconocidas"], "atrasadas": len(pm["escribir"])}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def ejecutar(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str], None] = print) -> dict:
+    """Todo REParsea·me: RAW (fase 2), MERGED y PRJ (fase 3) e indices."""
+    import MemorIA2GO as M
+    base = Path(base)
+    params = _params(base)
+    lay = layout.cargar(base)
+    merged = lay.ruta(base, "merged")
+    tmp = _staging(carpeta_logs)
+    try:
+        log("1/5 Fusionando RAW tal cual, para reconocer lo editado a mano en MERGED ...")
+        antes = fusionar(base, tmp / "antes")
+        conocidas = _sha_de([merged / d for d in lay.conv_dirs(merged)])
+        log("2/5 Reescribiendo RAW ...")
+        plan = planificar(base, log)
+        copia = aplicar(plan, carpeta_logs, log)
+        log("3/5 Fusionando RAW reparado ...")
+        despues = fusionar(base, tmp / "despues")
+        pm = planificar_merged(base, antes, despues)
+        reg = aplicar_merged(pm, copia, log)
+        conocidas |= _sha_de([copia / "merged"]) | _sha_de([merged / d for d in lay.conv_dirs(merged)])
+        log("4/5 Refrescando PRJ ...")
+        prj = lay.ruta(base, "prj")
+        foto_prj = _fotografiar(prj, lambda rel: True, copia / "foto_prj") if lay.proyectos else []
+        foto_ind = _fotografiar(merged, _filtro_indices(base), copia / "foto_indices")
+        logp = copia / "pipeline.log"
+        rp = actualizar_prj(params, pm["conv"], copia, conocidas, logp, log)
+        rp["foto"] = foto_prj
+        reg["foto_indices"] = foto_ind
+        reg["merged"] = str(merged)
+        reg["base"] = str(base)
+        derivados = {"merged": reg, "prj": rp, "protegidas": pm["protegidas"], "desconocidas": pm["desconocidas"]}
+        (copia / "derivados.json").write_text(json.dumps(derivados, ensure_ascii=False, indent=1), encoding="utf-8")
+        log("5/5 Indices ...")
+        M.paso4_indices(base, merged, lay.ruta(base, "prj") if lay.proyectos else None, logp)
+        return {"plan": plan, "copia": copia, "merged": pm, "prj": rp}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _deshacer_derivados(copia: Path, log: Callable[[str], None]) -> None:
+    ruta = copia / "derivados.json"
+    if not ruta.exists():
+        return
+    d = json.loads(ruta.read_text(encoding="utf-8"))
+    conv = Path(d["merged"]["conv"])
+    for e in d["merged"]["sobrescritas"] + d["merged"]["nuevas"]:
+        p = conv / e["rel"]
+        if p.exists() and hashlib.sha1(p.read_bytes()).hexdigest() != e["sha1"]:
+            raise ErrorReparsea(f"MERGED: {e['rel']} ha cambiado desde que se aplico: no deshago nada")
+    for e in d["merged"]["nuevas"]:
+        (conv / e["rel"]).unlink(missing_ok=True)
+    for e in d["merged"]["sobrescritas"] + d["merged"]["huerfanas"]:
+        (conv / e["rel"]).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(copia / "merged" / e["rel"], conv / e["rel"])
+    if "foto_indices" in d["merged"]:
+        _restaurar_foto(Path(d["merged"]["merged"]), _filtro_indices(Path(d["merged"]["base"])),
+                        copia / "foto_indices", d["merged"]["foto_indices"])
+    if d["prj"].get("prj"):
+        _restaurar_foto(Path(d["prj"]["prj"]), lambda rel: True, copia / "foto_prj", d["prj"].get("foto", []))
+    log(f"MERGED restaurado ({len(d['merged']['sobrescritas'])} notas, {len(d['merged']['huerfanas'])} huerfanas, "
+        f"indices) y PRJ como estaba ({len(d['prj'].get('foto', []))} notas).")
 
 
 def escribir_csv(informe: dict, ruta: Path) -> None:
@@ -403,9 +700,17 @@ def main(argv=None) -> int:
         base = args.base_vault or _config_base()
         if not base:
             ap.error("hace falta --base-vault (no hay base_vault en memoria_config.yaml)")
+        logs = Path(args.logs) if args.logs else None
         inf = diagnosticar(Path(base))
-        plan = planificar(Path(base))
-        copia = aplicar(plan, Path(args.logs) if args.logs else None) if args.aplicar else None
+        if args.aplicar:
+            res = ejecutar(Path(base), logs)
+            plan, copia, der = res["plan"], res["copia"], {
+                "protegidas": res["merged"]["protegidas"], "huerfanas": res["merged"]["huerfanas"],
+                "desconocidas": res["merged"]["desconocidas"], "atrasadas": len(res["merged"]["escribir"]),
+                "prj_huerfanas": res["prj"]["huerfanas"], "prj_desconocidas": res["prj"]["desconocidas"]}
+        else:
+            plan, copia = planificar(Path(base)), None
+            der = simular_derivados(Path(base), logs)
     except ErrorReparsea as e:
         print(f"[error] {e}")
         return 2
@@ -425,8 +730,25 @@ def main(argv=None) -> int:
           f"({plan['renombradas_al_reescribir']} cambian de nombre)")
     print(f"  {'renombradas' if copia else 'que se renombran'} por su huella sin cambiar el texto: {plan['renombrar']}")
     print(f"  versiones identicas {'apartadas' if copia else 'que se apartan'} a la copia: {plan['papelera']}")
+    print()
+    print("HECHO en MERGED y PRJ" if copia else "MERGED y PRJ (se rehacen al aplicar)")
     if copia:
-        print(f"  para deshacer: python reparseame.py --deshacer \"{copia}\"")
+        print(f"  notas de MERGED puestas al dia: {der['atrasadas']}")
+    else:
+        print(f"  notas de MERGED que ya se habian quedado atras de RAW: {der['atrasadas']}")
+    print(f"  huerfanas de MERGED {'apartadas' if copia else 'que se apartan'}: {len(der['huerfanas'])}")
+    if copia:
+        print(f"  copias huerfanas de PRJ apartadas: {len(der['prj_huerfanas'])}"
+              f" ({len(der['prj_desconocidas'])} sin reconocer, se quedan)")
+    print(f"  editadas a mano en MERGED, sin tocar: {len(der['protegidas'])}")
+    for k in der["protegidas"]:
+        print(f"      {k}")
+    if der["desconocidas"]:
+        print(f"  notas de MERGED que no sale de RAW y no reconozco (se quedan): {len(der['desconocidas'])}")
+        for k in der["desconocidas"][:10]:
+            print(f"      {k}")
+    if copia:
+        print(f"\n  para deshacer: python reparseame.py --deshacer \"{copia}\"")
     return 0
 
 

@@ -202,6 +202,60 @@ def test_write_md_no_crea_gemela_de_la_primera_version(tmp_path):
     assert len(list(tmp_path.glob("*.md"))) == 2, "una version distinta si se escribe"
 
 
+def test_la_que_se_queda_hereda_la_fecha_mas_reciente(tmp_path):
+    # La fusion titula una conversacion renombrada por su version mas reciente
+    # en disco: apartar la identica mas nueva no puede cambiar eso.
+    d = _raw_de_prueba(tmp_path)
+    base, gemela = d / "2025-11-04_prueba.md", next(d.glob("2025-11-04_prueba-h*.md"))
+    os.utime(base, ns=(10**18, 10**18))
+    os.utime(gemela, ns=(10**18 + 10**9, 10**18 + 10**9))  # NTFS guarda centenas de ns: un segundo
+    R.aplicar(R.planificar(tmp_path, log=lambda *_: None), tmp_path / "logs", log=lambda *_: None)
+    assert base.stat().st_mtime_ns == 10**18 + 10**9
+
+
+# ---------- fase 3 ----------
+
+def test_editada_a_mano_frente_a_atrasada():
+    fusion = b"---\n---\n\n### User\n\nhola\n\n### Assistant\n\nrevonfihurar\n\n### Tool\n\n![](img.png)\n"
+    atrasada = b"---\n---\n\n### User\n\nhola\n\n### Assistant\n\nrevonfihurar\n"
+    a_mano = b"---\n---\n\n### User\n\nhola\n\n### Assistant\n\nreconfigurar\n\n### Tool\n\n![](img.png)\n"
+    assert not R.editada_a_mano(fusion, fusion)
+    assert not R.editada_a_mano(atrasada, fusion), "si solo le falta algo, se quedo atras"
+    assert R.editada_a_mano(a_mano, fusion)
+
+
+def test_planificar_merged(tmp_path, monkeypatch):
+    conv = tmp_path / "MERGED_VAULT" / "Conversaciones"
+    antes, despues = tmp_path / "antes", tmp_path / "despues"
+
+    def nota(raiz, rel, cid, texto):
+        p = raiz / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(f'---\nconv_id: "{cid}"\n---\n\n### User\n\n{texto}\n', encoding="utf-8")
+
+    nota(conv, "2025/01/a.md", "c1", "viejo")                     # se pone al dia
+    nota(conv, "2025/01/b.md", "c2", "corregido a mano")          # editada a mano
+    nota(conv, "2025/01/a-nombre-viejo.md", "c1", "viejo")        # huerfana: c1 vive como a.md
+    nota(conv, "2025/01/mia.md", "zz", "escrita por V0ra")        # no sale de RAW ni de nada: se queda
+    nota(conv, "Sesiones-Code/s.md", "s1", "no es de la fusion")  # fuera de las carpetas de año
+    for raiz in (antes, despues):
+        nota(raiz, "2025/01/b.md", "c2", "con errata")
+    nota(antes, "2025/01/a.md", "c1", "viejo")
+    nota(despues, "2025/01/a.md", "c1", "nuevo")
+    nota(despues, "2025/02/c.md", "c3", "nueva")
+
+    class Lay:
+        proyectos = False
+        def ruta(self, base, clave): return tmp_path / "MERGED_VAULT"
+        def conv_rel(self): return "Conversaciones"
+    monkeypatch.setattr(R.layout, "cargar", lambda *a, **k: Lay())
+    pm = R.planificar_merged(tmp_path, antes, despues)
+    assert pm["protegidas"] == ["2025/01/b.md"]
+    assert pm["escribir"] == ["2025/01/a.md", "2025/02/c.md"] and pm["nuevas"] == ["2025/02/c.md"]
+    assert pm["huerfanas"] == ["2025/01/a-nombre-viejo.md"]
+    assert pm["desconocidas"] == ["2025/01/mia.md"]
+
+
 def test_sin_raw_da_error_claro(tmp_path):
     try:
         R.diagnosticar(tmp_path, log=lambda *_: None)

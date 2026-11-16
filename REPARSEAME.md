@@ -3,12 +3,16 @@
 > **¿Qué pregunta responde este documento?**
 > *Mi vault se escribió con versiones antiguas del parser: ¿cómo lo pongo al día sin perder nada y sin duplicar conversaciones?*
 
-> **Estado (2026-11-16): fases 1 y 2 hechas, en `reparseame.py`.** El diagnóstico y la reescritura de RAW están probados sobre una copia del vault real. Los pasos 3 (derivados), 4 (derivas que necesitan el export) y 5 (pantalla del Taller) están pendientes. **No aplicar sobre el vault real hasta tener el paso 3.**
+> **Estado (2026-11-16): fases 1, 2 y 3 hechas, en `reparseame.py`.** Diagnóstico, reescritura de RAW y puesta al día de MERGED y PRJ, todo probado sobre una copia entera del vault real. Pendientes: la fase 4 (derivas que necesitan el export) y la 5 (pantalla del Taller).
 >
-> Prueba en una copia del RAW real (7.358 notas):
-> - 1.745 notas reescritas, 209 renombradas por su huella y 3.695 versiones idénticas apartadas. Quedan 3.663 notas.
-> - Pasarlo otra vez no hace nada, y `--deshacer` deja la copia idéntica (nombres, bytes y fechas).
-> - Al importar después el export de 2025-12-20 con el mapa de proyectos real, la copia reparada gana **0** notas; la copia sin reparar gana 312.
+> Prueba en una copia del vault real (RAW con 7.358 notas, MERGED y PRJ):
+> - **RAW:** 1.745 notas reescritas, 209 renombradas por su huella y 3.695 versiones idénticas apartadas. Quedan 3.663 notas.
+> - **MERGED:** 1.166 notas al día y 7 huérfanas apartadas. La única nota editada a mano queda sin tocar. Lo que no es de la fusión (Sesiones, `CLAUDE_CODE`, `CODEX`) no se toca.
+> - **PRJ:** refrescado, con 23 copias huérfanas apartadas.
+> - Pasarlo otra vez no hace nada. `--deshacer` deja RAW, MERGED y PRJ **idénticos** al original (nombres, bytes y fechas).
+> - **El día después:** importar después el export de 2025-12-20 con el mapa de proyectos real y volver a fusionar no cambia ni una nota de RAW; en MERGED cambia una sola, la editada a mano (ver abajo). Sin reparar, la misma importación crea 312 notas en RAW.
+>
+> **Ojo, y no es de REParsea·me:** la fusión normal del pipeline pisa en cada importación cualquier edición a mano de MERGED. REParsea·me la protege, pero la siguiente importación se la lleva igual. Pendiente: que `vault_merge.py` use el mismo detector (`editada_a_mano`).
 
 Para la recuperación de imágenes, que es otra herramienta, ve a [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md). Para el diseño general, a [ARCHITECTURE.md](ARCHITECTURE.md).
 
