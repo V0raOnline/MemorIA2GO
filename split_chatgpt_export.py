@@ -380,9 +380,36 @@ def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
             meta["primera_conversacion"] = conv_title
         fname = target.writer.write(data, ext, meta=meta)
         rel_path = f"{target.rel_prefix}/{fname}".replace("\\", "/")
+        ENLACES_RESUELTOS[pointer] = rel_path
         return f"![]({rel_path})"
 
     return IMAGE_TOKEN_RE.sub(_sub, content)
+
+
+# Puntero -> enlace de cada imagen resuelta. Se guarda en
+# <CHATGPT>/_punteros_imagenes.json para que la fusion (vault_merge.py) cambie
+# por su enlace los avisos de otros exports que no traian esa misma imagen: RAW
+# se queda fiel a cada export y en MERGED la imagen se ve igual. Ver REPARSEAME.md.
+ENLACES_RESUELTOS: Dict[str, str] = {}
+NOMBRE_PUNTEROS = "_punteros_imagenes.json"
+
+
+def guardar_enlaces_imagen(carpeta_chatgpt: str, nuevos: Dict[str, str]) -> int:
+    """Fusiona `nuevos` con la correspondencia que ya hubiera. Devuelve el total."""
+    ruta = os.path.join(carpeta_chatgpt, NOMBRE_PUNTEROS)
+    datos: Dict[str, str] = {}
+    if os.path.exists(ruta):
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+        except (OSError, ValueError):
+            datos = {}
+    datos.update(nuevos)
+    tmp = ruta + ".part"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=0, sort_keys=True)
+    os.replace(tmp, ruta)
+    return len(datos)
 
 
 # ---------- Assets de Grok: prod-mc-asset-server dentro del ZIP ----------
@@ -1832,6 +1859,10 @@ def main():
             total = writer.flush_manifest()
             if total:
                 print(f"  [{origen}] manifiesto actualizado: {total} imagenes con metadatos")
+        carpeta = args.generadas_dir or args.adjuntos_dir
+        if ENLACES_RESUELTOS and carpeta:
+            n = guardar_enlaces_imagen(os.path.dirname(os.path.abspath(carpeta)), ENLACES_RESUELTOS)
+            print(f"  correspondencia puntero -> imagen: {n} punteros")
 
     if grok_adjuntos_writer and grok_adjuntos_writer.hash_to_filename:
         print(f"[grok adjuntos] binarios únicos copiados a {grok_adjuntos_writer.assets_dir}: "

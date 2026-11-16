@@ -39,6 +39,45 @@ def normalize_text(txt: str) -> str:
     return re.sub(r"\s+", " ", (txt or "").strip())
 
 
+# ---------- imagenes que un export no trajo y otro si ----------
+#
+# RAW es el archivo de cada export: si un export no traia una imagen, su nota
+# dice «imagen no disponible» y asi se queda (decision de V0ra, 2026-11-16).
+# Pero en MERGED, que es lo que se lee, la imagen tiene que verse si CUALQUIER
+# export la tuvo. `_punteros_imagenes.json` (junto a los bancos de ChatGPT) dice
+# que enlace corresponde a cada puntero; lo escriben la importacion y
+# REParsea·me. Al leer una nota, cada aviso cuya imagen esta en el banco se
+# cambia por su enlace: asi el aviso y el enlace de la MISMA imagen son el
+# mismo mensaje y la fusion no los duplica. Dos imagenes distintas siguen
+# siendo distintas: la equivalencia es por puntero, no «cualquier imagen».
+
+AVISO_IMAGEN_RE = re.compile(r"\*\[imagen no disponible en el export: ([^\]\r\n]+)\]\*")
+ENLACES_IMAGEN: Dict[str, str] = {}
+
+
+def ruta_punteros(base_vault) -> str:
+    """Donde vive la correspondencia puntero -> enlace: en la carpeta de ChatGPT, junto a sus bancos."""
+    return os.path.join(str(layout.cargar(base_vault).ruta(base_vault, "chatgpt.raiz")), "_punteros_imagenes.json")
+
+
+def cargar_enlaces_imagen(base_vault) -> Dict[str, str]:
+    """{puntero: enlace} de las imagenes cuyo fichero esta de verdad en su banco."""
+    import json
+    try:
+        with open(ruta_punteros(base_vault), "r", encoding="utf-8") as f:
+            datos = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {p: e for p, e in datos.items() if os.path.exists(os.path.join(str(base_vault), *e.split("/")))}
+
+
+def con_enlaces(txt: str) -> str:
+    if not ENLACES_IMAGEN or "imagen no disponible" not in txt:
+        return txt
+    return AVISO_IMAGEN_RE.sub(lambda m: f"![]({ENLACES_IMAGEN[m.group(1)]})" if m.group(1) in ENLACES_IMAGEN
+                               else m.group(0), txt)
+
+
 def msg_fingerprint(msg: Dict[str, str]) -> str:
     role = (msg.get("role", "") or "").lower()
     norm = role + "::" + normalize_text(msg.get("content", ""))
@@ -95,7 +134,7 @@ def read_note(md_path: str) -> Tuple[Dict[str, str], List[Dict[str, str]]]:
     if len(parts) > 1:
         for i in range(1, len(parts), 2):
             role = parts[i].strip().lower()
-            content = parts[i + 1].strip()
+            content = con_enlaces(parts[i + 1].strip())
             messages.append({"role": role, "content": content})
     return front, messages
 
@@ -183,7 +222,10 @@ def main():
     ap.add_argument("--by-year", action="store_true")
     ap.add_argument("--by-month", action="store_true")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--base-vault", help="Base del vault, para encontrar los bancos de imagenes "
+                                         "(por defecto, la carpeta que contiene merged_dir)")
     args = ap.parse_args()
+    ENLACES_IMAGEN.update(cargar_enlaces_imagen(args.base_vault or os.path.dirname(os.path.abspath(args.merged_dir))))
 
     conv_dir = os.path.join(args.raw_dir, layout.cargar().rel("conversaciones"))
     if not os.path.isdir(conv_dir):

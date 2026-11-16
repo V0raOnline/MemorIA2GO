@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -211,6 +212,74 @@ def reparar_texto(texto: str) -> Optional[str]:
         if m["role"] == "contexto":
             m["content"] = m["content"].rstrip()
     return componer(cabeza, salida) if cambio else None
+
+
+# ---------- fase 4a: imagenes, desde los exports ----------
+#
+# RAW es el archivo de cada export (decision de V0ra, 2026-11-16): si un export
+# no traia una imagen, su nota dice «imagen no disponible» y asi se queda. Lo
+# que si se hace: buscar cada imagen avisada en CUALQUIER export, copiarla a
+# su banco (mismo nombre que le daria la importacion) y apuntar puntero ->
+# enlace en <CHATGPT>/_punteros_imagenes.json. La fusion (vault_merge.py) usa
+# esa correspondencia para que en MERGED se vea la imagen si algun export la
+# tuvo. Las imagenes copiadas a los bancos se quedan aunque se deshaga: nombre
+# por huella, no duplican nada.
+
+_AVISO_IMAGEN = re.compile(r"\*\[imagen no disponible en el export: ([^\]\r\n]+)\]\*")
+
+
+def punteros_de(texto: str) -> set:
+    return {m.group(1) for m in _AVISO_IMAGEN.finditer(texto)}
+
+
+def exports_chatgpt(carpeta: Optional[Path]) -> List[Path]:
+    """Los .zip de ChatGPT de la carpeta de exports, del mas reciente al mas antiguo."""
+    if not carpeta or not Path(carpeta).is_dir():
+        return []
+    return sorted((p for p in Path(carpeta).glob("chatgpt_*.zip") if p.is_file()), reverse=True)
+
+
+def resolver_imagenes(base: Path, punteros: set, exports: List[Path], aplicar: bool,
+                      log: Callable[[str], None] = print) -> Dict[str, str]:
+    """{puntero: enlace} de las imagenes que trae algun export. Con aplicar,
+    las copia a su banco (mismo nombre que les daria la importacion)."""
+    import split_chatgpt_export as S
+    import recuperar_imagenes as RI
+    lay = layout.cargar(base)
+    escritores = {origen: RI._Escritor(lay.ruta(base, clave), aplicar) for origen, clave in RI.BANCOS.items()}
+    pendientes, enlaces = set(punteros), {}
+    for exp in exports:
+        if not pendientes:
+            break
+        try:
+            with zipfile.ZipFile(exp) as zf:
+                ids = set(S.AssetIndex(zf).by_id)
+            aqui = {p for p in pendientes if S.AssetIndex.resolve_pointer_id(p) in ids}
+            if not aqui:
+                continue
+            meta_de: Dict[str, dict] = {}
+            _, zf = S.load_conversations(str(exp), image_meta_out=meta_de)
+            indice, biblio = S.AssetIndex(zf), RI._leer_biblioteca(zf)
+            for p in sorted(aqui):
+                hallado = indice.get_bytes(p)
+                if not hallado:
+                    continue
+                data, ext = hallado
+                meta = dict(meta_de.get(p) or {})
+                if not meta:
+                    entrada = biblio.get(S.AssetIndex.resolve_pointer_id(p)) or {}
+                    meta["origen"] = "generada" if entrada.get("image_gen_generation_id") else "subida"
+                origen = meta.get("origen") if meta.get("origen") in escritores else "subida"
+                enlaces[p] = lay.enlace(RI.BANCOS[origen], escritores[origen].write(data, ext, meta=meta or None))
+                pendientes.discard(p)
+            zf.close()
+            log(f"  {exp.name}: {len(aqui)} imagenes")
+        except (zipfile.BadZipFile, OSError, ValueError) as e:
+            log(f"  {exp.name}: no lo puedo leer ({e}); sigo con los demas")
+    for e in escritores.values():
+        e.cerrar()
+    log(f"Imagenes encontradas: {len(enlaces)} de {len(punteros)}; sin export que las traiga: {len(pendientes)}")
+    return enlaces
 
 
 def carpeta_raw(base: Path, lay=None) -> Path:
@@ -431,7 +500,7 @@ def fusionar(base: Path, destino: Path) -> Path:
     if getattr(lay, "particion", "unico") == "proveedor":
         raise ErrorReparsea("MERGED partido por proveedor: REParsea·me todavia no lo sabe sincronizar")
     r = subprocess.run([sys.executable, str(HERE / "vault_merge.py"), str(lay.ruta(base, "raw")), str(destino),
-                        "--merge", "--by-year", "--by-month"],
+                        "--merge", "--by-year", "--by-month", "--base-vault", str(base)],
                        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(HERE),
                        env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     if r.returncode != 0:
@@ -598,8 +667,29 @@ def simular_derivados(base: Path, carpeta_logs: Optional[Path] = None, log: Call
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def ejecutar(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str], None] = print) -> dict:
-    """Todo REParsea·me: RAW (fase 2), MERGED y PRJ (fase 3) e indices."""
+def punteros_en_raw(base: Path) -> set:
+    """Las imagenes que las notas de RAW citan con un aviso."""
+    punteros = set()
+    for nota in carpeta_raw(Path(base)).rglob("*.md"):
+        texto = nota.read_bytes().decode("utf-8", errors="replace")
+        if "imagen no disponible" in texto:
+            punteros |= punteros_de(texto)
+    return punteros
+
+
+def preparar_imagenes(base: Path, exports: List[Path], aplicar: bool, log: Callable[[str], None] = print) -> int:
+    """Fase 4a: imagenes avisadas que trae algun export -> a su banco y a la
+    correspondencia que lee la fusion. Devuelve cuantas se encontraron."""
+    import split_chatgpt_export as S
+    enlaces = resolver_imagenes(base, punteros_en_raw(base), exports, aplicar, log)
+    if aplicar and enlaces:
+        S.guardar_enlaces_imagen(str(layout.cargar(base).ruta(base, "chatgpt.raiz")), enlaces)
+    return len(enlaces)
+
+
+def ejecutar(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str], None] = print,
+             exports: Optional[List[Path]] = None) -> dict:
+    """Todo REParsea·me: imagenes (fase 4a), RAW (fase 2), MERGED y PRJ (fase 3) e indices."""
     import MemorIA2GO as M
     base = Path(base)
     params = _params(base)
@@ -607,12 +697,25 @@ def ejecutar(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str
     merged = lay.ruta(base, "merged")
     tmp = _staging(carpeta_logs)
     try:
+        # «antes» es la fusion tal como produjo el MERGED de hoy: ANTES de
+        # anadir imagenes a la correspondencia. Si se hiciera despues, los
+        # avisos que MERGED aun tiene parecerian lineas de mas y cientos de
+        # notas pasarian por editadas a mano (453 en la copia del vault real).
         log("1/5 Fusionando RAW tal cual, para reconocer lo editado a mano en MERGED ...")
         antes = fusionar(base, tmp / "antes")
         conocidas = _sha_de([merged / d for d in lay.conv_dirs(merged)])
-        log("2/5 Reescribiendo RAW ...")
+        log("2/5 Imagenes que faltan, desde los exports (a los bancos, no a RAW), y RAW ...")
+        exports = exports if exports is not None else exports_chatgpt(params.get("exports_dir"))
+        punteros = Path(lay.ruta(base, "chatgpt.raiz")) / "_punteros_imagenes.json"
+        punteros_antes = punteros.read_bytes() if punteros.exists() else None
+        imagenes = preparar_imagenes(base, exports, aplicar=True, log=log)
         plan = planificar(base, log)
+        plan["imagenes"] = imagenes
         copia = aplicar(plan, carpeta_logs, log)
+        # Para que --deshacer devuelva tambien la correspondencia de imagenes: si
+        # no, la siguiente fusion volveria a poner las que esta pasada anadio.
+        if punteros_antes is not None:
+            (copia / "punteros_antes.json").write_bytes(punteros_antes)
         log("3/5 Fusionando RAW reparado ...")
         despues = fusionar(base, tmp / "despues")
         pm = planificar_merged(base, antes, despues)
@@ -628,6 +731,7 @@ def ejecutar(base: Path, carpeta_logs: Optional[Path] = None, log: Callable[[str
         reg["foto_indices"] = foto_ind
         reg["merged"] = str(merged)
         reg["base"] = str(base)
+        reg["punteros"] = str(punteros)
         derivados = {"merged": reg, "prj": rp, "protegidas": pm["protegidas"], "desconocidas": pm["desconocidas"]}
         (copia / "derivados.json").write_text(json.dumps(derivados, ensure_ascii=False, indent=1), encoding="utf-8")
         log("5/5 Indices ...")
@@ -657,6 +761,12 @@ def _deshacer_derivados(copia: Path, log: Callable[[str], None]) -> None:
                         copia / "foto_indices", d["merged"]["foto_indices"])
     if d["prj"].get("prj"):
         _restaurar_foto(Path(d["prj"]["prj"]), lambda rel: True, copia / "foto_prj", d["prj"].get("foto", []))
+    if d["merged"].get("punteros"):
+        punteros = Path(d["merged"]["punteros"])
+        if (copia / "punteros_antes.json").exists():
+            shutil.copy2(copia / "punteros_antes.json", punteros)
+        else:
+            punteros.unlink(missing_ok=True)  # no existia antes de esta pasada
     log(f"MERGED restaurado ({len(d['merged']['sobrescritas'])} notas, {len(d['merged']['huerfanas'])} huerfanas, "
         f"indices) y PRJ como estaba ({len(d['prj'].get('foto', []))} notas).")
 
@@ -692,6 +802,8 @@ def main(argv=None) -> int:
                     help="Reescribir RAW de verdad (sin esto solo cuenta). Cierra Obsidian y haz copia del vault antes")
     ap.add_argument("--deshacer", metavar="CARPETA", help="Dejar RAW como antes de un --aplicar")
     ap.add_argument("--logs", metavar="CARPETA", help="Donde guardar la copia (por defecto, logs/ junto al programa)")
+    ap.add_argument("--exports", metavar="CARPETA",
+                    help="Donde estan los exports (por defecto, exports_dir de memoria_config.yaml)")
     args = ap.parse_args(argv)
     try:
         if args.deshacer:
@@ -702,14 +814,18 @@ def main(argv=None) -> int:
             ap.error("hace falta --base-vault (no hay base_vault en memoria_config.yaml)")
         logs = Path(args.logs) if args.logs else None
         inf = diagnosticar(Path(base))
+        exports = (exports_chatgpt(Path(args.exports)) if args.exports
+                   else exports_chatgpt(_params(Path(base)).get("exports_dir")))
         if args.aplicar:
-            res = ejecutar(Path(base), logs)
+            res = ejecutar(Path(base), logs, exports=exports)
             plan, copia, der = res["plan"], res["copia"], {
                 "protegidas": res["merged"]["protegidas"], "huerfanas": res["merged"]["huerfanas"],
                 "desconocidas": res["merged"]["desconocidas"], "atrasadas": len(res["merged"]["escribir"]),
                 "prj_huerfanas": res["prj"]["huerfanas"], "prj_desconocidas": res["prj"]["desconocidas"]}
         else:
+            imagenes = preparar_imagenes(Path(base), exports, aplicar=False)
             plan, copia = planificar(Path(base)), None
+            plan["imagenes"] = imagenes
             der = simular_derivados(Path(base), logs)
     except ErrorReparsea as e:
         print(f"[error] {e}")
@@ -730,6 +846,7 @@ def main(argv=None) -> int:
           f"({plan['renombradas_al_reescribir']} cambian de nombre)")
     print(f"  {'renombradas' if copia else 'que se renombran'} por su huella sin cambiar el texto: {plan['renombrar']}")
     print(f"  versiones identicas {'apartadas' if copia else 'que se apartan'} a la copia: {plan['papelera']}")
+    print(f"  imagenes avisadas que trae algun export (al banco; se veran en MERGED): {plan['imagenes']}")
     print()
     print("HECHO en MERGED y PRJ" if copia else "MERGED y PRJ (se rehacen al aplicar)")
     if copia:

@@ -245,12 +245,14 @@ def _siguiente_export(base, tmp_path, convs, ficheros):
     return _turnos_de_usuario(base / "MERGED_VAULT_NUEVO")
 
 
-def test_control_sin_reparar_el_siguiente_export_duplica_turnos(vault_con_avisos):
-    """Lo que habia que evitar. Si esto dejara de pasar, la herramienta ya no haria falta."""
+def test_sin_reparar_el_siguiente_export_ya_no_duplica_turnos(vault_con_avisos):
+    """Antes era el control de lo que habia que evitar: sin reparar, el siguiente export duplicaba
+    turnos. Desde 2026-11-16 la fusion cambia cada aviso por el enlace de la MISMA imagen (por su
+    puntero, ver vault_merge.py), asi que ya no duplica. Es lo que deja de sobra esta herramienta."""
     base, completo, convs, tmp = vault_con_avisos
     sin_cambios = _turnos_de_usuario(base / "MERGED_VAULT" / "Conversaciones")
     total = _siguiente_export(base, tmp, convs, {"file_aaa.dat": PNG, "file-bbb.dat": JPG})
-    assert total > sin_cambios + 1, f"esperaba duplicados y salieron {total} turnos sobre {sin_cambios}"
+    assert total == sin_cambios + 1, f"{total} turnos de usuario; debian ser {sin_cambios + 1}"
 
 
 def test_reparado_el_siguiente_export_solo_anade_su_turno_nuevo(vault_con_avisos):

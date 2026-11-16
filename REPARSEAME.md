@@ -15,6 +15,12 @@
 > **Las notas no se editan a mano** (decisión de V0ra, 2026-11-16): son el archivo de las conversaciones y dicen lo que se dijo, erratas incluidas. Por eso la fusión normal hace bien en pisar cualquier cambio a mano en MERGED. REParsea·me solo marca esas notas como aviso («no coincide con el archivo») y las deja para que la siguiente importación las devuelva a su forma original.
 >
 > **Aplicado al vault real** el 2026-11-16, con backup previo y Obsidian cerrado. Dio las mismas cifras que en la copia.
+>
+> **Fase 4a, las imágenes (2026-11-16): RAW fiel, imágenes en MERGED** (decisión de V0ra). Si un export no traía una imagen, su nota de RAW dice «imagen no disponible» y así se queda, porque es la verdad de ese export. REParsea·me busca cada imagen avisada en *cualquier* export, la copia a su banco con el nombre que le daría la importación y apunta puntero → enlace en `<CHATGPT>/_punteros_imagenes.json`. Al leer cada nota, la fusión cambia el aviso por el enlace de **esa misma** imagen si el fichero está en el banco. Así el aviso y el enlace de la misma imagen son un solo mensaje, y dos imágenes distintas siguen siendo distintas. La importación apunta también lo que resuelve, de modo que los exports futuros a los que les falten imágenes se arreglan solos en MERGED.
+> - En la copia del vault real: 1.721 de 2.431 imágenes avisadas están en algún export; las notas de MERGED con avisos pasan de 602 a 194.
+> - El día después (dos exports más, y fusión) no hay ni un duplicado en MERGED.
+> - Las 710 imágenes que ningún export trae se quedan como aviso.
+> - Con esto, el «control» de `recuperar_imagenes.py` (sin reparar, el siguiente export duplicaba turnos) ya no se cumple: la fusión lo evita sola.
 
 Para la recuperación de imágenes, que es otra herramienta, ve a [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md). Para el diseño general, a [ARCHITECTURE.md](ARCHITECTURE.md).
 
