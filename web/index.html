@@ -971,6 +971,32 @@
 
     <!-- Cada herramienta, plegada con su estado en el titulo (GET /api/taller; los avisos aparte, en
          GET /api/taller/avisos, porque contarlos es leer todas las notas). -->
+    <details class="source-fold herramienta" id="fold-reparseame">
+      <summary>
+        <span class="source-name">REParse·me</span>
+        <span class="source-sub estado" id="reparseame-estado">looking at your notes…</span>
+      </summary>
+      <div class="card">
+        <p class="card-help">
+          Rewrites your notes the way today's parser would, <strong>each one faithful to its own export</strong>,
+          and brings the merged and projects vaults up to date, <strong>without duplicating conversations</strong>.
+          Images from any of your exports show up in the merged vault. With a backup and a way back.
+          How it works: REPARSEME.md.
+        </p>
+        <p class="card-help aviso-previo">
+          Before applying: <strong>close Obsidian</strong> and back up your vault. It takes a few minutes.
+        </p>
+        <div class="fila-botones">
+          <button class="btn" id="btn-reparseame-simular">Simulate</button>
+          <button class="btn" id="btn-reparseame-aplicar" style="display:none;">Apply</button>
+          <button class="btn secondary" id="btn-reparseame-deshacer">Undo the last one</button>
+        </div>
+        <div id="reparseame-msg" class="msg"></div>
+        <pre id="reparseame-log" class="log-box" style="display:none;"></pre>
+        <div id="reparseame-resumen" class="resumen-taller" style="display:none;"></div>
+      </div>
+    </details>
+
     <details class="source-fold herramienta" id="fold-recuperar">
       <summary>
         <span class="source-name">Recover ChatGPT images</span>
@@ -978,10 +1004,10 @@
       </summary>
       <div class="card">
         <p class="card-help">
-          If your notes say <em>imagen no disponible en el export</em>, the image may be in your exports:
-          ChatGPT's format changed in 2026 and M3M0R·IA wasn't seeing it. This puts it back in place
-          <strong>without reprocessing</strong> (reprocessing would duplicate your conversations), with a backup
-          and a way back. Run it with every export you keep. How it works: RECOVER_IMAGES.md.
+          <strong>REParse·me</strong>, just above, is now the main tool: it makes the images in your exports
+          show up without touching each export's archive. This one stays for two things REParse·me doesn't cover
+          yet: hanging the generated images from the library on older notes, and filling in what each one was
+          generated with. How it works: RECOVER_IMAGES.md.
         </p>
         <div class="fila-campo">
           <label for="recuperar-export">ChatGPT export</label>

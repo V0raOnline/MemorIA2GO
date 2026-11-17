@@ -483,7 +483,10 @@ def paso2_merge(params: dict, raw_vault: Path, log_path: Path) -> Path:
 
     merged_vault = _layout(params).ruta(params["vault_path"], "merged")
 
-    args = [raw_vault, merged_vault, "--merge", "--by-year", "--by-month", "--verbose"]
+    # --base-vault: para que la fusion encuentre los bancos de imagenes y su
+    # correspondencia puntero -> enlace (ver vault_merge.py y REPARSEAME.md).
+    args = [raw_vault, merged_vault, "--merge", "--by-year", "--by-month", "--verbose",
+            "--base-vault", params["vault_path"]]
 
     ok_flag = run_script(script, args, log_path)
     if not ok_flag:

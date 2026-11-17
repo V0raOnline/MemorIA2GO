@@ -116,3 +116,73 @@ def test_merge_no_pisa_dos_conversaciones_distintas_mismo_titulo(tmp_path):
     # Y el desambiguador es un fragmento derivado de la identidad (misma familia
     # que el nombre-por-hash de RAW), no un contador dependiente del orden.
     assert all(" · " in n.stem for n in notas)
+
+
+# ---------- avisos de imagen frente a enlaces (2026-11-16, ver REPARSEAME.md) ----------
+
+def _nota_imagen(path: Path, conv_id, cuerpo_tool, mtime):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('---\ntitle: "Imagenes"\ndate: 2026-01-01\nsource: chatgpt_export\n'
+                    f"conv_id: {conv_id}\n---\n\n### User\n\ndibuja\n\n### Tool\n\n{cuerpo_tool}\n",
+                    encoding="utf-8", newline="")
+    os.utime(path, (mtime, mtime))
+
+
+def _fusionar(tmp_path):
+    r = subprocess.run([sys.executable, str(REPO_ROOT / "vault_merge.py"), str(tmp_path / "RAW_VAULT"),
+                        str(tmp_path / "MERGED_VAULT"), "--merge", "--base-vault", str(tmp_path)],
+                       capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=30)
+    assert r.returncode == 0, r.stderr
+    notas = list((tmp_path / "MERGED_VAULT" / "Conversations").glob("*.md"))
+    assert len(notas) == 1
+    return notas[0].read_text(encoding="utf-8")
+
+
+def _banco(tmp_path, punteros):
+    import json
+    import layout
+    lay = layout.cargar(tmp_path)
+    raiz = lay.ruta(tmp_path, "chatgpt.raiz")
+    for enlace in punteros.values():
+        f = tmp_path.joinpath(*enlace.split("/"))
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"png")
+    raiz.mkdir(parents=True, exist_ok=True)
+    (raiz / "_punteros_imagenes.json").write_text(json.dumps(punteros), encoding="utf-8")
+
+
+def test_aviso_y_enlace_de_la_misma_imagen_son_el_mismo_mensaje(tmp_path):
+    import layout
+    enlace = layout.cargar(tmp_path).enlace("chatgpt.generadas", "abc.png")
+    raw = tmp_path / "RAW_VAULT" / "Conversations"
+    now = time.time()
+    _nota_imagen(raw / "2026-01-01_imagenes.md", "c1", "*[imagen no disponible en el export: sediment://file_A]*", now)
+    _nota_imagen(raw / "2026-01-01_imagenes-h1.md", "c1", f"![]({enlace})", now - 10)
+    _banco(tmp_path, {"sediment://file_A": enlace})
+    texto = _fusionar(tmp_path)
+    assert texto.count("![](") == 1 and "imagen no disponible" not in texto
+
+
+def test_sin_fichero_en_el_banco_el_aviso_se_queda(tmp_path):
+    import json
+    import layout
+    lay = layout.cargar(tmp_path)
+    raw = tmp_path / "RAW_VAULT" / "Conversations"
+    _nota_imagen(raw / "2026-01-01_imagenes.md", "c1", "*[imagen no disponible en el export: sediment://file_A]*", time.time())
+    lay.ruta(tmp_path, "chatgpt.raiz").mkdir(parents=True, exist_ok=True)
+    (lay.ruta(tmp_path, "chatgpt.raiz") / "_punteros_imagenes.json").write_text(
+        json.dumps({"sediment://file_A": lay.enlace("chatgpt.generadas", "noesta.png")}), encoding="utf-8")
+    assert "imagen no disponible en el export: sediment://file_A" in _fusionar(tmp_path)
+
+
+def test_dos_imagenes_distintas_no_se_funden(tmp_path):
+    import layout
+    lay = layout.cargar(tmp_path)
+    a, b = lay.enlace("chatgpt.generadas", "a.png"), lay.enlace("chatgpt.generadas", "b.png")
+    raw = tmp_path / "RAW_VAULT" / "Conversations"
+    now = time.time()
+    _nota_imagen(raw / "2026-01-01_imagenes.md", "c1", f"![]({a})", now)
+    _nota_imagen(raw / "2026-01-01_imagenes-h1.md", "c1", "*[imagen no disponible en el export: sediment://file_B]*", now - 10)
+    _banco(tmp_path, {"sediment://file_A": a, "sediment://file_B": b})
+    texto = _fusionar(tmp_path)
+    assert f"![]({a})" in texto and f"![]({b})" in texto

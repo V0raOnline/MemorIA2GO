@@ -380,9 +380,36 @@ def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
             meta["primera_conversacion"] = conv_title
         fname = target.writer.write(data, ext, meta=meta)
         rel_path = f"{target.rel_prefix}/{fname}".replace("\\", "/")
+        ENLACES_RESUELTOS[pointer] = rel_path
         return f"![]({rel_path})"
 
     return IMAGE_TOKEN_RE.sub(_sub, content)
+
+
+# Puntero -> enlace de cada imagen resuelta. Se guarda en
+# <CHATGPT>/_punteros_imagenes.json para que la fusion (vault_merge.py) cambie
+# por su enlace los avisos de otros exports que no traian esa misma imagen: RAW
+# se queda fiel a cada export y en MERGED la imagen se ve igual. Ver REPARSEAME.md.
+ENLACES_RESUELTOS: Dict[str, str] = {}
+NOMBRE_PUNTEROS = "_punteros_imagenes.json"
+
+
+def guardar_enlaces_imagen(carpeta_chatgpt: str, nuevos: Dict[str, str]) -> int:
+    """Fusiona `nuevos` con la correspondencia que ya hubiera. Devuelve el total."""
+    ruta = os.path.join(carpeta_chatgpt, NOMBRE_PUNTEROS)
+    datos: Dict[str, str] = {}
+    if os.path.exists(ruta):
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+        except (OSError, ValueError):
+            datos = {}
+    datos.update(nuevos)
+    tmp = ruta + ".part"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=0, sort_keys=True)
+    os.replace(tmp, ruta)
+    return len(datos)
 
 
 # ---------- Assets de Grok: prod-mc-asset-server dentro del ZIP ----------
@@ -580,6 +607,189 @@ def render_attachments(msg: dict) -> str:
     return "\n".join(lines)
 
 
+# ---------- bloques sin 'parts' ----------
+#
+# Buena parte de los mensajes de ChatGPT no traen 'parts': traen un dict con
+# su propio content_type (razonamiento, llamadas a herramientas, archivos
+# citados, las instrucciones personalizadas...). Hasta 2026-11-16 caian al
+# json.dumps del final de _render_parts y llegaban crudos a la nota: 46.000
+# bloques en 3.316 de las 7.358 notas del vault de V0ra. Ahora se pintan como
+# callouts de Obsidian plegados, para que la conversacion se lea limpia y el
+# detalle quede a un clic. Formato acordado con V0ra el mismo dia.
+
+TITULO_RAZONAMIENTO = "🧠 Reasoning"
+TITULO_INSTRUCCIONES = "⚙️ Custom instructions"
+# Visibles en las notas (edicion inglesa). RESPONDER y ROL_CONTEXTO tambien se
+# comparan en la logica: cambiarlos aqui, nunca sueltos.
+PERFIL = "**Profile**"
+RESPONDER = "**How you want me to respond**"
+CAMBIAN_AQUI = " (changed here)"
+ROL_CONTEXTO = "context"
+
+
+def _callout(tipo: str, titulo: str, cuerpo: str) -> str:
+    """Callout plegado ('-') de Obsidian: cada linea del cuerpo va con '> '.
+    De paso protege la nota: un '### ' dentro de un bloque ya no se confunde
+    con la cabecera de un mensaje al releerla (vault_merge.read_note)."""
+    cuerpo = (cuerpo or "").replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+    lineas = [f"> [!{tipo}]- {titulo}"]
+    lineas += [("> " + ln) if ln else ">" for ln in cuerpo.split("\n")] if cuerpo else []
+    return "\n".join(lineas)
+
+
+def _bloque_codigo(texto: str, lenguaje: str = "") -> str:
+    """Bloque de codigo cuya valla es mas larga que cualquier racha de
+    backticks del texto, para que un ``` interior no lo cierre antes de tiempo."""
+    racha = max((len(r) for r in re.findall("`+", texto or "")), default=0)
+    valla = "`" * max(3, racha + 1)
+    return f"{valla}{lenguaje}\n{(texto or '').rstrip()}\n{valla}"
+
+
+def _entre_vallas(texto: str) -> str:
+    """ChatGPT envuelve el perfil y las instrucciones en una plantilla en
+    ingles con el dato real entre ```. Se queda solo con lo de dentro."""
+    t = (texto or "").strip()
+    i, j = t.find("```"), t.rfind("```")
+    if i != -1 and j > i:
+        return t[i + 3:j].strip()
+    return t
+
+
+# Frases que OpenAI mete DENTRO de las vallas, delante de las instrucciones de
+# la usuaria. No son suyas, y la segunda aparecio a mitad de noviembre de 2025:
+# si se dejaran, cada hilo de esa epoca diria que sus instrucciones cambiaron.
+_PLANTILLA_OPENAI = (
+    "Follow the instructions below naturally",
+    "All the following instructions should guide your behavior",
+)
+
+
+def texto_instrucciones(c: dict) -> str:
+    """Perfil e instrucciones personalizadas, sin la plantilla de OpenAI."""
+    partes = []
+    perfil = _entre_vallas(c.get("user_profile") or "")
+    instr = _entre_vallas(c.get("user_instructions") or "")
+    instr = "\n".join(ln for ln in instr.split("\n")
+                      if not ln.strip().startswith(_PLANTILLA_OPENAI)).strip()
+    instr = re.sub("\n{3,}", "\n\n", instr)
+    if perfil:
+        partes.append(PERFIL + "\n\n" + perfil)
+    if instr:
+        partes.append(RESPONDER + "\n\n" + instr)
+    return "\n\n".join(partes)
+
+
+def _canvas(texto: str) -> Optional[str]:
+    """Un documento de Canvas viaja como 'code' JSON con name/type/content.
+    Si lo es, se pinta el documento como texto; si no, None."""
+    try:
+        d = json.loads(texto)
+    except Exception:
+        return None
+    if isinstance(d, dict) and isinstance(d.get("content"), str) and (d.get("name") or d.get("type")):
+        return _callout("note", f"📝 Canvas: {d.get('name') or d.get('type')}", d["content"])
+    return None
+
+
+def render_bloque_sin_parts(c: dict) -> str:
+    """Pinta un content dict sin 'parts'. Devuelve '' si no hay nada que
+    enseñar (navegacion vacia) y un callout de 'bloque sin interpretar' si el
+    tipo es nuevo: nunca el JSON suelto en mitad de la nota."""
+    tipo = str(c.get("content_type") or "").lower()
+    if tipo == "tether_quote":
+        nombre = c.get("domain") or c.get("title") or c.get("url") or "unknown file"
+        texto = (c.get("text") or "").replace("\\r\\n", "\n").replace("\\n", "\n")
+        lineas = texto.replace("\r\n", "\n").replace("\r", "\n").strip().split("\n")
+        if len(lineas) > 40:
+            lineas = lineas[:40] + ["", "*… (content truncated)*"]
+        return _callout("quote", f"📄 Uploaded file: {nombre}", "\n".join(lineas) or "(no content)")
+    if tipo == "user_editable_context":
+        return _callout("info", TITULO_INSTRUCCIONES, texto_instrucciones(c))
+    if tipo == "code":
+        texto = c.get("text") or ""
+        lenguaje = c.get("language") or ""
+        if texto.strip() in ("", "{}"):
+            return ""  # llamada sin argumentos: no cuenta nada
+        if lenguaje in ("json", "unknown", ""):
+            doc = _canvas(texto)
+            if doc:
+                return doc
+        etiqueta = f" ({lenguaje})" if lenguaje and lenguaje != "unknown" else ""
+        return _callout("example", f"🛠️ Tool{etiqueta}", _bloque_codigo(texto, lenguaje if lenguaje != "unknown" else ""))
+    if tipo == "execution_output":
+        return _callout("example", "📤 Output", _bloque_codigo(c.get("text") or ""))
+    if tipo == "thoughts":
+        trozos = []
+        for t in c.get("thoughts") or []:
+            if not isinstance(t, dict):
+                continue
+            resumen, contenido = (t.get("summary") or "").strip(), (t.get("content") or "").strip()
+            trozos.append("\n\n".join(x for x in (f"**{resumen}**" if resumen else "", contenido) if x))
+        return _callout("abstract", TITULO_RAZONAMIENTO, "\n\n".join(x for x in trozos if x))
+    if tipo == "reasoning_recap":
+        recap = (c.get("content") or "").strip()
+        return f"*🧠 {recap}*" if recap else ""
+    if tipo == "tether_browsing_display":
+        cuerpo = "\n\n".join(x for x in ((c.get("summary") or "").strip(), (c.get("result") or "").strip()) if x)
+        return _callout("example", "🌐 Browsing", cuerpo) if cuerpo else ""
+    if tipo == "system_error":
+        nombre = c.get("name") or "error"
+        return _callout("warning", f"⚠️ Tool error ({nombre})", c.get("text") or "")
+    return _callout("bug", f"Unparsed block ({tipo or 'unknown'})",
+                    _bloque_codigo(json.dumps(c, ensure_ascii=False, indent=1), "json"))
+
+
+class EstadoHilo:
+    """Lo que hay que recordar de un hilo mientras se recorren sus mensajes."""
+
+    def __init__(self) -> None:
+        self.instrucciones: Optional[str] = None
+
+
+def incorporar_especial(messages: List[Dict[str, str]], c: Any, estado: EstadoHilo) -> bool:
+    """Los bloques que no son un mensaje mas: las instrucciones personalizadas
+    (una vez, arriba) y el «Pensó durante…» (al titulo de su razonamiento).
+    Devuelve True si el bloque ya quedo incorporado o descartado.
+
+    Vive aparte del bucle porque lo comparten la importacion y REParsea·me
+    (reparseame.py): asi una nota reparada sale igual que una importada hoy."""
+    ctipo = c.get("content_type") if isinstance(c, dict) else None
+    if ctipo == "user_editable_context":
+        # ChatGPT las inyecta, ocultas, en cada hilo y a veces varias veces.
+        # Van una vez, arriba, con rol propio para que smart_title no las tome
+        # por el primer mensaje de V0ra. Si cambian a mitad del hilo, se dice.
+        texto = texto_instrucciones(c)
+        vigentes = estado.instrucciones
+        # A veces la inyeccion trae solo el perfil y en el turno siguiente
+        # vuelven las instrucciones: eso no es un cambio de V0ra (20 de 24
+        # «cambios» en el export de dic-2025).
+        if vigentes and RESPONDER not in texto:
+            return True
+        if vigentes and RESPONDER not in vigentes:
+            # Al reves: arriba quedo solo el perfil. Se completa ese bloque en
+            # lugar de anunciar un cambio.
+            for m_prev in messages:
+                if m_prev["role"] == ROL_CONTEXTO:
+                    m_prev["content"] = _callout("info", TITULO_INSTRUCCIONES, texto)
+                    break
+            estado.instrucciones = texto
+            return True
+        if texto and texto != vigentes:
+            titulo_i = TITULO_INSTRUCCIONES + (CAMBIAN_AQUI if vigentes else "")
+            messages.append({"role": ROL_CONTEXTO, "content": _callout("info", titulo_i, texto)})
+            estado.instrucciones = texto
+        return True
+    if ctipo == "reasoning_recap" and messages and \
+            messages[-1]["content"].startswith(f"> [!abstract]- {TITULO_RAZONAMIENTO}\n"):
+        # «Pensó durante 11s» va al titulo del razonamiento que resume.
+        recap = (c.get("content") or "").strip()
+        if recap:
+            cab = f"> [!abstract]- {TITULO_RAZONAMIENTO}"
+            messages[-1]["content"] = cab + f" · {recap}" + messages[-1]["content"][len(cab):]
+        return True
+    return False
+
+
 def write_md(base_out_dir: str, title: str, date_str: str,
              messages: List[Dict[str, str]], tags: List[str],
              by_year: bool = False, by_month: bool = False,
@@ -650,6 +860,13 @@ def write_md(base_out_dir: str, title: str, date_str: str,
                 write_path = f"{base}-t{short_ts(dt)}-{i}{ext}"
                 i += 1
         elif scheme == "hash":
+            # La primera version de cada conversacion se llama sin huella. Si
+            # ya dice esto mismo, no hay nada que escribir: sin esta comprobacion
+            # nacia al lado una gemela -hXXXX identica (2.100 en el vault real
+            # de V0ra, medido el 2026-11-16). Ver REPARSEAME.md.
+            if contenido_identico(path, content_text):
+                rel = os.path.relpath(path, base_out_dir).replace("\\", "/")
+                return path, rel
             h = content_hash(content_text)
             base, ext = os.path.splitext(path)
             write_path = f"{base}-h{h}{ext}"
@@ -806,6 +1023,10 @@ def _render_parts(c: Any, image_meta_out: Optional[Dict[str, dict]] = None,
         return _resolver_marcadores("\n".join(str(p) for p in c), refs, markers_ctx)
     elif isinstance(c, str):
         return _resolver_marcadores(c, refs, markers_ctx)
+    elif isinstance(c, dict) and c.get("content_type"):
+        # El razonamiento y las herramientas tambien llevan citas internas
+        # (citeturn0search1...): mismo ultimo paso que el resto del texto.
+        return _resolver_marcadores(render_bloque_sin_parts(c), refs, markers_ctx)
     else:
         return json.dumps(c, ensure_ascii=False)
 
@@ -928,6 +1149,7 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
         current_node = conv.get("current_node")
         messages: List[Dict[str, str]] = []
         modelos_vistos: Dict[str, int] = {}
+        estado_hilo = EstadoHilo()
 
         if isinstance(mapping, dict):
             ordered_nodes: List[Dict[str, Any]] = []
@@ -968,6 +1190,8 @@ def parse_json_conversations(obj: Any, image_meta_out: Optional[Dict[str, dict]]
                 if slug:
                     modelos_vistos[slug] = modelos_vistos.get(slug, 0) + 1
                 c = msg.get("content")
+                if incorporar_especial(messages, c, estado_hilo):
+                    continue
                 att_ids = {a.get("id"): a.get("name") for a in (msg.get("metadata") or {}).get("attachments") or [] if isinstance(a, dict)}
                 content = _render_parts(c, image_meta_out=image_meta_out, att_ids=att_ids,
                                         refs=(msg.get("metadata") or {}).get("content_references"),
@@ -1302,6 +1526,8 @@ def main():
                     help="[Solo exports de Grok] Ruta a un JSON donde anotar los media_posts (Imagine) SIN "
                          "binario en el zip -- prompt+link+tipo, para descargarlos a mano.")
 
+    ap.add_argument("--solo-conv-ids", default=None, metavar="FICHERO",
+                    help="Procesar solo las conversaciones cuyos conv_id trae este fichero (uno por linea)")
     ap.add_argument("--chatgpt-pendientes-out", default=None,
                     help="[Solo exports de ChatGPT] Ruta a un JSON donde anotar las imagenes de busqueda "
                          "web que ChatGPT mostro en la conversacion pero no vienen en el export "
@@ -1367,6 +1593,12 @@ def main():
 
     conversations, zf = load_conversations(args.input, image_meta_out=image_meta,
                                             markers_ctx=markers_ctx)
+    if args.solo_conv_ids:
+        # REParsea·me regenera notas sueltas desde su export: misma salida
+        # exacta que una importacion, solo para las conversaciones pedidas.
+        with open(args.solo_conv_ids, "r", encoding="utf-8") as f:
+            pedidas = set(f.read().split())
+        conversations = [c for c in conversations if c.get("conv_id") in pedidas]
     if not conversations:
         print("No conversations found.")
         sys.exit(2)
@@ -1642,6 +1874,10 @@ def main():
             total = writer.flush_manifest()
             if total:
                 print(f"  [{origen}] manifest updated: {total} images with metadata")
+        carpeta = args.generadas_dir or args.adjuntos_dir
+        if ENLACES_RESUELTOS and carpeta:
+            n = guardar_enlaces_imagen(os.path.dirname(os.path.abspath(carpeta)), ENLACES_RESUELTOS)
+            print(f"  pointer -> image map: {n} pointers")
 
     if grok_adjuntos_writer and grok_adjuntos_writer.hash_to_filename:
         print(f"[grok attachments] unique binaries copied to {grok_adjuntos_writer.assets_dir}: "
