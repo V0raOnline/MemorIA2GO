@@ -1,131 +1,114 @@
 # REParsea·me
 
 > **¿Qué pregunta responde este documento?**
-> *Mi vault se escribió con versiones antiguas del parser: ¿cómo lo pongo al día sin perder nada y sin duplicar conversaciones?*
+> *Mi vault se escribió con versiones antiguas de la importación: ¿cómo lo pongo al día sin perder nada y sin duplicar conversaciones?*
 
-> **Estado (2026-11-16): las cinco fases hechas y aplicadas al vault real.** Son el diagnóstico, la reescritura de RAW, la puesta al día de MERGED y PRJ, las imágenes de cualquier export (4a), la regeneración desde el export propio (4b) y la pantalla del Taller (5). En la app está en Herramientas › Taller › **REParsea·me**: *Simular* (no escribe), *Aplicar* (aparece después de simular y pide confirmación) y *Deshacer la última*, con el registro en directo y un resumen en tarjetas. Endpoints: `GET/POST /api/taller/reparseame` y `POST /api/taller/reparseame/deshacer`. Pendientes: que el diagnóstico distinga «fiel a su export» de «roto», y el port a EN (REParse·me).
->
-> Prueba en una copia del vault real (RAW con 7.358 notas, MERGED y PRJ):
-> - **RAW:** 1.745 notas reescritas, 209 renombradas por su huella y 3.695 versiones idénticas apartadas. Quedan 3.663 notas.
-> - **MERGED:** 1.166 notas al día y 7 huérfanas apartadas. La única nota editada a mano queda sin tocar. Lo que no es de la fusión (Sesiones, `CLAUDE_CODE`, `CODEX`) no se toca.
-> - **PRJ:** refrescado, con 23 copias huérfanas apartadas.
-> - Pasarlo otra vez no hace nada. `--deshacer` deja RAW, MERGED y PRJ **idénticos** al original (nombres, bytes y fechas).
-> - **El día después:** importar después el export de 2025-12-20 con el mapa de proyectos real y volver a fusionar no cambia ni una nota de RAW; en MERGED cambia una sola, la editada a mano (ver abajo). Sin reparar, la misma importación crea 312 notas en RAW.
->
-> **Las notas no se editan a mano** (decisión de V0ra, 2026-11-16): son el archivo de las conversaciones y dicen lo que se dijo, erratas incluidas. Por eso la fusión normal hace bien en pisar cualquier cambio a mano en MERGED. REParsea·me solo marca esas notas como aviso («no coincide con el archivo») y las deja para que la siguiente importación las devuelva a su forma original.
->
-> **Aplicado al vault real** el 2026-11-16, con backup previo y Obsidian cerrado. Dio las mismas cifras que en la copia.
->
-> **Fase 4a, las imágenes (2026-11-16): RAW fiel, imágenes en MERGED** (decisión de V0ra). Si un export no traía una imagen, su nota de RAW dice «imagen no disponible» y así se queda, porque es la verdad de ese export. REParsea·me busca cada imagen avisada en *cualquier* export, la copia a su banco con el nombre que le daría la importación y apunta puntero → enlace en `<CHATGPT>/_punteros_imagenes.json`. Al leer cada nota, la fusión cambia el aviso por el enlace de **esa misma** imagen si el fichero está en el banco. Así el aviso y el enlace de la misma imagen son un solo mensaje, y dos imágenes distintas siguen siendo distintas. La importación apunta también lo que resuelve, de modo que los exports futuros a los que les falten imágenes se arreglan solos en MERGED.
-> - En la copia del vault real: 1.721 de 2.431 imágenes avisadas están en algún export; las notas de MERGED con avisos pasan de 602 a 194.
-> - El día después (dos exports más, y fusión) no hay ni un duplicado en MERGED.
-> - Las 710 imágenes que ningún export trae se quedan como aviso.
-> - Con esto, el «control» de `recuperar_imagenes.py` (sin reparar, el siguiente export duplicaba turnos) ya no se cumple: la fusión lo evita sola.
->
-> **Fase 4b, regenerar desde el export propio (2026-11-16).** Para lo que la nota sola no sabe (`model`, `conv_id`, imágenes que su export sí traía y el parser antiguo no leía), REParsea·me regenera la conversación desde los exports que la trajeron (`logs/conversaciones_manifest.jsonl`, con `--solo-conv-ids`) y busca la versión exacta: los mismos mensajes, sin contar imágenes ni frontmatter. Si varios exports dan la misma versión, se queda con la que más se parece a la nota, porque esa es la huella de su export. Elegir la que más imágenes tenía la sacaba de su export: 60 notas volvían a duplicarse al reimportar.
-> - En la copia del vault real: 10 notas regeneradas. Otras 985 ya eran fieles a su export (lo que les falta, su export tampoco lo trae). 14 no encuentran su versión exacta y 43 tienen el export que ya no está.
-> - Es idempotente, `--deshacer` lo deja todo idéntico, y el día después no hay duplicados.
-> - Lo que queda en el diagnóstico (avisos, notas sin `model`) es, en su mayoría, la verdad de su export. El diagnóstico todavía no distingue «fiel» de «roto»: pendiente.
-
-Para la recuperación de imágenes, que es otra herramienta, ve a [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md). Para el diseño general, a [ARCHITECTURE.md](ARCHITECTURE.md).
+Para instalar y arrancar, el [README](README.md). Para el diseño general, [ARCHITECTURE.md](ARCHITECTURE.md). La recuperación de imágenes, que es otra herramienta, está en [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md).
 
 ---
 
 ## En una frase
 
-REParsea·me reescribe las notas de `RAW_VAULT` como las escribiría **el parser de hoy**, les pone el nombre que les daría hoy, y después reconstruye `MERGED_VAULT` y `PRJ_VAULT` desde cero. **Con simulación primero, copia de seguridad y vuelta atrás.**
+REParsea·me reescribe las notas de tu vault crudo como las escribiría **la importación de hoy**, cada una fiel a **su propio export**, les pone el nombre que les daría la importación y deja al día el vault fusionado y el de proyectos. **Primero simula, guarda una copia exacta de todo lo que toca y se puede deshacer.**
 
 ## Por qué existe
 
-Cada mejora del parser vale para lo que se importa **después**. Las notas que ya estaban escritas se quedan como salieron. Medido el 2026-11-16 en el vault real, con 7.358 notas en RAW:
+Cada mejora de la importación vale para lo que importas **después**. Las notas que ya tenías se quedan como salieron. Medido en el vault con el que se construyó (7.358 notas en RAW) antes de la primera pasada:
 
-| Deriva | Notas | Desde |
-| --- | --- | --- |
-| Bloques en JSON crudo (`{"content_type": …}`): razonamiento, herramientas, archivos citados, instrucciones personalizadas, Canvas | 3.316 | Hasta `9fc3496` |
-| «Imagen no disponible» | 1.648 | Exports de 2026 (`file_XXXX.dat`) |
-| ChatGPT sin `model` en el frontmatter | 261 | Antes de que se guardara |
-| Sin `conv_id` | 44 | Las más antiguas |
-| Bytes nulos (marcadores `\x00IMG` sin resolver) | 19 | Versiones antiguas |
-| Marcadores de cita en crudo | 8 | Antes de `1827009` |
-| Sin la lista de adjuntos del proyecto | ¿? | Antiguas |
+| Qué fallaba | Notas |
+| --- | --- |
+| Bloques en JSON crudo (`{"content_type": …}`): razonamiento, llamadas a herramientas, archivos citados, instrucciones personalizadas, documentos de Canvas | 3.696 |
+| «Imagen no disponible» (imágenes que la importación antigua no sabía leer, o que el export no traía) | 1.645 |
+| Notas de ChatGPT sin `model` en el frontmatter | 261 |
+| Sin `conv_id` en el frontmatter | 44 |
+| Bytes nulos (marcadores de imagen sin resolver) | 19 |
 
-Y va a volver a pasar: cada vez que el parser mejore habrá una deriva nueva.
+Y va a volver a pasar: cada vez que la importación mejore, habrá algo nuevo para las notas antiguas.
 
 ## Por qué no basta con reimportar
 
-Por las **huellas**. Cada nota de RAW lleva en el nombre la huella de su contenido (`…-h4e66319e.md`). Si el parser de hoy escribe la misma conversación de otra manera, la huella cambia, el nombre también, y RAW gana **otra versión al lado de la vieja**. Después la fusión:
+Por las **huellas**. Cada nota de RAW lleva en el nombre la huella de su contenido (`…-h4e66319e.md`). Si la importación de hoy escribe la misma conversación de otra manera, la huella cambia, el nombre también, y RAW gana **otra versión al lado de la vieja**. Después la fusión:
 
 - elige como campeona la versión con **más palabras**, que suele ser la vieja, porque el JSON crudo abulta;
 - añade los mensajes de la otra como «exclusivos», porque no los reconoce como iguales.
 
-Resultado: miles de notas de MERGED con **las dos formas mezcladas**. Pasaría con el próximo export de ChatGPT aunque nadie tocara nada, así que conviene pasar REParsea·me **antes** de importar exports nuevos.
+Resultado: miles de notas fusionadas con **las dos formas mezcladas**. Por eso REParsea·me conviene pasarlo **antes** de importar exports nuevos.
 
 ---
 
-## Cómo lo hace
+## Cómo se usa
 
-### Paso 0. Aviso
+### Desde la app
 
-Antes de empezar: copia de seguridad del vault (recomendada, no obligatoria) y **Obsidian cerrado**.
+Herramientas → Taller → **REParsea·me**. El título plegado dice la última pasada y cuántas notas siguen con JSON crudo (lo demás solo lo sabe una simulación).
 
-### Paso 1. Diagnóstico (no escribe nada)
+1. **Cierra Obsidian** y haz una copia del vault. Es recomendable, no obligatorio, porque REParsea·me guarda la suya.
+2. **Simular**: enseña el registro en directo y un resumen en tarjetas. No escribe nada en tu vault.
+3. Si los números te cuadran, **Aplicar**. Solo aparece después de simular y pide confirmación. Tarda unos minutos.
+4. **Deshacer la última** dice qué pasada desharía, y deja RAW, el fusionado y el de proyectos **idénticos** a como estaban: nombres, bytes y fechas. Las imágenes copiadas a los bancos se quedan; se llaman por su huella y no duplican nada.
 
-Recorre RAW y, por cada nota, dice qué derivas tiene. Cada deriva sabe si se puede arreglar **con la nota sola** o si hace falta **el export**:
+### Desde una consola
 
-| Se arregla con la nota sola | Necesita el export |
-| --- | --- |
-| JSON crudo (la línea lleva el bloque completo), instrucciones arriba, bytes nulos, citas en crudo | Imagen no disponible, `model`, `conv_id`, adjuntos del proyecto |
+```bash
+python reparseame.py                        # diagnóstico y plan: no escribe nada
+python reparseame.py --aplicar              # de verdad
+python reparseame.py --deshacer "logs\reparseame_AAAAMMDD-HHMMSS"
+```
 
-El informe sale con cifras, como la tabla de arriba.
-
-### Paso 2. Arreglar RAW
-
-- **Con la nota sola:** convierte cada bloque **con las mismas funciones del parser** (`render_bloque_sin_parts`, `_resolver_marcadores`…). No se vuelve a escribir la lógica: si el parser mejora, REParsea·me mejora con él.
-- **Con el export:** si el export de origen está en la carpeta de exports, regenera la nota entera desde él. Si no está, se queda con lo que se pueda arreglar con la nota sola, y el informe lo dice.
-- **Renombra cada nota con la huella de su contenido nuevo.** Es la clave: así la próxima importación encuentra ese nombre, ve el mismo contenido y la salta, sin duplicar.
-- Si dos versiones de una conversación quedan **idénticas** (solo se diferenciaban por las derivas), se queda una y la otra va a la papelera.
-- Copia exacta de cada nota antes de tocarla, como `recuperar_imagenes.py`, y `--deshacer`.
-
-### Paso 3. Reconstruir los derivados
-
-`vault_merge.py` y `project_organizer.py` desde cero, **en carpetas nuevas**, y cambio al final. Hace falta porque la fusión sobrescribe por nombre pero **nunca borra**: las notas que cambian de nombre (hay 4 cuyo título salió del JSON, `content-type-user-editable-context…`) dejarían una huérfana. Los vaults viejos quedan guardados hasta que V0ra diga.
-
-### Paso 4. Sello de versión
-
-Cada nota escrita, por la importación o por REParsea·me, lleva `parser: <fecha>` en el frontmatter. La próxima vez, el diagnóstico es «estas son anteriores a tal fecha» en vez de heurísticas.
+`--base-vault`, `--exports` y `--logs` cambian lo que dice `memoria_config.yaml`; `--csv` guarda una fila por nota afectada.
 
 ---
+
+## Qué hace
+
+1. **Fusiona RAW tal cual**, aparte, para compararlo con tu vault fusionado. Una nota fusionada con líneas que la fusión no produce se **editó a mano**: se marca y no se toca.
+2. **Las imágenes de cualquiera de tus exports.** Cada aviso de «imagen no disponible» lleva dentro el puntero de su imagen.
+   - REParsea·me la busca en todos tus exports, la copia a su banco con el nombre que le daría la importación y apunta puntero → enlace en `<CHATGPT>/_punteros_imagenes.json`.
+   - **RAW no se toca**: si ese export no traía la imagen, el aviso es la verdad de ese export.
+   - La fusión lee esa correspondencia y enseña la imagen en el fusionado si *algún* export la tuvo. El aviso y el enlace de la **misma** imagen pasan a ser un solo mensaje; dos imágenes distintas siguen siendo distintas.
+   - La importación alimenta la misma correspondencia, así que los exports futuros a los que les falten imágenes se arreglan solos en el fusionado.
+3. **Reescribe RAW:**
+   - El JSON crudo se convierte **con las mismas funciones de la importación**: el razonamiento, las herramientas y los resultados van plegados; Canvas se lee como documento; las instrucciones personalizadas van una vez, arriba. Si la importación mejora, REParsea·me mejora con ella.
+   - Lo que la nota sola no sabe sale de **su propio export**: el `model`, el `conv_id` y las imágenes que su export sí traía y la importación antigua no leía. El manifiesto de la importación (`logs/conversaciones_manifest.jsonl`) dice qué exports trajeron cada conversación. Se regenera desde ellos y la nota solo se sustituye si aparece su **versión exacta**: los mismos mensajes, sin contar imágenes ni frontmatter. Si varios exports dan la misma versión, gana la más parecida a la nota, porque es la huella del export que la escribió.
+   - Cada nota con huella se **renombra por su contenido nuevo**, para que la próxima importación la reconozca y la salte.
+   - Las **versiones idénticas** de una misma conversación se apartan a la copia. La que se queda hereda la fecha más reciente, porque la fusión titula una conversación renombrada por su versión más reciente.
+4. **Vault fusionado:** fusiona el RAW reparado aparte y sincroniza **solo las notas que son de la fusión**, las de las carpetas de año. Las notas de sesiones (Claude Code, Codex) y lo demás que viva ahí no se tocan. Las huérfanas van a la copia: son notas que la fusión ya no produce porque su conversación tiene ahora otro nombre.
+5. **Vault de proyectos:** se refresca como en una importación normal, y las copias rancias de conversaciones que cambiaron de proyecto van a la copia.
+6. **Índices**, como en una importación normal.
 
 ## Qué hace y qué no hace
 
 | Hace | No hace |
 | --- | --- |
-| Pone RAW como lo escribiría el parser de hoy | No inventa lo que el export no trae |
-| Renombra por huella para que la próxima importación no duplique | No toca notas editadas a mano sin preguntar (ver decisiones) |
-| Reconstruye MERGED y PRJ en limpio | No borra nada sin papelera |
-| **Por defecto solo simula** | Sin `--aplicar` no escribe ni una nota |
+| Reescribe RAW como lo escribiría la importación de hoy, cada nota desde su propio export | Inventar lo que ningún export trae: esas imágenes se quedan como aviso |
+| Enseña en el fusionado las imágenes que tenga cualquiera de tus exports | Poner en una nota de RAW una imagen que su propio export no traía |
+| Renombra por huella para que la próxima importación no duplique | Tocar notas fusionadas editadas a mano (las marca) |
+| Guarda una copia exacta de todo y deshace al byte | Borrar nada: lo que se aparta va a la copia |
+| **Por defecto solo simula** | Escribir una sola nota sin `--aplicar` / «Aplicar» |
 
-## Cómo se comprueba que funciona
+**Las notas no se editan a mano.** Son el archivo de tus conversaciones y dicen lo que se dijo, erratas incluidas. Por eso la fusión normal hace bien en pisar los cambios a mano en el fusionado, y por eso REParsea·me solo los marca: la siguiente importación los devuelve a su forma original.
 
-- Test de punta a punta: RAW sintético con cada deriva → REParsea·me → la nota es **byte a byte** igual a la que escribe la importación del mismo export.
-- Test anti-duplicado: después de REParsea·me, reimportar el mismo export **no crea ni un fichero** en RAW.
-- Test de vuelta atrás: aplicar + deshacer deja RAW idéntico al de antes (contenido, nombres y fechas).
-- Prueba en una **copia** del vault real antes de tocar el de V0ra.
+## Medido en el vault real
 
-## Decisiones
+Primero en una copia entera y después en el vault mismo (2026-11-16), con las mismas cifras:
 
-Tomadas con V0ra el 2026-11-16:
+- **RAW:** 1.745 notas reescritas, 209 renombradas y 3.695 versiones idénticas apartadas. Las 7.358 notas se quedaron en 3.663 sin perder un mensaje. Después, desde su propio export, se regeneraron 10; otras 985 ya eran fieles (lo que les falta, su export tampoco lo trae).
+- **Imágenes:** 1.721 de las 2.431 imágenes avisadas están en algún export, y las notas fusionadas con avisos bajaron de 602 a 194. Las otras 710 imágenes no están en ningún export.
+- **Fusionado y proyectos:** en las tres pasadas se pusieron al día 1.166, 452 y 15 notas fusionadas. Se apartaron 7 huérfanas del fusionado y 24 copias rancias de proyectos, y quedó sin tocar una nota editada a mano.
+- **El día después:** importar dos exports más y volver a fusionar no crea ningún duplicado.
 
-1. **Versiones: se arreglan todas.** RAW sigue siendo el archivo fiel de cada export, solo que legible, y la fusión sigue teniendo todas las versiones para elegir.
-2. **Notas editadas a mano: se marcan y no se tocan.** Si, quitando las derivas conocidas, una nota sigue sin coincidir con lo que sale de su export, el informe la lista como «no toco: difiere del export» para que V0ra la mire. Las notas no deberían editarse nunca, porque son el archivo; el aviso existe para encontrar las que sí se editaron.
-3. **Recuperar imágenes queda integrado.** Coser cada nota con su imagen es trabajo del parser: hoy, al importar, resuelve los `file_XXXX.dat`, cuelga las generadas de la biblioteca en su conversación y guarda con qué se generó cada una. Al regenerar desde el export con el parser de hoy, las imágenes vuelven solas. «Imagen no disponible» pasa a ser una deriva más, de las que necesitan el export. `recuperar_imagenes.py` se retira cuando REParsea·me cubra sus tres casos (avisos, `--biblioteca` y `--metadatos`) con tests. Hasta entonces se queda como está.
+## Cómo se comprueba
 
-Abiertas:
-
-4. **Quién hace de papelera:** ¿la misma carpeta de copias de `recuperar_imagenes.py`, o una propia? Si se integra, lo natural es heredar la suya.
-5. Comprobar si algo más apunta a los nombres de RAW. Revisado el 16-nov: la galería lee MERGED, así que se regenera. Faltan los pendientes y `_exports_procesados.json`.
-6. Las imágenes copiadas a los bancos al regenerar llevan la misma huella que les daría la importación, así que no se duplican. Hay que comprobarlo con un test.
+- **De punta a punta:** una nota escrita a la antigua sale **byte a byte** igual que la que escribe la importación de hoy desde el mismo export.
+- **Sin duplicados:** después de REParsea·me, reimportar el mismo export **no crea ni un fichero** en RAW.
+- **Deshacer:** aplicar y deshacer lo deja todo idéntico (contenido, nombres y fechas). Deshacer se niega si una nota ha cambiado desde entonces.
+- **La fusión:**
+  - el aviso y el enlace de la misma imagen son un solo mensaje;
+  - sin el fichero en el banco, el aviso se queda;
+  - dos imágenes distintas no se funden.
+- **El Taller:** el estado, simular, aplicar, deshacer y «ya hay una ejecución en curso».
 
 ## Pendiente
 
-- Port a EN (**REParse·me**) en el worktree `en`.
+- El diagnóstico todavía cuenta como pendientes notas que son fieles a su export, porque su export tampoco trae lo que les falta. Tendría que distinguir «fiel» de «roto».
+- Cubrir los dos casos que todavía hace [RECUPERAR_IMAGENES.md](RECUPERAR_IMAGENES.md), para poder retirarla: colgar las imágenes de la biblioteca en notas antiguas y los metadatos de generación.
