@@ -43,6 +43,18 @@ Unlike generic migration tools that only transfer saved memories, M3M0R·IA brin
 
 The conversations from all four providers live together in a single merged vault; every note carries `provider` and `source` in its frontmatter, so you can filter, colour and index by origin, and follow a whole line of thinking end to end. Inkwell, MUSIC·0LOGY and image.ia build vaults of their own: it made no sense to treat an editorial archive, a music library and an image gallery the same way.
 
+### New — REParse·me: your notes, the way they'd be written today (in the code; coming in the next release)
+
+Every improvement to the import applies to what you import **afterwards**; the notes you already had stay as they came out. In the vault it was built with, almost half of the ChatGPT notes carried **raw JSON blocks** — some 46,000 blocks of reasoning, tool calls, quoted files, Canvas documents and your custom instructions, unreadable in the middle of the conversation. Reimporting didn't fix it: it **duplicated** conversations.
+
+- **The import no longer dumps anything raw.** Reasoning, tools and outputs come **folded**; Canvas documents read as documents; your custom instructions go **once, at the top**, and only a change you made is flagged.
+- **REParse·me brings what you already had up to date**, in Tools → Workshop. First a simulation that writes nothing; then apply, with a copy of everything it touches and an "undo" that leaves it **identical**: names, bytes and dates.
+- **Your raw vault stays the faithful archive of each export.** Each note is rewritten the way *its* export would write it today, renamed so the next import recognises it instead of duplicating it, and identical versions are set aside.
+- **Images from any of your exports show up in the merged vault**, even if that note's export didn't bring them. The raw vault isn't touched, and the merge no longer duplicates a message for having the notice once and the image once.
+- **What you edited by hand in the merged vault is flagged, not overwritten.** Notes are the archive of your conversations; the next import brings them back to their original form.
+
+On the real vault: 7,358 raw notes became 3,663 without losing a message, and merged notes with image notices went from 602 to 194 — the rest are images no export has. How it works, what it doesn't do and why: **[REPARSEME.md](REPARSEME.md)**.
+
 ### New — Tools, and your vault your way (v3.3.0)
 
 **Tools**, at the bottom of the sidebar, brings together what used to exist only in the console:
@@ -342,6 +354,7 @@ Each document answers **one** question. If you're looking for something that isn
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | How does it work inside and why this way? |
 | **[CARTOGRAPHY.md](CARTOGRAPHY.md)** | How does Cartography decide which note goes in which theme? |
 | **[GALLERY.md](GALLERY.md)** | What does the gallery show about each image, and where does it get it? |
+| **[REPARSEME.md](REPARSEME.md)** | My vault was written by older versions of the import: how do I bring it up to date without losing anything or duplicating? |
 | **[RECOVER_IMAGES.md](RECOVER_IMAGES.md)** | How do I put back into my notes the ChatGPT images that are missing? |
 | **[INKWELL_GALLERY.md](INKWELL_GALLERY.md)** | What does the gallery of my Substack posts show, and where does it get the covers? |
 | **[VAULT_LAYOUT.md](VAULT_LAYOUT.md)** | How are my vault's folders organized, and why does it sometimes refuse to continue? |
@@ -359,6 +372,7 @@ Each document answers **one** question. If you're looking for something that isn
 - **One document per tool**, like [CARTOGRAPHY.md](CARTOGRAPHY.md), with its test: Observatory, Verification, Build, Local sessions, music.ia, image.ia, Inkwell and the Workshop.
 - **Migrating a vault with notes from one organization to another** (for example, from all together to one folder per provider). Today it can be chosen for a new vault; in one with notes, the app prevents it and explains why.
 - Distinguishing "never had a project" from "has a project nobody's named yet" in `Project_name` — both currently collapse to `none`
+- **REParse·me**: have the diagnosis tell a note that's "faithful to its export" (what it lacks, its export doesn't have either) from a broken one, and cover the two cases `recuperar_imagenes.py` still handles (hanging library images on old notes, and generation metadata), so it can be retired.
 
 ---
 

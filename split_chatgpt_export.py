@@ -389,7 +389,7 @@ def render_image_tokens(content: str, asset_index: Optional[AssetIndex],
 # Puntero -> enlace de cada imagen resuelta. Se guarda en
 # <CHATGPT>/_punteros_imagenes.json para que la fusion (vault_merge.py) cambie
 # por su enlace los avisos de otros exports que no traian esa misma imagen: RAW
-# se queda fiel a cada export y en MERGED la imagen se ve igual. Ver REPARSEAME.md.
+# se queda fiel a cada export y en MERGED la imagen se ve igual. Ver REPARSEME.md.
 ENLACES_RESUELTOS: Dict[str, str] = {}
 NOMBRE_PUNTEROS = "_punteros_imagenes.json"
 
@@ -863,7 +863,7 @@ def write_md(base_out_dir: str, title: str, date_str: str,
             # La primera version de cada conversacion se llama sin huella. Si
             # ya dice esto mismo, no hay nada que escribir: sin esta comprobacion
             # nacia al lado una gemela -hXXXX identica (2.100 en el vault real
-            # de V0ra, medido el 2026-11-16). Ver REPARSEAME.md.
+            # de V0ra, medido el 2026-11-16). Ver REPARSEME.md.
             if contenido_identico(path, content_text):
                 rel = os.path.relpath(path, base_out_dir).replace("\\", "/")
                 return path, rel

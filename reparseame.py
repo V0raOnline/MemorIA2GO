@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 reparseame.py -- REParsea·me: pone las notas de RAW como las escribiria el
-parser de hoy, sin duplicar conversaciones. Diseno completo en REPARSEAME.md.
+parser de hoy, sin duplicar conversaciones. Diseno completo en REPARSEME.md.
 
 Pieza 1 (esta): el DIAGNOSTICO. Recorre las conversaciones de RAW y dice que
 derivas tiene cada nota y si se arreglan con la nota sola o hace falta su
